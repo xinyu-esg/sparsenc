@@ -8,7 +8,7 @@ int main(int argc, char *argv[])
 {
 	//char filename[] = "test.file";
 	srand( (int) time(0) );
-	long datasize = 15998000;
+	long datasize = 1599800;
 	unsigned char *buf = malloc(datasize);
 	int rnd=open("/dev/urandom", O_RDONLY);
 	read(rnd, buf, datasize);

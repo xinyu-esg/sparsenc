@@ -6,7 +6,7 @@ CC = gcc
 CFLAGS = -std=c99 -g -lm
 
 TEST_GGDEC = test.GGdecoder.o bipartite.o gncEncoder.o gncGGDecoder.o galois.o gaussian.o common.o
-TEST_OADEC = test.OAdecoder.o bipartite.o gncEncoder.o gncOADecoder.o galois.o gaussian.o common.o
+TEST_OADEC = test.OAdecoder.o bipartite.o gncEncoder.o gncOADecoder.o galois.o gaussian.o common.o pivoting.o
 
 
 test.GGdecoder: $(TEST_GGDEC)

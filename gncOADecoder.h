@@ -44,22 +44,6 @@ struct running_matrix
 	GF_ELEMENT **message;							//[CLASS_SIZE][EXT_N];
 };
 
-// 定义双向链表的元素，用来存放具有特定非零元素数目的行或列的下标号
-struct subscript
-{
-	int index;
-	int nonzeros;
-	struct subscript *next;
-	struct subscript *prev;
-};
-
-struct subscripts
-{
-	struct subscript *ssFirst;
-	struct subscript *ssLast;
-};
-
-
 void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasize, int s_b, int s_g, int s_p, int aoh);
 void process_packet_OA(struct decoding_context_OA *dec_ctx, struct coded_packet *pkt);
 
