@@ -6,17 +6,45 @@
 typedef struct subscript				Subscript;
 typedef struct subscripts				ssList;
 
-static void finish_recovering_inactivation(struct decoding_context_OA *dec_ctx);
-static long long partially_diag_RM_matrices(struct decoding_context_OA *dec_ctx);
-static void construct_GDM_inactivation(struct decoding_context_OA *dec_ctx);
-
-static int Inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT **A, ssList *RowPivots, ssList *ColPivots);
-static int Zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT **A, ssList *RowPivots, ssList *ColPivots);
+/*
+ * Transform coefficient matrix of each generation to row echelon form (REF).
+ * The REF has the property that if a diagonal element is nonzero, all elements
+ * above it are reduced to zero.
+ */
+static long running_matrix_to_REF(struct decoding_context_OA *dec_ctx);
 
 /*
- * Reorder matrix A and B of Ax=B according to pivot sequence in (RowPivots, ColPivots)
+ * Construct global decoding matrix (GDM) from REFs of each generation. Two times of
+ * pivoting are done to transform GDM to a specific form where the bottom-right corner is
+ * dense and the above half is partially diagonal:
+ * -                 -
+ * | x 0 0 0 0 x x x |
+ * | 0 x 0 0 0 x x x |
+ * | 0 0 x 0 0 x x x |
+ * | 0 0 0 x 0 x x x |
+ * | 0 0 0 0 x x x x |
+ * | 0 0 0 0 0 x x x |
+ * | 0 0 0 0 0 x x x |
+ * | 0 0 0 0 0 x x x |
+ * -                -
  */
-static void matrices_reordering(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, ssList *RowPivots, ssList *ColPivots, int npv);
+static void construct_GDM(struct decoding_context_OA *dec_ctx);
+
+/*
+ * Fully transform GDM to identity matrix to finish decoding.
+ */
+static void diagonalize_GDM(struct decoding_context_OA *dec_ctx);
+
+/*
+ * Procedures to pivot matrix.
+ */
+static int inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT **A, ssList *RowPivots, ssList *ColPivots);
+static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT **A, ssList *RowPivots, ssList *ColPivots);
+
+/*
+ * Reshape matrix A and B of Ax=B according to pivot sequence in (RowPivots, ColPivots)
+ */
+static void reshape_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, ssList *RowPivots, ssList *ColPivots, int npv);
 
 /*
  * Reorder columns of A according to sequence in ColPivots
@@ -24,7 +52,7 @@ static void matrices_reordering(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, 
 static void permute_matrix_columns(int nrow, int ncolA, GF_ELEMENT **A, ssList *ColPivots);
 
 /* 
- * Helper functions in handling pivots
+ * Helper functions for pivoting
  * We use double-linked lists when pivoting a matrix.
  */
 static void insertSubAtBeginning(ssList *sub_list, Subscript *sub);
@@ -123,9 +151,9 @@ void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasi
 		NBR_node *variable_node = dec_ctx->gc->graph->l_nbrs_of_r[i]->first; 		//ldpc_graph->nbrs_of_right[i];
 		while (variable_node != NULL) {
 			// 标记与该check packet连结的所有source packet node
-			int src_pkt_id = variable_node->data;						//variable_node->nb_index;
-			dec_ctx->JMBcoefficient[dec_ctx->gc->meta.snum+dec_ctx->aoh+i][src_pkt_id] = 1;
-			//dec_ctx->JMBcoefficient[NUM_SRC+OHS+i][src_pkt_id] = variable_node->nb_ce;
+			int src_pktid = variable_node->data;						//variable_node->nb_index;
+			dec_ctx->JMBcoefficient[dec_ctx->gc->meta.snum+dec_ctx->aoh+i][src_pktid] = 1;
+			//dec_ctx->JMBcoefficient[NUM_SRC+OHS+i][src_pktid] = variable_node->nb_ce;
 			variable_node = variable_node->next;
 		}
 	}
@@ -152,18 +180,16 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct coded_packet 
 	int gid = pkt->gid;
 	struct running_matrix *matrix = dec_ctx->Matrices[gid];
 	matrix->overhead += 1;
-	GF_ELEMENT *local_ces = calloc(gensize, sizeof(GF_ELEMENT));		//[matrix->degree];
-	memcpy(local_ces, pkt->coes, sizeof(GF_ELEMENT)*gensize);
 
 	// start processing
 	// Always process it in the generation first
 	pivotfound = 0;
 	for (i=0; i<gensize; i++) {
-		if (local_ces[i] != 0) {
+		if (pkt->coes[i] != 0) {
 			if (matrix->coefficient[i][i] != 0) {
-				quotient = galois_divide(local_ces[i], matrix->coefficient[i][i], GF_ORDER);
+				quotient = galois_divide(pkt->coes[i], matrix->coefficient[i][i], GF_ORDER);
 				dec_ctx->operations += 1;
-				galois_multiply_add_region(local_ces+i, &(matrix->coefficient[i][i]), quotient, gensize-i, GF_ORDER);
+				galois_multiply_add_region(&(pkt->coes[i]), &(matrix->coefficient[i][i]), quotient, gensize-i, GF_ORDER);
 				dec_ctx->operations += (gensize - i);
 				galois_multiply_add_region(pkt->syms, matrix->message[i], quotient, pktsize, GF_ORDER);
 				dec_ctx->operations += pktsize;
@@ -181,7 +207,7 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct coded_packet 
 	if (dec_ctx->OA_ready != 1) {
 		// cache as normal GNC packet
 		if (pivotfound == 1) {
-			memcpy(matrix->coefficient[pivot], local_ces, gensize*sizeof(GF_ELEMENT));
+			memcpy(matrix->coefficient[pivot], pkt->coes, gensize*sizeof(GF_ELEMENT));
 			memcpy(matrix->message[pivot], pkt->syms, pktsize*sizeof(GF_ELEMENT));
 			dec_ctx->local_DoF += 1;
 		}
@@ -189,15 +215,15 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct coded_packet 
 		if ((dec_ctx->local_DoF >= dec_ctx->gc->meta.snum) && (dec_ctx->overhead >= (dec_ctx->gc->meta.snum+dec_ctx->aoh))) {
 			dec_ctx->OA_ready = 1;
 			// When OA ready, convert LDMs to upper triangular form
-			long long ops = partially_diag_RM_matrices(dec_ctx);
+			long ops = running_matrix_to_REF(dec_ctx);
 			dec_ctx->operations += ops;
 			// Combine LDMs to GDM and apply inactivation pivoting
-			construct_GDM_inactivation(dec_ctx);
+			construct_GDM(dec_ctx);
 
 			// If numpp innovative packets are received, recover all
 			// source packets from JMBcoeffcient and JMBmessage
 			if (dec_ctx->global_DoF == numpp) 
-				finish_recovering_inactivation(dec_ctx);
+				diagonalize_GDM(dec_ctx);
 		}
 	} else {
 	/*
@@ -205,7 +231,7 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct coded_packet 
 	 */
 		if (pivotfound == 1) {
 			// store into each generation anyway
-			memcpy(matrix->coefficient[pivot], local_ces, gensize*sizeof(GF_ELEMENT));
+			memcpy(matrix->coefficient[pivot], pkt->coes, gensize*sizeof(GF_ELEMENT));
 			memcpy(matrix->message[pivot], pkt->syms,  pktsize*sizeof(GF_ELEMENT));
 
 			/*
@@ -217,7 +243,7 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct coded_packet 
 			for (i=0; i<gensize; i++) {
 				/* obtain current index position of pktid */
 				int curr_pos = dec_ctx->otoc_mapping[dec_ctx->gc->gene[gid]->pktid[i]];
-				re_ordered[curr_pos] = local_ces[i];
+				re_ordered[curr_pos] = pkt->coes[i];
 			}
 	
 			/*
@@ -259,24 +285,23 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct coded_packet 
 
 				if (dec_ctx->global_DoF == numpp) {
 					// recover all source from JMBcoeffcient & JMBmessage matrix
-					finish_recovering_inactivation(dec_ctx);
+					diagonalize_GDM(dec_ctx);
 				}
 			}
 			free(re_ordered);
 		}
 	}
 
-	free(local_ces);			// NOTE: is it really necessary to allocate local_ces?
 	free_gnc_packet(pkt);
 	pkt = NULL;
 }
 
-static void finish_recovering_inactivation(struct decoding_context_OA *dec_ctx)
+static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
 {
 	static char fname[] = "finish_recovering_inactivation";
 	int i, j, k;
 	int pos;
-	int pkt_id;
+	int pktid;
 	
 	int gensize = dec_ctx->gc->meta.size_g;
 	int pktsize = dec_ctx->gc->meta.size_p;
@@ -289,44 +314,26 @@ static void finish_recovering_inactivation(struct decoding_context_OA *dec_ctx)
 	GF_ELEMENT **ces_submatrix = calloc(ias, sizeof(GF_ELEMENT*));
 	for (i=0; i<ias; i++) {
 		ces_submatrix[i] = calloc(ias, sizeof(GF_ELEMENT));
-		// NOTE: here better to use memcpy
-		for (j=0; j<ias; j++) 
-			ces_submatrix[i][j] = dec_ctx->JMBcoefficient[numpp-ias+i][numpp-ias+j];
+		memcpy(ces_submatrix[i], &(dec_ctx->JMBcoefficient[numpp-ias+i][numpp-ias]), ias*sizeof(GF_ELEMENT));
 	}
-	GF_ELEMENT **msg_submatrix = calloc(ias, sizeof(GF_ELEMENT*));
-	for (i=0; i<ias; i++) {
-		msg_submatrix[i] = calloc(pktsize, sizeof(GF_ELEMENT));
-		// NOTE: here better to use memcpy
-		memcpy(msg_submatrix[i], dec_ctx->JMBmessage[numpp-ias+i], sizeof(GF_ELEMENT)*pktsize);
-	}
-
-	//long long ops = back_substitute(ias, ias, dec_ctx->gc->meta.size_p, ces_submatrix, dec_ctx->JMBmessage+dec_ctx->gc->meta.snum+dec_ctx->gc->meta.cnum-ias);
-	//long long ops = back_substitute(ias, ias, pktsize, ces_submatrix, &(dec_ctx->JMBmessage[numpp-ias]));
-	long long ops = back_substitute(ias, ias, pktsize, ces_submatrix, msg_submatrix);
-	// copy msg_submatrix back to JMBmessage
-	for (i=0; i<ias; i++) 
-		memcpy(dec_ctx->JMBmessage[numpp-ias+i], msg_submatrix[i], sizeof(GF_ELEMENT)*pktsize);
+	
+	/* Perform back substitution to reduce the iasxias matrix to identity matrix */
+	long long ops = back_substitute(ias, ias, pktsize, ces_submatrix, &(dec_ctx->JMBmessage[numpp-ias]));
 	dec_ctx->operations += ops;
 
 	// Recover decoded overlapping packets
 	for (i=0; i<ias; i++) {
-		// get original pkt_id at column (numpp-ias+i0
-		int pkt_id = dec_ctx->ctoo_mapping[numpp-ias+i];	
+		// get original pktid at column (numpp-ias+i0
+		pktid = dec_ctx->ctoo_mapping[numpp-ias+i];	
 		// Construct decoded packets
-		if (dec_ctx->gc->pp[pkt_id] != NULL)
-			printf("%s: Warning: dec_ctx->gc->pp[%d] is already there.\n", fname, pkt_id);
-		if ( (dec_ctx->gc->pp[pkt_id] = calloc(pktsize, sizeof(GF_ELEMENT))) == NULL )
-			printf("%s: calloc gc->pp[%d]\n", fname, pkt_id);
-		memcpy(dec_ctx->gc->pp[pkt_id], dec_ctx->JMBmessage[numpp-ias+i], sizeof(GF_ELEMENT)*pktsize);
+		if ( (dec_ctx->gc->pp[pktid] = calloc(pktsize, sizeof(GF_ELEMENT))) == NULL )
+			printf("%s: calloc gc->pp[%d]\n", fname, pktid);
+		memcpy(dec_ctx->gc->pp[pktid], dec_ctx->JMBmessage[numpp-ias+i], sizeof(GF_ELEMENT)*pktsize);
 	}
-	// free ces_submatrix
+	/* free ces_submatrix */
 	for (i=0; i<ias; i++) 
 		free(ces_submatrix[i]);
 	free(ces_submatrix);
-	// free msg_submatrix
-	for (i=0; i<ias; i++) 
-		free(msg_submatrix[i]);
-	free(msg_submatrix);
 	
 
 	// Recover active packets
@@ -341,10 +348,8 @@ static void finish_recovering_inactivation(struct decoding_context_OA *dec_ctx)
 		for (j=numpp-ias; j<numpp; j++) {
 			if (dec_ctx->JMBcoefficient[i][j] != 0) {
 				quotient = dec_ctx->JMBcoefficient[i][j];
-				int pkt_id = dec_ctx->ctoo_mapping[j];			
-				if (dec_ctx->gc->pp[pkt_id] == NULL)
-					printf("%s: error: packet %d is not decoded yet.\n", fname, pkt_id);
-				galois_multiply_add_region(dec_ctx->JMBmessage[i], dec_ctx->gc->pp[pkt_id], quotient, pktsize, GF_ORDER);
+				pktid = dec_ctx->ctoo_mapping[j];			
+				galois_multiply_add_region(dec_ctx->JMBmessage[i], dec_ctx->gc->pp[pktid], quotient, pktsize, GF_ORDER);
 				dec_ctx->JMBcoefficient[i][j] = 0;
 				dec_ctx->operations += pktsize;
 			}
@@ -360,12 +365,12 @@ static void finish_recovering_inactivation(struct decoding_context_OA *dec_ctx)
 		}
 
 		// Save the decoded packet
-		int pkt_id = dec_ctx->ctoo_mapping[i];
-		if ( dec_ctx->gc->pp[pkt_id] != NULL )
-			printf("%s：warning: packet %d is already recovered.\n", fname, pkt_id);
-		if ( (dec_ctx->gc->pp[pkt_id] = calloc(pktsize, sizeof(GF_ELEMENT))) == NULL )
-			printf("%s: calloc gc->pp[%d]\n", fname, pkt_id);
-		memcpy(dec_ctx->gc->pp[pkt_id], dec_ctx->JMBmessage[i], sizeof(GF_ELEMENT)*pktsize);
+		pktid = dec_ctx->ctoo_mapping[i];
+		if ( dec_ctx->gc->pp[pktid] != NULL )
+			printf("%s：warning: packet %d is already recovered.\n", fname, pktid);
+		if ( (dec_ctx->gc->pp[pktid] = calloc(pktsize, sizeof(GF_ELEMENT))) == NULL )
+			printf("%s: calloc gc->pp[%d]\n", fname, pktid);
+		memcpy(dec_ctx->gc->pp[pktid], dec_ctx->JMBmessage[i], sizeof(GF_ELEMENT)*pktsize);
 	}
 
 	dec_ctx->finished = 1;
@@ -373,7 +378,7 @@ static void finish_recovering_inactivation(struct decoding_context_OA *dec_ctx)
 
 // Partially diagonalize all running matrices when the decoder is OA ready
 // diagonalizes them as much as possible
-static long long partially_diag_RM_matrices(struct decoding_context_OA *dec_ctx)
+static long running_matrix_to_REF(struct decoding_context_OA *dec_ctx)
 {
 	long long operations = 0;
 	int i, j, k, l;
@@ -420,7 +425,7 @@ static long long partially_diag_RM_matrices(struct decoding_context_OA *dec_ctx)
 	return operations;
 }
 
-static void construct_GDM_inactivation(struct decoding_context_OA *dec_ctx)
+static void construct_GDM(struct decoding_context_OA *dec_ctx)
 {
 	int i, j, k;
 	struct running_matrix *matrix;
@@ -475,7 +480,7 @@ static void construct_GDM_inactivation(struct decoding_context_OA *dec_ctx)
 	int npv;				// the number of pivots found (这是个无用的量,placeholder)
 	int ias;				// the number of columns been inactivated
 	printf("Inactivation pivoting strategy is used. IA_INIT: %d, IA_STEP: %d.\n", IA_INIT, IA_STEP);
-	ias = Inactivation_pivoting(numpp+dec_ctx->aoh, numpp, ces_matrix, row_pivots, col_pivots);
+	ias = inactivation_pivoting(numpp+dec_ctx->aoh, numpp, ces_matrix, row_pivots, col_pivots);
 	dec_ctx->inactives = ias;
 	printf("A total of %d/%d columns are inactivated.\n", ias, numpp);
 	npv = numpp;
@@ -496,13 +501,13 @@ static void construct_GDM_inactivation(struct decoding_context_OA *dec_ctx)
 	double reordering_time = 0.0;
 	time_t start_reorder, stop_reorder;
 	time(&start_reorder);
-	matrices_reordering(numpp+dec_ctx->aoh, numpp, pktsize, ces_matrix, msg_matrix, row_pivots, col_pivots, npv);
+	/* reorder rows and columns of ces_matrix and msg_matrix after pivoting*/
+	reshape_matrix(numpp+dec_ctx->aoh, numpp, pktsize, ces_matrix, msg_matrix, row_pivots, col_pivots, npv);
+	free_subscriptList(row_pivots);
+	free_subscriptList(col_pivots);
 	time(&stop_reorder);
 	reordering_time = difftime(stop_reorder, start_reorder);
 	printf("Time consumed in matrix re-ordering after pivoting T: %.0f seconds.\n", reordering_time);
-
-	free_subscriptList(row_pivots);
-	free_subscriptList(col_pivots);
 
 	int missing_pivots = 0;
 	for (i=0; i<numpp+dec_ctx->aoh; i++) {
@@ -552,26 +557,8 @@ static void construct_GDM_inactivation(struct decoding_context_OA *dec_ctx)
 	}
 	dec_ctx->operations += ops1;
 	
-	/********
-	 *
-	 * Check the density of T_I
-	 *
-	 *******/
-	/*
-	 *
-	int row_counts_tmp;
-	for (i=nrow-ncol+ias; i<nrow; i++)
-	{
-		row_counts_tmp = 0;
-		for (j=ncol-ias; j<ncol; j++)
-		{
-			if (ces_matrix[i][j] != 0)
-				row_counts_tmp += 1;
-		}
-		printf("row %d has %d/%d nonzero elements.\n", i, row_counts_tmp, ias);
-	}
-	*/
-
+	/* Second time pivoting on the iasxias dense inactivated matrix. */ 
+	printf("Perform another time of pivoting after partly diagonalizing T\n");
 	GF_ELEMENT **ces_submatrix = calloc(ias+dec_ctx->aoh, sizeof(GF_ELEMENT*));
 	GF_ELEMENT **msg_submatrix = calloc(ias+dec_ctx->aoh, sizeof(GF_ELEMENT*));
 	for (i=0; i<ias+dec_ctx->aoh; i++){
@@ -581,19 +568,17 @@ static void construct_GDM_inactivation(struct decoding_context_OA *dec_ctx)
 		memcpy(msg_submatrix[i], msg_matrix[numpp-ias+i], pktsize*sizeof(GF_ELEMENT));
 	}
 
-	// 对inactive part的右下角的(ias x ias)的方阵再做一次pivoting
-	printf("Perform another time of pivoting after partly diagonalizing T\n");
 	ssList *row_pivots_2nd = malloc(sizeof(ssList));
 	ssList *col_pivots_2nd = malloc(sizeof(ssList));
 	row_pivots_2nd->ssFirst = row_pivots_2nd->ssLast = NULL;
 	col_pivots_2nd->ssFirst = col_pivots_2nd->ssLast = NULL;
 	printf("Start the second-time pivoting...\n");
-	int ias_2nd = Zlatev_pivoting(ias+dec_ctx->aoh, ias, ces_submatrix, row_pivots_2nd, col_pivots_2nd);
+	int ias_2nd = zlatev_pivoting(ias+dec_ctx->aoh, ias, ces_submatrix, row_pivots_2nd, col_pivots_2nd);
 	printf("A total of %d/%d columns are further inactivated.\n", ias_2nd, ias);
 	int npv_2nd = ias;
 	
-	// 更新otoc_mapping & ctoo_mapping after second-time pivoting
-	// Careful!!!这一步非常重要，也非常容易出错！
+	// Update otoc_mapping & ctoo_mapping after second-time pivoting
+	// Careful!! This step is critical.
 	int *partial_mappings = (int *) calloc(ias, sizeof(int));
 
 	Subscript *ss_pt_2nd = col_pivots_2nd->ssFirst;
@@ -608,26 +593,21 @@ static void construct_GDM_inactivation(struct decoding_context_OA *dec_ctx)
 	}
 
 	// re-order the ((ias+OHS) x ias) matrix
-	matrices_reordering(ias+dec_ctx->aoh, ias, pktsize, ces_submatrix, msg_submatrix, row_pivots_2nd, col_pivots_2nd, npv_2nd);
+	reshape_matrix(ias+dec_ctx->aoh, ias, pktsize, ces_submatrix, msg_submatrix, row_pivots_2nd, col_pivots_2nd, npv_2nd);
 	
 	// re-order the columns above it accordingly
 	GF_ELEMENT **BI_matrix = calloc(numpp+dec_ctx->aoh-ias, sizeof(GF_ELEMENT*));
 	for (i=0; i<numpp+dec_ctx->aoh-ias; i++) {
 		BI_matrix[i] = calloc(ias, sizeof(GF_ELEMENT));
-		for (j=0; j<ias; j++) {
-			BI_matrix[i][j] = ces_matrix[i][numpp-ias+j];
-		}
+		memcpy(BI_matrix[i], &(ces_matrix[i][numpp-ias]), ias*sizeof(GF_ELEMENT));
 	}
 
 	permute_matrix_columns(numpp+dec_ctx->aoh-ias, ias, BI_matrix, col_pivots_2nd);
-	// copy back
-	for (i=0; i<numpp+dec_ctx->aoh-ias; i++) {
-		for (j=0; j<ias; j++) {
-			ces_matrix[i][numpp-ias+j] = BI_matrix[i][j];
-		}
-	}
 	free_subscriptList(row_pivots_2nd);
 	free_subscriptList(col_pivots_2nd);
+	// copy re-ordered submatrix B_I back
+	for (i=0; i<numpp+dec_ctx->aoh-ias; i++) 
+		memcpy(&(ces_matrix[i][numpp-ias]), BI_matrix[i], ias*sizeof(GF_ELEMENT));
 	// 结束第二次pivoting
 
 	// 3, perform forward substitution on the re-ordered matrix
@@ -646,19 +626,14 @@ static void construct_GDM_inactivation(struct decoding_context_OA *dec_ctx)
 	printf("There are %d DoFs missing after performed forward substitution.\n", missing_DoF);
 	dec_ctx->global_DoF = (numpp - missing_DoF);
 
-	// store the processed matrix back to dec_ctx
+	// save the processed matrices back to JMBcoefficient and JMBmessage in dec_ctx
 	for (i=0; i<numpp-ias; i++) {
-		for (j=0; j<numpp; j++) {
-			dec_ctx->JMBcoefficient[i][j] = ces_matrix[i][j];
-		}
+		memcpy(dec_ctx->JMBcoefficient[i], ces_matrix[i], numpp*sizeof(GF_ELEMENT));
 		memcpy(dec_ctx->JMBmessage[i], msg_matrix[i], pktsize*sizeof(GF_ELEMENT));
 	}
 
 	for (i=numpp-ias; i<numpp; i++) {
-		memset(dec_ctx->JMBcoefficient[i], 0, sizeof(GF_ELEMENT)*numpp);
-		for (j=numpp-ias; j<numpp; j++) {
-			dec_ctx->JMBcoefficient[i][j] = ces_submatrix[i-(numpp-ias)][j-(numpp-ias)];
-		}
+		memcpy(&(dec_ctx->JMBcoefficient[i][numpp-ias]), ces_submatrix[i-(numpp-ias)], ias*sizeof(GF_ELEMENT));
 		memcpy(dec_ctx->JMBmessage[i], msg_submatrix[i-(numpp-ias)], pktsize*sizeof(GF_ELEMENT));
 	}
 
@@ -686,7 +661,7 @@ static void construct_GDM_inactivation(struct decoding_context_OA *dec_ctx)
 }
 
 // Use Zlatev pivoting scheme
-static int Zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivots, ssList *ColPivots)
+static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivots, ssList *ColPivots)
 {	
 	// 对A的各行各列的非零元素计数
 	//对A的各行各列的非零元素计数
@@ -719,21 +694,18 @@ static int Zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 	//RowID_lists = (ssList *) malloc(sizeof(ssList*) * (max_row1s+1));
 	ssList **RowID_lists = (ssList **) malloc(sizeof(ssList*) * (max_row1s+1)); // 指针数组，每个指针指向一个双向链表，同一个链表中的行具有相同数目的非零元素
 	ssList **ColID_lists = (ssList **) malloc(sizeof(ssList*) * (max_col1s+1)); // 指针数组，每个指针指向一个双向链表，同一个链表中的列具有相同数目的非零元素
-	for (i=0; i<max_row1s+1; i++)
-	{
+	for (i=0; i<max_row1s+1; i++) {
 		RowID_lists[i] = (ssList *) malloc(sizeof(ssList));
 		RowID_lists[i]->ssFirst = RowID_lists[i]->ssLast = NULL;
 	}
-	for (i=0; i<max_col1s+1; i++)
-	{
+	for (i=0; i<max_col1s+1; i++) {
 		ColID_lists[i] = (ssList *) malloc(sizeof(ssList));
 		ColID_lists[i]->ssFirst = ColID_lists[i]->ssLast = NULL;
 	}
 	// 分类具有不同数目非零元素的行和列
 	//
 	int allzero_rows = 0;
-	for (i=0; i<nrow; i++)
-	{
+	for (i=0; i<nrow; i++) {
 		int row_count = row_counts[i];
 		Subscript *rowID = malloc(sizeof(Subscript));
 		rowID->index = i;
@@ -744,8 +716,7 @@ static int Zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 			allzero_rows += 1;
 	}
 	int allzero_cols = 0;
-	for (i=0; i<ncolA; i++)
-	{
+	for (i=0; i<ncolA; i++) {
 		int col_count = col_counts[i];
 		Subscript *colID = malloc(sizeof(Subscript));
 		colID->index = i;
@@ -769,8 +740,7 @@ static int Zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 	int removed_rows = 0;
 	int toallzero_rows = 0;
 	int singletons = 0;
-	while (pivots_found != ncolA)
-	{
+	while (pivots_found != ncolA) {
 		//printf("%d rows removed, %d reduced to all-zero.\n", removed_rows, toallzero_rows);
 		//printf("%d cols removed, %d reduced to all-zero.\n", removed_cols, toallzero_cols);
 
@@ -787,33 +757,27 @@ static int Zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 		
 		// 按行搜索，并且逐次遍历
 		int searched_rows = 0;
-		for (i=1; i<=max_row1s; i++)
-		{
+		for (i=1; i<=max_row1s; i++) {
 			// 先按行的非零元素多少搜索
 			mc_minipos = (i - 1) * (i - 1);
 			if (RowID_lists[i]->ssFirst == NULL)
 				continue;
 
 			rows_inchecking = RowID_lists[i]->ssFirst;
-			while (rows_inchecking != NULL && (searched_rows < ZLATEVS))
-			{
+			while (rows_inchecking != NULL && (searched_rows < ZLATEVS)) {
 				searched_rows += 1;
 				row_id = rows_inchecking->index;
 				//printf("row %d contains only one entry.\n", row_id);
 
 				// 再按列的非零元素多少做test
-				for (j=1; j<=max_col1s; j++)
-				{
+				for (j=1; j<=max_col1s; j++) {
 					cols_inchecking = ColID_lists[j]->ssFirst;
-					while (cols_inchecking != NULL)
-					{
+					while (cols_inchecking != NULL) {
 						col_id = cols_inchecking->index;
-						if (A[row_id][col_id] != 0)
-						{
+						if (A[row_id][col_id] != 0) {
 							// we have found an entry in (row_id)-th row
 							current_mc = (i-1) * (j-1);
-							if (current_mc == 0)
-							{
+							if (current_mc == 0) {
 								
 								potential_r = row_id;
 								potential_c = col_id;
@@ -821,9 +785,7 @@ static int Zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 									singletons += 1;
 								//	printf("a singleton row is found.\n");
 								goto found;
-							}
-							else if (potential_mc == -1 || current_mc < potential_mc)
-							{
+							} else if (potential_mc == -1 || current_mc < potential_mc) {
 								potential_r = row_id;
 								potential_c = col_id;
 								potential_mc = current_mc;
@@ -837,8 +799,7 @@ static int Zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 		}
 
 		
-		if (potential_r == -1 || potential_c == -1)
-		{
+		if (potential_r == -1 || potential_c == -1) {
 			//printf("error: no pivot is found, the matrix is not full-rank.\n");
 			printf("%d rows reduced to all-zero.\n", toallzero_rows);
 			printf("%d cols reduced to all-zero.\n", toallzero_cols);
@@ -847,8 +808,7 @@ static int Zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 			Subscript *sub_ptt;
 			sub_ptt = ColID_lists[0]->ssFirst;
 			int zerocols = 0;
-			while(sub_ptt != NULL)
-			{
+			while(sub_ptt != NULL) {
 				zerocols += 1;
 				Subscript *newCpivot0 = malloc(sizeof(Subscript));
 				newCpivot0->index = sub_ptt->index;
@@ -860,8 +820,7 @@ static int Zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 
 			sub_ptt = RowID_lists[0]->ssFirst;
 			//for (i=0; i<(toallzero_rows+allzero_cols); i++)
-			for (i=0; i<zerocols; i++)
-			{
+			for (i=0; i<zerocols; i++) {
 				Subscript *newRpivot0 = malloc(sizeof(Subscript));
 				newRpivot0->index = sub_ptt->index;
 				newRpivot0->nonzeros = sub_ptt->nonzeros;
@@ -901,24 +860,18 @@ found:
 		Subscript *ss_pt_next;
 		// 注意有些行和列已经被eliminated了，因此这里采取遍历Subscript对象来更新
 		// 1, Update columns
-		for (i=1; i<=max_col1s; i++)
-		{
+		for (i=1; i<=max_col1s; i++) {
 			ss_pt = ColID_lists[i]->ssFirst;
-			while (ss_pt != NULL)
-			{
-				if (A[p_r][ss_pt->index] != 0)
-				{
+			while (ss_pt != NULL) {
+				if (A[p_r][ss_pt->index] != 0) {
 					// 该subscript对象将要被更新处理，因此要记下当前遍历的位置
 					ss_pt_next = ss_pt->next;
-					if (ss_pt->index == p_c)
-					{
+					if (ss_pt->index == p_c) {
 						removeSubscript(ColID_lists[i], ss_pt);
 						removed_cols += 1;
 						col_counts[ss_pt->index] -= 1;
 						free(ss_pt);
-					}
-					else
-					{
+					} else {
 						removeSubscript(ColID_lists[i], ss_pt);
 						ss_pt->nonzeros -= 1;
 						insertSubAtBeginning(ColID_lists[ss_pt->nonzeros], ss_pt);
@@ -927,32 +880,24 @@ found:
 						col_counts[ss_pt->index] -= 1;
 					}
 					ss_pt = ss_pt_next;
-				}
-				else
-				{
+				} else {
 					ss_pt = ss_pt->next;
 				}
 			}
 		}
 		// 2, Update rows
-		for (j=1; j<=max_row1s; j++)
-		{
+		for (j=1; j<=max_row1s; j++) {
 			ss_pt = RowID_lists[j]->ssFirst;
-			while (ss_pt != NULL)
-			{
-				if (A[ss_pt->index][p_c] != 0)
-				{
+			while (ss_pt != NULL) {
+				if (A[ss_pt->index][p_c] != 0) {
 					// 该subscript对象将要被更新处理，因此要记下当前遍历的位置
 					ss_pt_next = ss_pt->next;
-					if (ss_pt->index == p_r)
-					{
+					if (ss_pt->index == p_r) {
 						removeSubscript(RowID_lists[j], ss_pt);
 						removed_rows += 1;
 						row_counts[ss_pt->index] -= 1;
 						free(ss_pt);
-					}
-					else
-					{
+					} else {
 						removeSubscript(RowID_lists[j], ss_pt);
 						ss_pt->nonzeros -= 1;
 						if (ss_pt->nonzeros == 0)
@@ -961,9 +906,7 @@ found:
 						row_counts[ss_pt->index] -= 1;
 					}
 					ss_pt = ss_pt_next;
-				}
-				else
-				{
+				} else {
 					ss_pt = ss_pt->next;
 				}
 			}
@@ -989,7 +932,7 @@ found:
 //  1) inactivate some columns and only perform pivoting on the rest of the "active" sub-matrix
 //  2) if singleton row cannot be found in the middle of pivoting, declare more inactive columns
 //  3) given the structure (heavier columns are in the back), declare inactive columns from the back
-static int Inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivots, ssList *ColPivots)
+static int inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivots, ssList *ColPivots)
 {
 	printf("Pivoting matrix of size %d x %d via inactivation.\n", nrow, ncolA);
 
@@ -1004,12 +947,9 @@ static int Inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *R
 
 	int max_row1s = 0;					// 记录初始矩阵里行中非零元素数目的最大值
 	int max_col1s = 0;					// 记录初始矩阵里列中非零元素数目的最大值
-	for (i=0; i<nrow; i++)
-	{
-		for (j=0; j<ncolA; j++)
-		{
-			if (A[i][j] != 0)
-			{
+	for (i=0; i<nrow; i++) {
+		for (j=0; j<ncolA; j++) {
+			if (A[i][j] != 0) {
 				row_counts[i] += 1;
 				if (row_counts[i] > max_row1s)
 					max_row1s = row_counts[i];
@@ -1023,13 +963,11 @@ static int Inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *R
 	// 创建指针数组，每个指针指向一个双向链表，同一个链表中的列具有相同数目的非零元素
 	// 该链表用来保存active的列的标号，按非零元素个数排列是为了方便inactivate含非零元素最多的列
 	ssList **ColID_lists = (ssList **) malloc(sizeof(ssList*) * (max_col1s+1)); 
-	for (i=0; i<max_col1s+1; i++)
-	{
+	for (i=0; i<max_col1s+1; i++) {
 		ColID_lists[i] = (ssList *) malloc(sizeof(ssList));
 		ColID_lists[i]->ssFirst = ColID_lists[i]->ssLast = NULL;
 	}
-	for (i=0; i<ncolA; i++)
-	{
+	for (i=0; i<ncolA; i++) {
 		int col_count = col_counts[i];
 		Subscript *colID = malloc(sizeof(Subscript));
 		colID->index = i;
@@ -1054,15 +992,12 @@ static int Inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *R
 	int singleton_r_found;
 	int ia;
 	int selected_pivots = 0;
-	while (active != 0)
-	{
+	while (active != 0) {
 		p_r = -1;
 		p_c = -1;
 		singleton_r_found = 0;
-		for (i=0; i<nrow; i++)
-		{
-			if (row_counts[i] == 1)
-			{
+		for (i=0; i<nrow; i++) {
+			if (row_counts[i] == 1) {
 				singleton_r_found = 1;
 				//printf("singleton row is found at row %d.\n", i);
 				p_r = i;
@@ -1070,19 +1005,15 @@ static int Inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *R
 			}
 		}
 
-		if (singleton_r_found == 1)
-		{
+		if (singleton_r_found == 1) {
 			// a singleton row is found, store the pivot
-			for (j=0; j<ncolA; j++)
-			{
-				if ((inactives[j]==0) && (A[p_r][j]!=0))
-				{
+			for (j=0; j<ncolA; j++) {
+				if ((inactives[j]==0) && (A[p_r][j]!=0)) {
 					p_c = j;
 					break;
 				}
 			}
-			if (p_c == -1)
-			{
+			if (p_c == -1) {
 				printf("error: failed to find the nonzero element in the singlton row.\n");
 				exit(1);
 			}
@@ -1101,23 +1032,19 @@ static int Inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *R
 
 			// 更新row_counts
 			row_counts[p_r] = -1;			// use -1 to indicate the row has an elelemnt was chosen as pivot
-			for (i=0; i<nrow; i++)
-			{
-				if ( (row_counts[i] != -1) && (A[i][p_c] != 0) )
-				{
+			for (i=0; i<nrow; i++) {
+				if ( (row_counts[i] != -1) && (A[i][p_c] != 0) ) {
 					row_counts[i] -= 1;
 				}
 			}
 			// 更新ColID_list
 			Subscript *ss_pt = ColID_lists[col_counts[p_c]]->ssFirst;
-			while (ss_pt != NULL)
-			{
+			while (ss_pt != NULL) {
 				if (ss_pt->index == p_c)
 					break;
 				ss_pt = ss_pt->next;
 			}
-			if (ss_pt->index == p_c)
-			{
+			if (ss_pt->index == p_c) {
 				removeSubscript(ColID_lists[col_counts[p_c]], ss_pt);
 				free(ss_pt);
 				ss_pt = NULL;
@@ -1127,22 +1054,17 @@ static int Inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *R
 			active -= 1;
 			selected_pivots += 1;
 			//printf("Inactivated: %d Pivots Found: %d\n", inactivated, selected_pivots);
-		}
-		else
-		{
+		} else {
 			// no singleton row can be found, declare one column with the most nonzeros as inactive
 			// Note: other algorithms may be used to choose a column to inactivate
-			for (i=max_col1s; i>=0; i--)
-			{
+			for (i=max_col1s; i>=0; i--) {
 				Subscript *ss_pt = ColID_lists[i]->ssFirst;
 				//if ((ss_pt != NULL) && (inactives[ss_pt->index] == 0))
-				if (ss_pt != NULL)
-				{
+				if (ss_pt != NULL) {
 					inactives[ss_pt->index] = 1;
 					inactivated += 1;
 					active -= 1;
-					for (k=0; k<nrow; k++)
-					{
+					for (k=0; k<nrow; k++) {
 						if ((A[k][ss_pt->index] != 0) && (row_counts[k] != -1))
 							row_counts[k] -= 1;
 					}
@@ -1159,16 +1081,12 @@ static int Inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *R
 
 	}
 	// assign pivots for the dense part (any ordering is fine)
-	for (i=0; i<ncolA; i++)
-	{
-		if (inactives[i] == 1)
-		{
+	for (i=0; i<ncolA; i++) {
+		if (inactives[i] == 1) {
 			// find an arbitray row that has not been selected 
 			int j_candidate;
-			for (j=0; j<nrow; j++)
-			{
-				if (row_counts[j] != -1)
-				{
+			for (j=0; j<nrow; j++) {
+				if (row_counts[j] != -1) {
 					j_candidate = j;
 					if (A[j][i] != 0)
 						break;
@@ -1206,7 +1124,7 @@ static int Inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *R
 }
 
 // Given pivot sequence, re-order matrices
-static void matrices_reordering(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_ELEMENT *B[], ssList *RowPivots, ssList *ColPivots, int npv)
+static void reshape_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_ELEMENT *B[], ssList *RowPivots, ssList *ColPivots, int npv)
 {
 	int i, j, k;
 	int row_id, col_id;
@@ -1215,23 +1133,19 @@ static void matrices_reordering(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[],
 	sub_row = RowPivots->ssFirst;
 	sub_col = ColPivots->ssFirst;
 	GF_ELEMENT temp;
-	for (k=0; k<npv; k++)
-	{
+	for (k=0; k<npv; k++) {
 		row_id = sub_row->index;
 		col_id = sub_col->index;
 
 		// swap rows first
-		if (row_id != k)
-		{
-			for (j=0; j<ncolA; j++)
-			{
+		if (row_id != k) {
+			for (j=0; j<ncolA; j++) {
 				temp = A[k][j];
 				A[k][j] = A[row_id][j];
 				A[row_id][j] = temp;
 			}
 			// For row operations, B needs to be swapped as well
-			for (j=0; j<ncolB; j++)
-			{
+			for (j=0; j<ncolB; j++) {
 				temp = B[k][j];
 				B[k][j] = B[row_id][j];
 				B[row_id][j] = temp;
@@ -1239,8 +1153,7 @@ static void matrices_reordering(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[],
 
 			// due to the swap of rows, update RowPivots to track positions of the rest pivots
 			ss_pt = sub_row->next;
-			while (ss_pt != NULL)
-			{
+			while (ss_pt != NULL) {
 				if (ss_pt->index == k)
 					ss_pt->index = row_id;
 
@@ -1249,18 +1162,15 @@ static void matrices_reordering(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[],
 		}
 
 		// swap columns next
-		if (col_id != k)
-		{
-			for (i=0; i<nrow; i++)
-			{
+		if (col_id != k) {
+			for (i=0; i<nrow; i++) {
 				temp = A[i][k];
 				A[i][k] = A[i][col_id];
 				A[i][col_id] = temp;
 			}
 			// due to the swap of columns, update ColPivots to track positions of the rest pivots
 			ss_pt = sub_col->next;
-			while (ss_pt != NULL)
-			{
+			while (ss_pt != NULL) {
 				if (ss_pt->index == k)
 					ss_pt->index = col_id;
 
@@ -1282,23 +1192,19 @@ static void permute_matrix_columns(int nrow, int ncolA, GF_ELEMENT *A[], ssList 
 	Subscript *ss_pt;
 	sub_col = ColPivots->ssFirst;
 	GF_ELEMENT temp;
-	for (k=0; k<ncolA; k++)
-	{
+	for (k=0; k<ncolA; k++) {
 		col_id = sub_col->index;
 
 		// swap columns
-		if (col_id != k)
-		{
-			for (i=0; i<nrow; i++)
-			{
+		if (col_id != k) {
+			for (i=0; i<nrow; i++) {
 				temp = A[i][k];
 				A[i][k] = A[i][col_id];
 				A[i][col_id] = temp;
 			}
 			// due to the swap of columns, update ColPivots to track positions of the rest pivots
 			ss_pt = sub_col->next;
-			while (ss_pt != NULL)
-			{
+			while (ss_pt != NULL) {
 				if (ss_pt->index == k)
 					ss_pt->index = col_id;
 
@@ -1309,143 +1215,14 @@ static void permute_matrix_columns(int nrow, int ncolA, GF_ELEMENT *A[], ssList 
 	}
 }
 
-// perform back-substitution on full-rank upper trianguler matrix A
-/*
-static long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_ELEMENT *B[])
-{
-	//printf("entering back_substitute()...\n");
-	long long operations = 0;
-
-	// 1, transform the upper triangular matrix A into diagonal.
-	int i, j, k, l;
-	for (i=ncolA-1; i>=0; i--)
-	{
-		// eliminate all items above A[i][i]
-		#pragma omp parallel for
-		for (j=0; j<i; j++)
-		{
-			if (A[j][i] == 0)
-				continue;				// the matrix we are dealing here is high likely being sparse, so we use this to avoid unnecessary operations
-			GF_ELEMENT quotient = galois_divide(A[j][i], A[i][i], GF_ORDER);
-			operations += 1;
-
-			A[j][i] = galois_sub(A[j][i], galois_multiply(A[i][i], quotient, GF_ORDER));
-			operations += 1;
-
-			// doing accordingly to B
-			galois_multiply_add_region(B[i], B[j], quotient, ncolB, GF_ORDER);
-			operations += ncolB;
-			//operations += 1;
-		}
-	}
-
-	// 2, transform matrix A into identity matrix
-	for (l=0; l<ncolA; l++)
-	{
-		if (A[l][l] != 0 && A[l][l] != 1)
-		{
-			for (k=0; k<ncolB; k++)
-			{
-				B[l][k] = galois_divide(B[l][k], A[l][l], GF_ORDER);
-				operations += 1;
-			}
-			//operations += 1;
-			A[l][l] = 1;
-		}
-	}
-
-	return operations;
-}
-
-// perform forward substitution on a matrix to transform it to a upper triangular structure
-static long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_ELEMENT *B[])
-{
-	//printf("entering foward_substitute()...\n");
-	long long operations = 0;
-	int i, j, k, m, n, p;
-	int pivot;
-	GF_ELEMENT quotient;
-
-	// transform A into upper triangular structure by row operation
-	int boundary = nrow >= ncolA ? ncolA : nrow;
-
-	for (i=0; i<boundary; i++)
-	{
-		int has_a_dimension = 1;			// to indicate if this column is all-zeros
-
-		// if the pivot is zero, find a pivot from elements below the diagonal element and swap rows
-		if (A[i][i] == 0)
-		{
-			has_a_dimension = 0;
-			if (i == nrow-1)
-				break;
-			else
-			{
-				for (pivot=i+1; pivot<nrow; pivot++)
-				{
-					if (A[pivot][i] != 0)
-					{
-						has_a_dimension = 1;
-						break;
-					}
-				}
-			}
-			// if this column is an all-zeros column, just skip this column
-			if (has_a_dimension == 0)
-			{
-				continue;
-			}
-			else
-			{
-				// do the swap
-				GF_ELEMENT tmp2;
-				for (m=0; m<ncolA; m++)
-				{
-					tmp2 = A[i][m];
-					A[i][m] = A[pivot][m];
-					A[pivot][m] = tmp2;
-				}
-
-				// swap B accordingly
-				for (m=0; m<ncolB; m++)
-				{
-					tmp2 = B[i][m];
-					B[i][m] = B[pivot][m];
-					B[pivot][m] = tmp2;
-				}
-			}
-		}
-		// perform elimination
-		for (j=i+1; j<nrow; j++)
-		{
-			if (A[j][i] == 0)
-				continue;			// the matrix we are dealing here is high likely being sparse, so we use this to avoid unnecessary operations
-			quotient = galois_divide(A[j][i], A[i][i], GF_ORDER);
-			operations += 1;
-			// eliminate the items under row i at col i
-			galois_multiply_add_region(&(A[i][i]), &(A[j][i]), quotient, ncolA-i, GF_ORDER);
-			operations += (ncolA-i);						// Jan27注:此时已经进行到第i列							
-			// simultaneously do the same thing on right matrix B
-			galois_multiply_add_region(B[i], B[j], quotient, ncolB, GF_ORDER);
-			operations += ncolB;
-		}
-	}
-	return operations;
-}
-*/
-
-
 // insert a subscript object at the beginning of the list
 static void insertSubAtBeginning(ssList *sub_list, Subscript *sub)
 {
-	if (sub_list->ssFirst == NULL)
-	{
+	if (sub_list->ssFirst == NULL) {
 		sub_list->ssFirst = sub_list->ssLast = sub;
 		sub->prev = NULL;
 		sub->next = NULL;
-	}
-	else
-	{
+	} else {
 		sub_list->ssFirst->prev = sub;
 		sub->next = sub_list->ssFirst;
 		sub_list->ssFirst = sub;
@@ -1456,14 +1233,11 @@ static void insertSubAtBeginning(ssList *sub_list, Subscript *sub)
 // insert a subscript object at the end of the list
 static void insertSubAtEnd(ssList *sub_list, Subscript *sub)
 {
-	if (sub_list->ssFirst == NULL && sub_list->ssLast == NULL)
-	{
+	if (sub_list->ssFirst == NULL && sub_list->ssLast == NULL) {
 		sub_list->ssFirst = sub_list->ssLast = sub;
 		sub->prev = NULL;
 		sub->next = NULL;
-	}
-	else
-	{
+	} else {
 		sub_list->ssLast->next = sub;
 		sub->prev = sub_list->ssLast;
 		sub->next = NULL;
@@ -1474,25 +1248,18 @@ static void insertSubAtEnd(ssList *sub_list, Subscript *sub)
 // remove a subscript object from the list (no free() operation yet)
 static void removeSubscript(ssList *sub_list, Subscript *sub)
 {
-	if (sub->prev == NULL && sub->next == NULL)
-	{
+	if (sub->prev == NULL && sub->next == NULL) {
 		// only one left in the list
 		sub_list->ssFirst = sub_list->ssLast = NULL;
-	}
-	else if (sub->prev == NULL && sub->next != NULL)
-	{
+	} else if (sub->prev == NULL && sub->next != NULL) {
 		// the element is the head
 		sub_list->ssFirst = sub->next;
 		sub_list->ssFirst->prev = NULL;
-	}
-	else if (sub->prev != NULL && sub->next == NULL)
-	{
+	} else if (sub->prev != NULL && sub->next == NULL) {
 		// the element is the tail
 		sub_list->ssLast = sub->prev;
 		sub->prev->next = NULL;
-	}
-	else
-	{
+	} else {
 		// the element is in the middle of the list
 		sub->next->prev = sub->prev;
 		sub->prev->next = sub->next;
@@ -1503,8 +1270,7 @@ static void removeSubscript(ssList *sub_list, Subscript *sub)
 static void free_subscriptList(ssList *sub_list)
 {
 	Subscript *sub = sub_list->ssFirst;
-	while (sub != NULL)
-	{
+	while (sub != NULL) {
 		sub_list->ssFirst = sub->next;
 		free(sub);
 		sub = sub_list->ssFirst;
