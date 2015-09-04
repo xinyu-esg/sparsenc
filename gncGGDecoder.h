@@ -27,6 +27,7 @@ struct decoding_context_GG {
 	/******************************
 	 * Used in decoding generations
 	 ******************************/
+	int finished;
 	int decoded;									// record how many packets have been decoded
 	int originals;									// record how many source packets are decoded
 	struct running_matrix **Matrices;				// record running matrices of each class
@@ -54,7 +55,7 @@ struct running_matrix {
 	GF_ELEMENT **message;
 };
 
-void create_decoding_context_GG(struct decoding_context_GG *dec_ctx, long datasize, int s_b, int s_g, int s_p);
+void create_decoding_context_GG(struct decoding_context_GG *dec_ctx, long datasize, int s_b, int s_g, int s_p, int type);
 void free_decoding_context_GG(struct decoding_context_GG *dec_ctx);
-void process_received_packet(struct decoding_context_GG *dec_ctx, struct coded_packet *pkt);
+void process_packet_GG(struct decoding_context_GG *dec_ctx, struct coded_packet *pkt);
 #endif /* _CCFD_DECODER_H */

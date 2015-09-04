@@ -6,7 +6,7 @@
 #include <math.h>
 #include <sys/stat.h>
 static void perform_precoding(struct gnc_context *gc);
-static int group_packets(struct gnc_context *gc);
+static int group_packets_rand(struct gnc_context *gc);
 static void encode_packet(struct gnc_context *gc, int gid, struct coded_packet *pkt);
 static int schedule_generation(struct gnc_context *gc);
 static int is_prime(int number); 
@@ -24,7 +24,7 @@ static int number_of_checks(int snum);
  *   0  - Create successfully
  *   -1 - Create failed
  */
-int create_gnc_context(char *buf, long datasize, struct gnc_context **gc, int s_b, int s_g, int s_p)
+int create_gnc_context(char *buf, long datasize, struct gnc_context **gc, int s_b, int s_g, int s_p, int type)
 {
 	static char fname[] = "create_gnc_context";
 	// Allocate file_context
@@ -36,6 +36,7 @@ int create_gnc_context(char *buf, long datasize, struct gnc_context **gc, int s_
 	(*gc)->meta.size_b = s_b;
 	(*gc)->meta.size_g = s_g;
 	(*gc)->meta.size_p = s_p;
+	(*gc)->meta.type   = type;
 
 	// Determine packet and generation numbers
 	int num_src = ALIGN(datasize, (*gc)->meta.size_p);
@@ -61,7 +62,13 @@ int create_gnc_context(char *buf, long datasize, struct gnc_context **gc, int s_
 		(*gc)->gene[j]->pktid = malloc(sizeof(int)*(*gc)->meta.size_g);
 		memset((*gc)->gene[j]->pktid, -1, sizeof(int)*(*gc)->meta.size_g);
 	}
-	int coverage = group_packets(*gc);
+
+	int coverage;
+	if ((*gc)->meta.type == RAND_GNC_CODE) 
+		coverage = group_packets_rand(*gc);
+	else if ((*gc)->meta.type == BAND_GNC_CODE)
+		coverage = group_packets_rand(*gc);
+
 	printf("Data Size: %ld\t Source Packets: %d\t Check Packets: %d\t Generations: %d\t Coverage: %d\n",(*gc)->meta.datasize, (*gc)->meta.snum, (*gc)->meta.cnum,	(*gc)->meta.gnum, coverage);
 	
 	// Creating bipartite graph of the precode
@@ -90,6 +97,89 @@ int create_gnc_context(char *buf, long datasize, struct gnc_context **gc, int s_
     	}
 		perform_precoding(*gc);
 	}
+
+	return(0);
+}
+
+
+int create_gnc_context_from_file(FILE *fp, struct gnc_context **gc, int s_b, int s_g, int s_p, int gnc_type)
+{
+	static char fname[] = "create_gnc_context_from_file";
+	// Allocate file_context
+	if ( (*gc = calloc(1, sizeof(struct gnc_context))) == NULL ) {
+		printf("%s: calloc file_context\n", fname);
+		return(-1);
+	}
+	
+	(*gc)->meta.size_b = s_b;
+	(*gc)->meta.size_g = s_g;
+	(*gc)->meta.size_p = s_p;
+
+	// Get file size
+	/* Seek to file end */
+	if (fseek(fp, 0, SEEK_END) == -1) 
+		printf("%s: fseek SEEK_END\n", fname);
+	long datasize = ftell(fp);			/* get file size */
+	/* Seek back to file start */
+	if (fseek(fp, 0, SEEK_SET) == -1) 
+		printf("%s: fseek SEEK_SET\n", fname);
+    /* determine packet and generation numbers */
+	int num_src = ALIGN(datasize, (*gc)->meta.size_p);
+	int num_chk = number_of_checks(num_src);
+	(*gc)->meta.datasize = datasize;
+	(*gc)->meta.snum  = num_src;							  // Number of source packets
+	(*gc)->meta.cnum  = num_chk;							  // Number of check packets
+	(*gc)->meta.gnum  = ALIGN( (num_src+num_chk), (*gc)->meta.size_b); // Number of disjoint generations grouped from packets
+	
+	// Inintialize generation structures
+	(*gc)->gene  = malloc(sizeof(struct generation *) * (*gc)->meta.gnum);
+	if ( (*gc)->gene == NULL ) {
+		printf("%s: malloc (*gc)->gene\n", fname);
+		return(-1);
+	}
+	for (int j=0; j<(*gc)->meta.gnum; j++) {
+		(*gc)->gene[j] = malloc(sizeof(struct generation));
+		if ( (*gc)->gene[j] == NULL ) { 
+			printf("%s: malloc (*gc)->gene[%d]\n", fname, j);
+			return(-1);
+		}
+		(*gc)->gene[j]->gid = -1;
+		(*gc)->gene[j]->pktid = malloc(sizeof(int)*(*gc)->meta.size_g);
+		memset((*gc)->gene[j]->pktid, -1, sizeof(int)*(*gc)->meta.size_g);
+	}
+	int coverage;
+	if (gnc_type == RAND_GNC_CODE) 
+		coverage = group_packets_rand(*gc);
+	else if (gnc_type == BAND_GNC_CODE)
+		coverage = group_packets_rand(*gc);
+
+	printf("Data Size: %ld\t Source Packets: %d\t Check Packets: %d\t Generations: %d\t Coverage: %d\n",(*gc)->meta.datasize, (*gc)->meta.snum, (*gc)->meta.cnum,	(*gc)->meta.gnum, coverage);
+	
+	// Creating bipartite graph of the precode
+	if ((*gc)->meta.cnum != 0) {
+		if ( ((*gc)->graph = malloc(sizeof(BP_graph))) == NULL ) {
+			printf("%s: malloc BP_graph\n", fname);
+			return (-1);
+		}
+		create_bipartite_graph((*gc)->graph, (*gc)->meta.snum, (*gc)->meta.cnum);
+	}
+
+	// Allocating pointers to data
+	if (((*gc)->pp = calloc((*gc)->meta.snum+(*gc)->meta.cnum, sizeof(GF_ELEMENT*))) == NULL) {
+		printf("%s: calloc (*gc)->pp\n", fname);
+		return(-1);
+	}
+
+	// Creating context with data read from FILE *fp
+	int alread = 0;
+	for (int i=0; i<(*gc)->meta.snum+(*gc)->meta.cnum; i++) {
+		(*gc)->pp[i] = calloc((*gc)->meta.size_p, sizeof(GF_ELEMENT));
+        int toread = (alread+(*gc)->meta.size_p) <= (*gc)->meta.datasize ? (*gc)->meta.size_p : (*gc)->meta.datasize-alread;
+		if (fread((*gc)->pp[i], sizeof(GF_ELEMENT), toread, fp) != toread)
+			printf("%s: fread (*gc)->pp[%d]\n", fname, i);
+        alread += toread;
+    }
+	perform_precoding(*gc);
 
 	return(0);
 }
@@ -136,6 +226,26 @@ unsigned char *recover_data(struct gnc_context *gc)
 	return data;
 }
 
+/* recover data to file */
+long recover_data_to_file(FILE *fp, struct gnc_context *gc)
+{
+	static char fname[] = "recover_data";
+	long datasize = gc->meta.datasize;
+	long alwrote = 0;
+	long towrite = datasize;
+	
+	printf("Writing to decoded file.\n");
+	int pc = 0;
+	while (alwrote < datasize) {
+		towrite = ((alwrote + gc->meta.size_p) <= datasize) ? gc->meta.size_p : datasize - alwrote;
+		if (fwrite(gc->pp[pc], sizeof(GF_ELEMENT), towrite, fp) != towrite) 
+			printf("%s: fwrite gc->pp[%d]\n", fname, pc);
+		pc++;
+		alwrote += towrite;
+	}
+	return alwrote;
+}
+
 // perform systematic LDPC precoding against SRC pkt list and results in a LDPC pkt list
 static void perform_precoding(struct gnc_context *gc)
 {
@@ -162,7 +272,7 @@ static void perform_precoding(struct gnc_context *gc)
  * grouping information to clients is removed. The only information clients 
  * need to know is the number of packets, base size, and generation size. 
  */
-static int group_packets(struct gnc_context *gc)
+static int group_packets_rand(struct gnc_context *gc)
 {
 	int num_p = gc->meta.snum + gc->meta.cnum;
 	int num_g = gc->meta.gnum;

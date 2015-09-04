@@ -31,14 +31,15 @@ static void diagonalize_GDM(struct decoding_context_OA *dec_ctx);
 
 extern long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B);
 extern long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B);
-extern long pivot_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int *otoc, int *ctoo, int *innovatives, int *inactives);
+//extern long pivot_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int *otoc, int *ctoo, int *inactives);
+extern long pivot_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int *otoc, int *inactives);
 
 /*
  * create_decoding_context_OA
  * Create context for overlap-aware (OA) decoding
  *  aoh - allowed overhead >=0
  */
-void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasize, int s_b, int s_g, int s_p, int aoh)
+void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasize, int s_b, int s_g, int s_p, int type, int aoh)
 {
 	static char fname[] = "create_decoding_context_OA";
 	int i, j, k;
@@ -47,7 +48,7 @@ void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasi
 	// Since this is decoding, we construct GNC context without data
 	// gc->pp will be filled by decoded packets
 	struct gnc_context *gc;
-	if (create_gnc_context(NULL, datasize, &gc, s_b, s_g, s_p) != 0) 
+	if (create_gnc_context(NULL, datasize, &gc, s_b, s_g, s_p, type) != 0) 
 		printf("%s: create decoding context failed", fname);
 
 	dec_ctx->gc = gc;
@@ -266,6 +267,33 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct coded_packet 
 	pkt = NULL;
 }
 
+void free_decoding_context_OA(struct decoding_context_OA *dec_ctx)
+{
+	int i, j, k;
+	for (i=0; i<dec_ctx->gc->meta.gnum; i++){
+		// Free each decoding matrix
+		for (j=0; j<dec_ctx->gc->meta.size_g; j++) {
+			free(dec_ctx->Matrices[i]->coefficient[j]);
+			free(dec_ctx->Matrices[i]->message[j]);
+		}
+		free(dec_ctx->Matrices[i]->coefficient);
+		free(dec_ctx->Matrices[i]->message);
+		free(dec_ctx->Matrices[i]);
+	}
+	free(dec_ctx->Matrices);
+	for (j=0; j<dec_ctx->gc->meta.snum+dec_ctx->gc->meta.cnum+dec_ctx->aoh; j++) {
+		free(dec_ctx->JMBcoefficient[j]);
+		free(dec_ctx->JMBmessage[j]);
+	}
+	free(dec_ctx->JMBcoefficient);
+	free(dec_ctx->JMBmessage);
+	free(dec_ctx->otoc_mapping);
+	free(dec_ctx->ctoo_mapping);
+	free_gnc_context(dec_ctx->gc);
+	free(dec_ctx);
+	dec_ctx = NULL;
+}
+
 static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
 {
 	static char fname[] = "finish_recovering_inactivation";
@@ -428,6 +456,12 @@ static void construct_GDM(struct decoding_context_OA *dec_ctx)
 	printf("%d local DoFs are available, copied %d to GDM.\n", dec_ctx->local_DoF, p_copy);
 
 	/* Transform GDM using 2 rounds of pivoting */
-	dec_ctx->operations += pivot_matrix(numpp+dec_ctx->aoh, numpp, pktsize, dec_ctx->JMBcoefficient, dec_ctx->JMBmessage, dec_ctx->otoc_mapping, dec_ctx->ctoo_mapping, &(dec_ctx->global_DoF), &(dec_ctx->inactives));
-
+	//dec_ctx->operations += pivot_matrix(numpp+dec_ctx->aoh, numpp, pktsize, dec_ctx->JMBcoefficient, dec_ctx->JMBmessage, dec_ctx->otoc_mapping, dec_ctx->ctoo_mapping, &(dec_ctx->inactives));
+	dec_ctx->operations += pivot_matrix(numpp+dec_ctx->aoh, numpp, pktsize, dec_ctx->JMBcoefficient, dec_ctx->JMBmessage, dec_ctx->otoc_mapping, &(dec_ctx->inactives));
+	/* Count available innovative rows */
+	for (i=0; i<numpp; i++) {
+		if (dec_ctx->JMBcoefficient[i][i] != 0)
+			dec_ctx->global_DoF++;
+		dec_ctx->ctoo_mapping[dec_ctx->otoc_mapping[i]] = i;
+	}
 }

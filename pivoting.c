@@ -45,7 +45,7 @@ static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT **A, ssList *RowPivot
 /*
  * Reshape matrix A and B of Ax=B according to pivot sequence in (RowPivots, ColPivots)
  */
-static void reshape_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, ssList *RowPivots, ssList *ColPivots, int npv);
+static void reshape_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, ssList *RowPivots, ssList *ColPivots);
 
 /*
  * Reorder columns of A according to sequence in ColPivots
@@ -86,9 +86,6 @@ extern long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A,
  * Return as arguments:
  *  otoc        - An array containing the current column index of the original index
  *  	          i.e., otoc[i] = "current column index of the original i-th column"
- *  ctoo        - An array serves opposite role to otoc
- *  			  ctoo[i] = "original column index of the current i-th column"
- *  innovatives - number of innovative rows in the matrix
  *  inactives   - number of inactivated columns
  *
  *  [A] will be transformed into the form of:
@@ -105,7 +102,7 @@ extern long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A,
  *  and B will be processed accordingly.
  *
  **********************************************************************************/
-long pivot_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int *otoc, int *ctoo, int *innovatives, int *inactives)
+long pivot_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int *otoc, int *inactives)
 {
 	int i, j, k;
 	long operations = 0;
@@ -129,21 +126,19 @@ long pivot_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B
 		memcpy(msg_matrix[i], B[i], ncolB * sizeof(GF_ELEMENT));
 	}
 
-	int npv;				// the number of pivots found (这是个无用的量,placeholder)
-	int ias;				// the number of columns been inactivated
 	printf("Inactivation pivoting strategy is used. IA_INIT: %d, IA_STEP: %d.\n", IA_INIT, IA_STEP);
-	ias = inactivation_pivoting(nrow, ncolA, ces_matrix, row_pivots, col_pivots);
+	int ias = inactivation_pivoting(nrow, ncolA, ces_matrix, row_pivots, col_pivots);
 	*inactives = ias;
 	printf("A total of %d/%d columns are inactivated.\n", ias, ncolA);
-	npv = ncolA;
 	time(&stop_pivoting);
 	pivoting_time += difftime(stop_pivoting, start_pivoting);
 	printf("Time consumed in pivoting T: %.0f seconds.\n", pivoting_time);
 
 	// 保存re-order过后列的顺序
 	// Inactivation后第一次re-ordering，记下indices的mapping
+	int *ctoo = (int *) malloc(sizeof(int)*ncolA);
 	Subscript *ss_pt = col_pivots->ssFirst;
-	for (i=0; i<npv; i++) {
+	for (i=0; i<ncolA; i++) {
 		otoc[ss_pt->index] = i;		// 第i个pivot对应的原来第ss_pt->index列
 		ctoo[i] = ss_pt->index;	
 		ss_pt = ss_pt->next;
@@ -154,7 +149,7 @@ long pivot_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B
 	time_t start_reorder, stop_reorder;
 	time(&start_reorder);
 	/* reorder rows and columns of ces_matrix and msg_matrix after pivoting*/
-	reshape_matrix(nrow, ncolA, ncolB, ces_matrix, msg_matrix, row_pivots, col_pivots, npv);
+	reshape_matrix(nrow, ncolA, ncolB, ces_matrix, msg_matrix, row_pivots, col_pivots);
 	free_subscriptList(row_pivots);
 	free_subscriptList(col_pivots);
 	time(&stop_reorder);
@@ -228,14 +223,13 @@ long pivot_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B
 	printf("Start the second-time pivoting...\n");
 	int ias_2nd = zlatev_pivoting(ias+nrow-ncolA, ias, ces_submatrix, row_pivots_2nd, col_pivots_2nd);
 	printf("A total of %d/%d columns are further inactivated.\n", ias_2nd, ias);
-	int npv_2nd = ias;
 	
 	// Update otoc_mapping & ctoo_mapping after second-time pivoting
 	// Careful!! This step is critical.
 	int *partial_mappings = (int *) calloc(ias, sizeof(int));
 
 	Subscript *ss_pt_2nd = col_pivots_2nd->ssFirst;
-	for (i=0; i<npv_2nd; i++) {
+	for (i=0; i<ias; i++) {
 		partial_mappings[i] = ctoo[ncolA-ias+ss_pt_2nd->index];
 		ss_pt_2nd = ss_pt_2nd->next;
 	}
@@ -244,9 +238,10 @@ long pivot_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B
 	for (i=0; i<ncolA; i++) {
 		otoc[ctoo[i]] = i;
 	}
+	free(ctoo);
 
 	// re-order the ((ias+OHS) x ias) matrix
-	reshape_matrix(ias+nrow-ncolA, ias, ncolB, ces_submatrix, msg_submatrix, row_pivots_2nd, col_pivots_2nd, npv_2nd);
+	reshape_matrix(ias+nrow-ncolA, ias, ncolB, ces_submatrix, msg_submatrix, row_pivots_2nd, col_pivots_2nd);
 	
 	// re-order the columns above it accordingly
 	GF_ELEMENT **BI_matrix = calloc(nrow-ias, sizeof(GF_ELEMENT*));
@@ -270,6 +265,7 @@ long pivot_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B
 	long long ops = forward_substitute(ias+nrow-ncolA, ias, ncolB, ces_submatrix, msg_submatrix);
 	operations += ops;
 
+	/*
 	int missing_DoF = 0;
 	for (i=0; i<ias; i++) {
 		if (ces_submatrix[i][i] == 0) {
@@ -278,6 +274,7 @@ long pivot_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B
 	}
 	printf("There are %d DoFs missing after performed forward substitution.\n", missing_DoF);
 	*innovatives = (ncolA - missing_DoF);
+	*/
 
 	// save the processed matrices back to A and B
 	for (i=0; i<ncolA-ias; i++) {
@@ -780,7 +777,7 @@ static int inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *R
 }
 
 // Given pivot sequence, re-order matrices
-static void reshape_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_ELEMENT *B[], ssList *RowPivots, ssList *ColPivots, int npv)
+static void reshape_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_ELEMENT *B[], ssList *RowPivots, ssList *ColPivots)
 {
 	int i, j, k;
 	int row_id, col_id;
@@ -789,7 +786,7 @@ static void reshape_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_E
 	sub_row = RowPivots->ssFirst;
 	sub_col = ColPivots->ssFirst;
 	GF_ELEMENT temp;
-	for (k=0; k<npv; k++) {
+	for (k=0; k<ncolA; k++) {
 		row_id = sub_row->index;
 		col_id = sub_col->index;
 

@@ -15,7 +15,7 @@ extern long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT *
 extern long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B);
 
 // setup decoding context:
-void create_decoding_context_GG(struct decoding_context_GG *dec_ctx, long datasize, int s_b, int s_g, int s_p)
+void create_decoding_context_GG(struct decoding_context_GG *dec_ctx, long datasize, int s_b, int s_g, int s_p, int type)
 {
 	//(char *buf, long datasize, struct gnc_context **gc, int s_b, int s_g, int s_p)
 	static char fname[] = "create_decoding_context_GG";
@@ -25,7 +25,7 @@ void create_decoding_context_GG(struct decoding_context_GG *dec_ctx, long datasi
 	// Since this is decoding, we construct GNC context without data
 	// gc->pp will be filled by decoded packets
 	struct gnc_context *gc;
-	if (create_gnc_context(NULL, datasize, &gc, s_b, s_g, s_p) != 0) 
+	if (create_gnc_context(NULL, datasize, &gc, s_b, s_g, s_p, type) != 0) 
 		printf("%s: create decoding context failed", fname);
 
 	dec_ctx->gc = gc;
@@ -45,6 +45,7 @@ void create_decoding_context_GG(struct decoding_context_GG *dec_ctx, long datasi
 		}
 	}
 
+	dec_ctx->finished  = 0;
 	dec_ctx->decoded   = 0;
 	dec_ctx->originals = 0;
 	dec_ctx->Matrices = calloc(dec_ctx->gc->meta.gnum, sizeof(struct running_matrix*));
@@ -119,7 +120,7 @@ void free_decoding_context_GG(struct decoding_context_GG *dec_ctx)
 
 
 // cache a new received packet, extract its information and try decode the class it belongs to
-void process_received_packet(struct decoding_context_GG *dec_ctx, struct coded_packet *pkt)
+void process_packet_GG(struct decoding_context_GG *dec_ctx, struct coded_packet *pkt)
 {
 	dec_ctx->overhead += 1;
 	
@@ -259,6 +260,8 @@ static void new_decoded_source_packet(struct decoding_context_GG *dec_ctx, int p
 	static char fname[] = "new_decoded_source_packet";
 	dec_ctx->decoded   += 1;
 	dec_ctx->originals += 1;
+	if (dec_ctx->originals == dec_ctx->gc->meta.snum)
+		dec_ctx->finished = 1;
 	/*
 	 * If the decoded packet comes from generations is an original source packet
 	 * i.e., 0<= index < NUM_SRC, back substitute into those known LDPC check packets
