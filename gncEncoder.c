@@ -5,6 +5,8 @@
 #include "gncEncoder.h"
 #include <math.h>
 #include <sys/stat.h>
+static int create_context_from_meta(struct gnc_context *gc);
+static int verify_code_parameter(struct gnc_metainfo *meta);
 static void perform_precoding(struct gnc_context *gc);
 static int group_packets_rand(struct gnc_context *gc);
 static void encode_packet(struct gnc_context *gc, int gid, struct coded_packet *pkt);
@@ -46,38 +48,19 @@ int create_gnc_context(char *buf, long datasize, struct gnc_context **gc, int s_
 	(*gc)->meta.cnum  = num_chk;							  // Number of check packets
 	(*gc)->meta.gnum  = ALIGN( (num_src+num_chk), (*gc)->meta.size_b); // Number of disjoint generations grouped from packets
 	
-	// Inintialize generation structures
-	(*gc)->gene  = malloc(sizeof(struct generation *) * (*gc)->meta.gnum);
-	if ( (*gc)->gene == NULL ) {
-		printf("%s: malloc (*gc)->gene\n", fname);
+	/*
+	 * Verify code parameter
+	 */
+	if (verify_code_parameter(&((*gc)->meta)) != 0) {
+		printf("%s: code parameter is invalid.\n", fname);
 		return(-1);
 	}
-	for (int j=0; j<(*gc)->meta.gnum; j++) {
-		(*gc)->gene[j] = malloc(sizeof(struct generation));
-		if ( (*gc)->gene[j] == NULL ) { 
-			printf("%s: malloc (*gc)->gene[%d]\n", fname, j);
-			return(-1);
-		}
-		(*gc)->gene[j]->gid = -1;
-		(*gc)->gene[j]->pktid = malloc(sizeof(int)*(*gc)->meta.size_g);
-		memset((*gc)->gene[j]->pktid, -1, sizeof(int)*(*gc)->meta.size_g);
-	}
-
-	int coverage;
-	if ((*gc)->meta.type == RAND_GNC_CODE) 
-		coverage = group_packets_rand(*gc);
-	else if ((*gc)->meta.type == BAND_GNC_CODE)
-		coverage = group_packets_rand(*gc);
-
-	printf("Data Size: %ld\t Source Packets: %d\t Check Packets: %d\t Generations: %d\t Coverage: %d\n",(*gc)->meta.datasize, (*gc)->meta.snum, (*gc)->meta.cnum,	(*gc)->meta.gnum, coverage);
-	
-	// Creating bipartite graph of the precode
-	if ((*gc)->meta.cnum != 0) {
-		if ( ((*gc)->graph = malloc(sizeof(BP_graph))) == NULL ) {
-			printf("%s: malloc BP_graph\n", fname);
-			return (-1);
-		}
-		create_bipartite_graph((*gc)->graph, (*gc)->meta.snum, (*gc)->meta.cnum);
+	/*
+	 * Create generations, bipartite graph
+	 */
+	if (create_context_from_meta(*gc) != 0) {
+		printf("%s: create_context_from_meta\n", fname);
+		return(-1);
 	}
 
 	// Allocating pointers to data
@@ -102,7 +85,7 @@ int create_gnc_context(char *buf, long datasize, struct gnc_context **gc, int s_
 }
 
 
-int create_gnc_context_from_file(FILE *fp, struct gnc_context **gc, int s_b, int s_g, int s_p, int gnc_type)
+int create_gnc_context_from_file(FILE *fp, struct gnc_context **gc, int s_b, int s_g, int s_p, int type)
 {
 	static char fname[] = "create_gnc_context_from_file";
 	// Allocate file_context
@@ -114,6 +97,7 @@ int create_gnc_context_from_file(FILE *fp, struct gnc_context **gc, int s_b, int
 	(*gc)->meta.size_b = s_b;
 	(*gc)->meta.size_g = s_g;
 	(*gc)->meta.size_p = s_p;
+	(*gc)->meta.type   = type;
 
 	// Get file size
 	/* Seek to file end */
@@ -130,38 +114,19 @@ int create_gnc_context_from_file(FILE *fp, struct gnc_context **gc, int s_b, int
 	(*gc)->meta.snum  = num_src;							  // Number of source packets
 	(*gc)->meta.cnum  = num_chk;							  // Number of check packets
 	(*gc)->meta.gnum  = ALIGN( (num_src+num_chk), (*gc)->meta.size_b); // Number of disjoint generations grouped from packets
-	
-	// Inintialize generation structures
-	(*gc)->gene  = malloc(sizeof(struct generation *) * (*gc)->meta.gnum);
-	if ( (*gc)->gene == NULL ) {
-		printf("%s: malloc (*gc)->gene\n", fname);
+	/*
+	 * Verify code parameter
+	 */
+	if (verify_code_parameter(&((*gc)->meta)) != 0) {
+		printf("%s: code parameter is invalid.\n", fname);
 		return(-1);
 	}
-	for (int j=0; j<(*gc)->meta.gnum; j++) {
-		(*gc)->gene[j] = malloc(sizeof(struct generation));
-		if ( (*gc)->gene[j] == NULL ) { 
-			printf("%s: malloc (*gc)->gene[%d]\n", fname, j);
-			return(-1);
-		}
-		(*gc)->gene[j]->gid = -1;
-		(*gc)->gene[j]->pktid = malloc(sizeof(int)*(*gc)->meta.size_g);
-		memset((*gc)->gene[j]->pktid, -1, sizeof(int)*(*gc)->meta.size_g);
-	}
-	int coverage;
-	if (gnc_type == RAND_GNC_CODE) 
-		coverage = group_packets_rand(*gc);
-	else if (gnc_type == BAND_GNC_CODE)
-		coverage = group_packets_rand(*gc);
-
-	printf("Data Size: %ld\t Source Packets: %d\t Check Packets: %d\t Generations: %d\t Coverage: %d\n",(*gc)->meta.datasize, (*gc)->meta.snum, (*gc)->meta.cnum,	(*gc)->meta.gnum, coverage);
-	
-	// Creating bipartite graph of the precode
-	if ((*gc)->meta.cnum != 0) {
-		if ( ((*gc)->graph = malloc(sizeof(BP_graph))) == NULL ) {
-			printf("%s: malloc BP_graph\n", fname);
-			return (-1);
-		}
-		create_bipartite_graph((*gc)->graph, (*gc)->meta.snum, (*gc)->meta.cnum);
+	/*
+	 * Create generations, bipartite graph
+	 */
+	if (create_context_from_meta(*gc) != 0) {
+		printf("%s: create_context_from_meta\n", fname);
+		return(-1);
 	}
 
 	// Allocating pointers to data
@@ -181,6 +146,65 @@ int create_gnc_context_from_file(FILE *fp, struct gnc_context **gc, int s_b, int
     }
 	perform_precoding(*gc);
 
+	return(0);
+}
+
+static int verify_code_parameter(struct gnc_metainfo *meta)
+{
+	if (meta->size_b > meta->size_g) {
+		printf("code parameter error: size_b > size_g\n");
+		return(-1);
+	}
+	//if (meta->gnum*meta->size_b*meta->size_p > meta->datasize) {
+	//	printf("code parameter error: B x L x K > datasize\n");
+	//	return(-1);
+	//}
+	return(0);
+}
+
+/*
+ * Create gnc context using metadata in fc
+ */
+static int create_context_from_meta(struct gnc_context *gc)
+{
+	static char fname[] = "create_gnc_context_meta";
+	// Inintialize generation structures
+	gc->gene  = malloc(sizeof(struct generation *) * gc->meta.gnum);
+	if ( gc->gene == NULL ) {
+		printf("%s: malloc gc->gene\n", fname);
+		return(-1);
+	}
+	for (int j=0; j<gc->meta.gnum; j++) {
+		gc->gene[j] = malloc(sizeof(struct generation));
+		if ( gc->gene[j] == NULL ) { 
+			printf("%s: malloc gc->gene[%d]\n", fname, j);
+			return(-1);
+		}
+		gc->gene[j]->gid = -1;
+		gc->gene[j]->pktid = malloc(sizeof(int)*gc->meta.size_g);
+		if ( gc->gene[j]->pktid == NULL ) {
+			printf("%s: malloc gc->gene[%d]->pktid\n", fname, j);
+			return(-1);
+		}
+		memset(gc->gene[j]->pktid, -1, sizeof(int)*gc->meta.size_g);
+	}
+
+	int coverage;
+	if (gc->meta.type == RAND_GNC_CODE) 
+		coverage = group_packets_rand(gc);
+	else if (gc->meta.type == BAND_GNC_CODE)
+		coverage = group_packets_rand(gc);
+
+	printf("Data Size: %ld\t Source Packets: %d\t Check Packets: %d\t Generations: %d\t Coverage: %d\n",gc->meta.datasize, gc->meta.snum, gc->meta.cnum,	gc->meta.gnum, coverage);
+	
+	// Creating bipartite graph of the precode
+	if (gc->meta.cnum != 0) {
+		if ( (gc->graph = malloc(sizeof(BP_graph))) == NULL ) {
+			printf("%s: malloc BP_graph\n", fname);
+			return (-1);
+		}
+		create_bipartite_graph(gc->graph, gc->meta.snum, gc->meta.cnum);
+	}
 	return(0);
 }
 
