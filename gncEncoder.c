@@ -9,6 +9,7 @@ static int create_context_from_meta(struct gnc_context *gc);
 static int verify_code_parameter(struct gnc_metainfo *meta);
 static void perform_precoding(struct gnc_context *gc);
 static int group_packets_rand(struct gnc_context *gc);
+static int group_packets_band(struct gnc_context *gc);
 static void encode_packet(struct gnc_context *gc, int gid, struct coded_packet *pkt);
 static int schedule_generation(struct gnc_context *gc);
 static int is_prime(int number); 
@@ -125,7 +126,7 @@ int create_gnc_context_from_file(FILE *fp, struct gnc_context **gc, int s_b, int
 	 * Create generations, bipartite graph
 	 */
 	if (create_context_from_meta(*gc) != 0) {
-		printf("%s: create_context_from_meta\n", fname);
+		printf("%s: create_context_from_meta failed\n", fname);
 		return(-1);
 	}
 
@@ -193,7 +194,7 @@ static int create_context_from_meta(struct gnc_context *gc)
 	if (gc->meta.type == RAND_GNC_CODE) 
 		coverage = group_packets_rand(gc);
 	else if (gc->meta.type == BAND_GNC_CODE)
-		coverage = group_packets_rand(gc);
+		coverage = group_packets_band(gc);
 
 	printf("Data Size: %ld\t Source Packets: %d\t Check Packets: %d\t Generations: %d\t Coverage: %d\n",gc->meta.datasize, gc->meta.snum, gc->meta.cnum,	gc->meta.gnum, coverage);
 	
@@ -301,8 +302,7 @@ static int group_packets_rand(struct gnc_context *gc)
 	int num_p = gc->meta.snum + gc->meta.cnum;
 	int num_g = gc->meta.gnum;
 	
-	int *selected = malloc(sizeof(int)*num_p);
-	memset(selected, 0, sizeof(int)*num_p);
+	int *selected = calloc(num_p, sizeof(int));
 
 	int i, j;
 	int index;
@@ -319,6 +319,7 @@ static int group_packets_rand(struct gnc_context *gc)
 			selected[index] += 1;
 		}
 
+		// fill in the rest of the generation with packets from other generations
 		for (j=gc->meta.size_b; j<gc->meta.size_g; j++) {
 			int tmp = i - (j - gc->meta.size_b + 7);
 			int start = tmp >= 0 ? tmp : tmp+num_g;
@@ -331,6 +332,39 @@ static int group_packets_rand(struct gnc_context *gc)
 			selected[index] += 1;
 		}
 		rotate = (rotate + 7) % (gc->meta.size_g);
+	}
+	int coverage = 0;
+	for (i=0; i<num_p; i++)
+		coverage += selected[i];
+
+	free(selected);
+	return coverage;
+}
+
+/*
+ * Group packets to generations that overlap head-to-toe. Each generation's
+ * encoding coefficients form a band in GDM.
+ */
+static int group_packets_band(struct gnc_context *gc)
+{
+	int num_p = gc->meta.snum + gc->meta.cnum;
+	int num_g = gc->meta.gnum;
+	
+	int *selected = calloc(num_p, sizeof(int));
+
+	int i, j;
+	int index;
+	int leading_pivot = 0;
+	for (i=0; i<num_g; i++) {
+		gc->gene[i]->gid = i;
+		leading_pivot = i * gc->meta.size_b;
+		if (leading_pivot > num_p - gc->meta.size_g)
+			leading_pivot = num_p - gc->meta.size_g;
+		for (j=0; j<gc->meta.size_g; j++) {
+			index = leading_pivot + j;
+			selected[index] += 1;
+			gc->gene[i]->pktid[j] = index;
+		}	
 	}
 	int coverage = 0;
 	for (i=0; i<num_p; i++)
