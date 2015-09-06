@@ -1,5 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include "galois.h"
 static int constructed = 0;
 static GF_ELEMENT galois_log_table[1<<GF_ORDER];

@@ -1,5 +1,7 @@
 #ifndef _CCFD_GALOIS_H
 #define _CCFD_GALOIS_H
+#include <stdio.h>
+#include <stdlib.h>
 #define GF_ORDER	8			/* Order of Galois field, don't change it */
 typedef unsigned char GF_ELEMENT;
 // Galois field arithmetic routines

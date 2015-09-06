@@ -116,3 +116,46 @@ long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_EL
 
 	return operations;
 }
+
+/*
+ * Reduce square left-hand side matrix, A, to reduced echelon form (REF), and its right-hand side accordingly:
+ *   A x = B
+ */
+long long matrix_to_REF(int ncolA, int ncolB, GF_ELEMENT *A[], GF_ELEMENT *B[])
+{
+	long long operations = 0;
+	int i, j, k, l;
+	GF_ELEMENT quotient;
+
+	// Partially diagonalize the LDM
+	int consecutive = 1;
+	for (k=ncolA-1; k>=0; k--) {
+		if (A[k][k] == 0) {
+			consecutive = 0;
+			continue;
+		}
+
+		// eliminate elements above the nonzero diagonal elements
+		for (l=0; l<k; l++) {
+			if (A[l][k] == 0)
+				continue;
+				
+			quotient = galois_divide(A[l][k], A[k][k], GF_ORDER);
+			operations += 1;
+			A[l][k] = 0;
+			// 注意后面有的列可能并非为零列(也就是对角元素非零)，这些也要eliminate
+			for (int m=k+1; m<ncolA; m++) {
+				if (A[m][m] == 0) {
+					A[l][m] = galois_add(A[l][m], galois_multiply(A[k][m], quotient, GF_ORDER));
+					operations += 1;
+				}
+			}
+			galois_multiply_add_region(B[l], B[k], quotient, ncolB, GF_ORDER);
+			operations += ncolB;
+		}
+	}
+	if (consecutive == 1) 
+		printf("Class %d is self-decodable.\n", i);
+	return operations;
+}
+
