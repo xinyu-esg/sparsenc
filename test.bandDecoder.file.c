@@ -2,7 +2,7 @@
 #include <fcntl.h>
 #include "common.h"
 #include "gncEncoder.h"
-#include "gncOADecoder.h"
+#include "gncBandDecoder.h"
 
 /*
  * This binary tests GG (generation-by-generation) decoder on GNC code
@@ -10,7 +10,7 @@
  *
  */
 
-char usage[] = "usage: ./test.OAdecoder.file filename size_b size_g size_p";
+char usage[] = "usage: ./test.BandDecoder.file filename size_b size_g size_p";
 
 int main(int argc, char *argv[])
 {
@@ -45,11 +45,11 @@ int main(int argc, char *argv[])
 	printf("File size: %ld\n", gc->meta.datasize);
 	printf("Number of packets: %d\n", gc->meta.snum);
 
-	struct decoding_context_OA *dec_ctx = malloc(sizeof(struct decoding_context_OA));
-	create_decoding_context_OA(dec_ctx, gc->meta.datasize, gc->meta.size_b, gc->meta.size_g, gc->meta.size_p, gc->meta.type, 0);
+	struct decoding_context_BD *dec_ctx = malloc(sizeof(struct decoding_context_BD));
+	create_decoding_context_BD(dec_ctx, gc->meta.datasize, gc->meta.size_b, gc->meta.size_g, gc->meta.size_p, gc->meta.type);
 	while (!dec_ctx->finished) {
 		struct coded_packet *pkt = generate_gnc_packet(gc);
-		process_packet_OA(dec_ctx, pkt);
+		process_packet_BD(dec_ctx, pkt);
 	}
 	printf("overhead: %f computation: %f/symbol\n", 
 					(double) dec_ctx->overhead/dec_ctx->gc->meta.snum,
@@ -66,6 +66,6 @@ int main(int argc, char *argv[])
 	recover_data_to_file(wfp, dec_ctx->gc);
 	fclose(wfp);
 	free_gnc_context(gc);
-	free_decoding_context_OA(dec_ctx);
+	free_decoding_context_BD(dec_ctx);
 	return 0;
 }

@@ -2,3 +2,4 @@
 *.swp
 # ignore objects and archives
 *.[oa]
+*.mp3

@@ -147,6 +147,11 @@ GF_ELEMENT galois_multiply(GF_ELEMENT a, GF_ELEMENT b, int order)
 {
 	if (a ==0 || b== 0)
 		return 0;
+
+	if (a == 1)
+		return b;
+	else if (b == 1)
+		return a;
 	
 	GF_ELEMENT result = galois_mult_table[(a<<order) | b];
 	return result;
@@ -162,6 +167,9 @@ GF_ELEMENT galois_divide(GF_ELEMENT a, GF_ELEMENT b, int order)
 	
 	if (a == 0)
 		return 0;
+
+	if (b == 1)
+		return a;
 
 	GF_ELEMENT result =  galois_divi_table[(a<<order) | b];
 	return result;

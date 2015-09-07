@@ -2,7 +2,7 @@
 #include <fcntl.h>
 #include "common.h"
 #include "gncEncoder.h"
-#include "gncBDDecoder.h"
+#include "gncBandDecoder.h"
 
 char usage[] = "usage: ./test.BDdecoder datasize size_b size_g size_p";
 int main(int argc, char *argv[])
@@ -51,6 +51,6 @@ int main(int argc, char *argv[])
 		printf("recovered is identical to original.\n");
 
 	free_gnc_context(gc);
-	//free_decoding_context_OA(dec_ctx);
+	free_decoding_context_BD(dec_ctx);
 	return 0;
 }

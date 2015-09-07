@@ -1,11 +1,11 @@
-#include "gncBDDecoder.h"
+#include "gncBandDecoder.h"
 static int partially_diag_decoding_matrix(struct decoding_context_BD *dec_ctx);
 static int apply_parity_check_matrix(struct decoding_context_BD *dec_ctx);
 static void finish_recovering_BD(struct decoding_context_BD *dec_ctx);
 
 extern long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B);
 extern long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B);
-extern long pivot_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int *otoc, int *inactives);
+extern long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int *otoc, int *inactives);
 
 // create decoding context for band decoder
 void create_decoding_context_BD(struct decoding_context_BD *dec_ctx, long datasize, int s_b, int s_g, int s_p, int type)
@@ -233,7 +233,7 @@ static int apply_parity_check_matrix(struct decoding_context_BD *dec_ctx)
 	}
 	
 	// 2, Pivot and re-order matrices
-	dec_ctx->operations += pivot_matrix(numpp, numpp, pktsize, dec_ctx->coefficient, dec_ctx->message, dec_ctx->otoc_mapping, &(dec_ctx->inactivated));
+	dec_ctx->operations += pivot_matrix_oneround(numpp, numpp, pktsize, dec_ctx->coefficient, dec_ctx->message, dec_ctx->otoc_mapping, &(dec_ctx->inactivated));
 
 	/* Count available innovative rows */
 	int missing_DoF = 0;
@@ -263,3 +263,20 @@ static void finish_recovering_BD(struct decoding_context_BD *dec_ctx)
 	}
 	dec_ctx->finished = 1;
 }
+
+void free_decoding_context_BD(struct decoding_context_BD *dec_ctx)
+{
+	for (int i=0; i<dec_ctx->gc->meta.snum+dec_ctx->gc->meta.cnum; i++) {
+		free(dec_ctx->coefficient[i]);
+		free(dec_ctx->message[i]);
+	}
+	free(dec_ctx->coefficient);
+	free(dec_ctx->message);
+	free(dec_ctx->overheads);
+	free(dec_ctx->otoc_mapping);
+	free(dec_ctx->ctoo_mapping);
+	free_gnc_context(dec_ctx->gc);
+	free(dec_ctx);
+	dec_ctx = NULL;
+}
+
