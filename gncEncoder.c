@@ -276,7 +276,7 @@ static void perform_precoding(struct gnc_context *gc)
 {
 	static char fname[] = "perform_precoding";
 	// Construct Galois field for encoding and decoding
-	constructField(GF_ORDER);
+	constructField(GF_POWER);
 
 	int i, j;
 	for (i=0; i<gc->meta.cnum; i++) {
@@ -285,7 +285,7 @@ static void perform_precoding(struct gnc_context *gc)
 		while(nb != NULL) {
 			int sid = nb->data;				// index of source packet
 			// XOR information content
-			galois_multiply_add_region(gc->pp[i+gc->meta.snum], gc->pp[sid], 1, gc->meta.size_p, GF_ORDER);
+			galois_multiply_add_region(gc->pp[i+gc->meta.snum], gc->pp[sid], 1, gc->meta.size_p, GF_POWER);
 			// move to next possible neighbour node of current check
 			nb = nb->next;
 		}
@@ -410,8 +410,8 @@ static void encode_packet(struct gnc_context *gc, int gid, struct coded_packet *
 	int pktid;
 	for (i=0; i<gc->meta.size_g; i++) {
 		pktid = gc->gene[gid]->pktid[i];							// The i-th packet of the gid-th generation
-		co = (GF_ELEMENT) rand() % (1 << GF_ORDER);					// Randomly generated coding coefficient
-		galois_multiply_add_region(pkt->syms, gc->pp[pktid], co, gc->meta.size_p, GF_ORDER);
+		co = (GF_ELEMENT) rand() % (1 << GF_POWER);					// Randomly generated coding coefficient
+		galois_multiply_add_region(pkt->syms, gc->pp[pktid], co, gc->meta.size_p, GF_POWER);
 		pkt->coes[i] = co;
 	}
 }

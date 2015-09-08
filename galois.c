@@ -1,42 +1,77 @@
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+#if defined(INTEL_SSSE3)
+#include <tmmintrin.h>
+#endif
 #include "galois.h"
 static int constructed = 0;
-static GF_ELEMENT galois_log_table[1<<GF_ORDER];
-static GF_ELEMENT galois_ilog_table[(1<<GF_ORDER)];
-static GF_ELEMENT galois_mult_table[(1<<GF_ORDER)*(1<<GF_ORDER)];
-static GF_ELEMENT galois_divi_table[(1<<GF_ORDER)*(1<<GF_ORDER)];
+static uint8_t galois_log_table[1<<GF_POWER];
+static uint8_t galois_ilog_table[(1<<GF_POWER)];
+static uint8_t galois_mult_table[(1<<GF_POWER)*(1<<GF_POWER)];
+static uint8_t galois_divi_table[(1<<GF_POWER)*(1<<GF_POWER)];
+
+/* Two half tables are used for SSE multiply_add_region*/
+#if defined(INTEL_SSSE3)
+static uint8_t galois_half_mult_table_high[(1<<GF_POWER)][(1<<(GF_POWER/2))];
+static uint8_t galois_half_mult_table_low[(1<<GF_POWER)][(1<<(GF_POWER/2))];
+#endif
 
 static int primitive_poly_1  = 1;
 static int primitive_poly_2  = 07;
 static int primitive_poly_4  = 023;
-static int primitive_poly_8  = 0435;
-static int galois_create_log_table(int order);
-static int galois_create_mult_table(int order);
+static int primitive_poly_8  = 0435;    /* 100 011 101: x^8 + x^4 + x^3 + x^2 + 1 */
+static int galois_create_log_table(int npower);
+static int galois_create_mult_table(int npower);
 
 int GFConstructed() {
 	return constructed;
 }
 
-int constructField(int order) //Construct the Galois field, that is, construct the two tables
+int constructField(int npower) 
 {
-	static int constructed = 0;			// ensure Galois field is constructed only once
 	if (constructed)
 		return 0;
 	else {
-		if (galois_create_mult_table(order) < 0) {
+		if (galois_create_mult_table(npower) < 0) {
 			perror("constructField");
         	exit(1);
     	}
+#if defined(INTEL_SSSE3)
+		/* 
+		 * Create half tables for SSE multiply_add_region. Currently only support GF(256).
+		 */
+		if (npower == 8) {
+			int a, b, c, d;
+			int pp = primitive_poly_8;
+  			for (a = 1; a < (1<<(npower/2)) ; a++) {
+    			b = 1;
+    			c = a;
+    			d = (a << (npower/2));
+    			do {
+      				galois_half_mult_table_low[b][a] = c;
+					galois_half_mult_table_high[b][a] = d;
+      				b <<= 1;
+      				if (b & (1<<npower)) b ^= pp;
+      					c <<= 1;
+      				if (c & (1<<npower)) c ^= pp;
+      					d <<= 1;
+      				if (d & (1<<npower)) d ^= pp;
+    			} while (c != a);
+  			}	
+		}
+#endif
 		constructed = 1;
 	}
 	return 0;
 }
 
-static int galois_create_log_table(int order)
+static int galois_create_log_table(int npower)
 {
   	int j, b;
-	int nw	 = (1<<GF_ORDER);
-	int nwml = (1<<GF_ORDER)-1;
-	int m = order;
+	int nw	 = (1<<GF_POWER);
+	int nwml = (1<<GF_POWER)-1;
+	int m = npower;
 	int gf_poly;
 
 	if (m == 1) {
@@ -82,13 +117,13 @@ static int galois_create_log_table(int order)
   	return 0;
 }
 
-static int galois_create_mult_table(int order)
+static int galois_create_mult_table(int npower)
 {
 	int j, x, y, logx;
-	int nw = (1<<GF_ORDER);
+	int nw = (1<<GF_POWER);
 
 	// create tables
-    if (galois_create_log_table(order) < 0) {
+    if (galois_create_log_table(npower) < 0) {
 		printf("create log/ilog tables failed\n");
 		return -1;
 	}
@@ -114,13 +149,13 @@ static int galois_create_mult_table(int order)
 		for (y=1; y<nw; y++) {  /* y > 0 */
 			int tmp;
 			tmp = logx + galois_log_table[y];
-			if (tmp >= ((1<<GF_ORDER) - 1))
-				tmp -= ((1<<GF_ORDER) - 1);				// avoid cross the boundary of log/ilog tables
+			if (tmp >= ((1<<GF_POWER) - 1))
+				tmp -= ((1<<GF_POWER) - 1);				// avoid cross the boundary of log/ilog tables
  			galois_mult_table[j] = galois_ilog_table[tmp];
 
 			tmp = logx - galois_log_table[y];
 			while (tmp < 0)
-				tmp += ((1<<GF_ORDER) - 1);
+				tmp += ((1<<GF_POWER) - 1);
       		galois_divi_table[j] = galois_ilog_table[tmp]; 
       		
 			j++;
@@ -133,17 +168,17 @@ static int galois_create_mult_table(int order)
 
 
 // add operation over GF(2^m)
-GF_ELEMENT galois_add(GF_ELEMENT a, GF_ELEMENT b)
+uint8_t galois_add(uint8_t a, uint8_t b)
 {
 	return a ^ b;
 }
 
-GF_ELEMENT galois_sub(GF_ELEMENT a, GF_ELEMENT b)
+uint8_t galois_sub(uint8_t a, uint8_t b)
 {
 	return a ^ b;
 }
 
-GF_ELEMENT galois_multiply(GF_ELEMENT a, GF_ELEMENT b, int order)
+uint8_t galois_multiply(uint8_t a, uint8_t b, int npower)
 {
 	if (a ==0 || b== 0)
 		return 0;
@@ -153,12 +188,12 @@ GF_ELEMENT galois_multiply(GF_ELEMENT a, GF_ELEMENT b, int order)
 	else if (b == 1)
 		return a;
 	
-	GF_ELEMENT result = galois_mult_table[(a<<order) | b];
+	uint8_t result = galois_mult_table[(a<<npower) | b];
 	return result;
 }
 
 // return a/b
-GF_ELEMENT galois_divide(GF_ELEMENT a, GF_ELEMENT b, int order)
+uint8_t galois_divide(uint8_t a, uint8_t b, int npower)
 {
 	if (b == 0) {
 		printf("ERROR! Divide by ZERO!\n");
@@ -171,17 +206,62 @@ GF_ELEMENT galois_divide(GF_ELEMENT a, GF_ELEMENT b, int order)
 	if (b == 1)
 		return a;
 
-	GF_ELEMENT result =  galois_divi_table[(a<<order) | b];
+	uint8_t result =  galois_divi_table[(a<<npower) | b];
 	return result;
 }
 
-void galois_multiply_add_region(GF_ELEMENT *dst, GF_ELEMENT *src, GF_ELEMENT multiplier, int bytes, int order)
+/*
+ * When SSE is enabled, use SSE instructions to do multiply_add_region
+ */
+void galois_multiply_add_region(uint8_t *dst, uint8_t *src, uint8_t multiplier, int bytes, int npower)
 {
-	int i;
+if (bytes % 16 != 0)
+	goto NOSIMD;
+#ifdef   INTEL_SSSE3
 	if (multiplier == 0) {
 		// add nothing to bytes starting from *dst, just return
 		return;
 	}
+
+  	uint8_t *bh, *bl;
+	bh = (uint8_t*) galois_half_mult_table_high;
+	bh += (multiplier << 4);
+  	bl = (uint8_t*) galois_half_mult_table_low;
+  	bl += (multiplier << 4);
+
+  	uint8_t *sptr, *dptr, *top;
+	sptr = src;
+	dptr = dst;
+	top  = src + bytes;
+
+	// read split tables as 128-bit values
+  	__m128i mth = _mm_loadu_si128((__m128i *)(bh));
+  	__m128i mtl = _mm_loadu_si128((__m128i *)(bl));
+  	__m128i loset = _mm_set1_epi8(0x0f);
+
+	__m128i va, r, t1;
+    while (sptr < top) 
+	{
+		va = _mm_loadu_si128 ((__m128i *)(sptr));
+      	t1 = _mm_and_si128 (loset, va);
+      	r = _mm_shuffle_epi8 (mtl, t1);
+      	va = _mm_srli_epi64 (va, 4);
+      	t1 = _mm_and_si128 (loset, va);
+      	r = _mm_xor_si128 (r, _mm_shuffle_epi8 (mth, t1));
+      	va = _mm_loadu_si128 ((__m128i *)(dptr));
+      	r = _mm_xor_si128 (r, va);
+      	_mm_storeu_si128 ((__m128i *)(dptr), r);
+      	dptr += 16;
+      	sptr += 16;
+    }
+	return;
+#endif
+NOSIMD:
+	if (multiplier == 0) {
+		// add nothing to bytes starting from *dst, just return
+		return;
+	}
+	int i;
 	if (multiplier == 1) {
 		for (i=0; i<bytes; i++)
 			dst[i] ^= src[i];
@@ -189,5 +269,6 @@ void galois_multiply_add_region(GF_ELEMENT *dst, GF_ELEMENT *src, GF_ELEMENT mul
 	}
 
     for (i = 0; i < bytes; i++) 
-      dst[i] ^= galois_mult_table[(src[i]<<order) | multiplier];
+      	dst[i] ^= galois_mult_table[(src[i]<<npower) | multiplier];
+	return;
 }

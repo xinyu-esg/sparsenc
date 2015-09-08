@@ -88,7 +88,7 @@ void create_decoding_context_GG(struct decoding_context_GG *dec_ctx, long datasi
 	dec_ctx->operations = 0;
 	dec_ctx->overhead 	= 0;
 
-	constructField(GF_ORDER);		/*construct Galois field if necessary*/
+	constructField(GF_POWER);		/*construct Galois field if necessary*/
 }
 
 void free_decoding_context_GG(struct decoding_context_GG *dec_ctx)
@@ -277,7 +277,7 @@ static void new_decoded_source_packet(struct decoding_context_GG *dec_ctx, int p
 				printf("%s: calloc evolving_checks[%d]\n", fname, check_id);
 		}
 		// mask information bits
-		galois_multiply_add_region(dec_ctx->evolving_checks[check_id], dec_ctx->gc->pp[pkt_id], 1, dec_ctx->gc->meta.size_p, GF_ORDER);
+		galois_multiply_add_region(dec_ctx->evolving_checks[check_id], dec_ctx->gc->pp[pkt_id], 1, dec_ctx->gc->meta.size_p, GF_POWER);
 		dec_ctx->operations += dec_ctx->gc->meta.size_p;
 		dec_ctx->check_degrees[check_id] -= 1;
 		if (remove_from_list(dec_ctx->gc->graph->l_nbrs_of_r[check_id], pkt_id) == -1)
@@ -306,7 +306,7 @@ static void new_decoded_check_packet(struct decoding_context_GG *dec_ctx, int pk
 	} else {
 		// Some source neighbors have been decoded and therefore updated the evolving area,
 		// we need to mask the actual check packet content against the evolving area.
-		galois_multiply_add_region(dec_ctx->evolving_checks[check_id], dec_ctx->gc->pp[pkt_id], 1, dec_ctx->gc->meta.size_p, GF_ORDER);
+		galois_multiply_add_region(dec_ctx->evolving_checks[check_id], dec_ctx->gc->pp[pkt_id], 1, dec_ctx->gc->meta.size_p, GF_POWER);
 		dec_ctx->operations += dec_ctx->gc->meta.size_p;
 	}
 }
@@ -436,7 +436,7 @@ static long update_running_matrix(struct decoding_context_GG *dec_ctx, int gid, 
 		GF_ELEMENT ce = matrix->coefficient[i][r_cols-1];		// the encoding coefficient of the erasuing packet
 		if (ce == 0)
 			continue;										// NOTE: the matrix could high likely be sparse
-		galois_multiply_add_region(&matrix->message[i][0], dec_ctx->gc->pp[sid], ce, dec_ctx->gc->meta.size_p, GF_ORDER);
+		galois_multiply_add_region(&matrix->message[i][0], dec_ctx->gc->pp[sid], ce, dec_ctx->gc->meta.size_p, GF_POWER);
 		operations += dec_ctx->gc->meta.size_p;
 	}
 	_FLAG_SET(matrix->erased, index);		// mark the column as erased
@@ -492,7 +492,7 @@ static void mask_packet(struct decoding_context_GG *dec_ctx, GF_ELEMENT ce, int 
 		printf("%s: the desired packet is not decoded yet\n", fname);
 		return;
 	}
-	galois_multiply_add_region(enc_pkt->syms, dec_ctx->gc->pp[index], ce, dec_ctx->gc->meta.size_p, GF_ORDER);
+	galois_multiply_add_region(enc_pkt->syms, dec_ctx->gc->pp[index], ce, dec_ctx->gc->meta.size_p, GF_POWER);
 	dec_ctx->operations += dec_ctx->gc->meta.size_p;
 	return;
 }

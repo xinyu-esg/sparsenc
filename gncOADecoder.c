@@ -157,11 +157,11 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct coded_packet 
 	for (i=0; i<gensize; i++) {
 		if (pkt->coes[i] != 0) {
 			if (matrix->coefficient[i][i] != 0) {
-				quotient = galois_divide(pkt->coes[i], matrix->coefficient[i][i], GF_ORDER);
+				quotient = galois_divide(pkt->coes[i], matrix->coefficient[i][i], GF_POWER);
 				dec_ctx->operations += 1;
-				galois_multiply_add_region(&(pkt->coes[i]), &(matrix->coefficient[i][i]), quotient, gensize-i, GF_ORDER);
+				galois_multiply_add_region(&(pkt->coes[i]), &(matrix->coefficient[i][i]), quotient, gensize-i, GF_POWER);
 				dec_ctx->operations += (gensize - i);
-				galois_multiply_add_region(pkt->syms, matrix->message[i], quotient, pktsize, GF_ORDER);
+				galois_multiply_add_region(pkt->syms, matrix->message[i], quotient, pktsize, GF_POWER);
 				dec_ctx->operations += pktsize;
 			} else {
 				pivotfound = 1;
@@ -225,20 +225,20 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct coded_packet 
 				if (re_ordered[m] != 0) {
 					if (dec_ctx->JMBcoefficient[m][m] != 0) {
 						// mask the encoding vector and message over the JMB decoding matrix
-						GF_ELEMENT quotient = galois_divide(re_ordered[m], dec_ctx->JMBcoefficient[m][m], GF_ORDER);
+						GF_ELEMENT quotient = galois_divide(re_ordered[m], dec_ctx->JMBcoefficient[m][m], GF_POWER);
 						dec_ctx->operations += 1;
 						if ( m < (numpp - dec_ctx->inactives) ) {
 							// Only needs to be multiply-and-add to the inactive part
 							// this saves computation
 							int maa_start = numpp - dec_ctx->inactives;		
-							galois_multiply_add_region(re_ordered+maa_start, &(dec_ctx->JMBcoefficient[m][maa_start]), quotient, dec_ctx->inactives, GF_ORDER);
+							galois_multiply_add_region(re_ordered+maa_start, &(dec_ctx->JMBcoefficient[m][maa_start]), quotient, dec_ctx->inactives, GF_POWER);
 							dec_ctx->operations += dec_ctx->inactives;
 							re_ordered[m] = 0;
 						} else {
-							galois_multiply_add_region(re_ordered+m, &(dec_ctx->JMBcoefficient[m][m]), quotient, numpp-m, GF_ORDER);
+							galois_multiply_add_region(re_ordered+m, &(dec_ctx->JMBcoefficient[m][m]), quotient, numpp-m, GF_POWER);
 							dec_ctx->operations += (numpp - m);
 						}
-						galois_multiply_add_region(pkt->syms, dec_ctx->JMBmessage[m], quotient, pktsize, GF_ORDER);
+						galois_multiply_add_region(pkt->syms, dec_ctx->JMBmessage[m], quotient, pktsize, GF_POWER);
 						dec_ctx->operations += pktsize;
 					} else {
 						pivotfound = 1;
@@ -346,7 +346,7 @@ static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
 			if (dec_ctx->JMBcoefficient[i][j] != 0) {
 				quotient = dec_ctx->JMBcoefficient[i][j];
 				pktid = dec_ctx->ctoo_mapping[j];			
-				galois_multiply_add_region(dec_ctx->JMBmessage[i], dec_ctx->gc->pp[pktid], quotient, pktsize, GF_ORDER);
+				galois_multiply_add_region(dec_ctx->JMBmessage[i], dec_ctx->gc->pp[pktid], quotient, pktsize, GF_POWER);
 				dec_ctx->JMBcoefficient[i][j] = 0;
 				dec_ctx->operations += pktsize;
 			}
@@ -356,7 +356,7 @@ static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
 		quotient = dec_ctx->JMBcoefficient[i][i];
 		if (quotient != 1) {
 			for (int n=0; n<pktsize; n++)
-				dec_ctx->JMBmessage[i][n] = galois_divide(dec_ctx->JMBmessage[i][n], quotient, GF_ORDER);
+				dec_ctx->JMBmessage[i][n] = galois_divide(dec_ctx->JMBmessage[i][n], quotient, GF_POWER);
 			dec_ctx->operations += pktsize;
 			dec_ctx->JMBcoefficient[i][i] = 1;
 		}
@@ -402,17 +402,17 @@ static long running_matrix_to_REF(struct decoding_context_OA *dec_ctx)
 				if (matrix->coefficient[l][k] == 0)
 					continue;
 				
-				quotient = galois_divide(matrix->coefficient[l][k], matrix->coefficient[k][k], GF_ORDER);
+				quotient = galois_divide(matrix->coefficient[l][k], matrix->coefficient[k][k], GF_POWER);
 				operations += 1;
 				matrix->coefficient[l][k] = 0;
 				// 注意后面有的列可能并非为零列(也就是对角元素非零)，这些也要eliminate
 				for (int m=k+1; m<gensize; m++) {
 					if (matrix->coefficient[m][m] == 0) {
-						matrix->coefficient[l][m] = galois_add(matrix->coefficient[l][m], galois_multiply(matrix->coefficient[k][m], quotient, GF_ORDER));
+						matrix->coefficient[l][m] = galois_add(matrix->coefficient[l][m], galois_multiply(matrix->coefficient[k][m], quotient, GF_POWER));
 						operations += 1;
 					}
 				}
-				galois_multiply_add_region(matrix->message[l], matrix->message[k], quotient, pktsize, GF_ORDER);
+				galois_multiply_add_region(matrix->message[l], matrix->message[k], quotient, pktsize, GF_POWER);
 				operations += pktsize;
 			}
 		}

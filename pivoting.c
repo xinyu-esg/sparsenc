@@ -183,13 +183,13 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 
 			// process the item on (j, i)
 			if (ces_matrix[j][i] != 0) {
-				quotient = galois_divide(ces_matrix[j][i], ces_matrix[i][i], GF_ORDER);
+				quotient = galois_divide(ces_matrix[j][i], ces_matrix[i][i], GF_POWER);
 				ops1 += 1;
 				// XOR the corresponding part in the inactive part
-				galois_multiply_add_region(&(ces_matrix[j][ncolA-ias]), &(ces_matrix[i][ncolA-ias]), quotient, ias, GF_ORDER);
+				galois_multiply_add_region(&(ces_matrix[j][ncolA-ias]), &(ces_matrix[i][ncolA-ias]), quotient, ias, GF_POWER);
 				ops1 += ias;	// This part of matrix in processing is lower triangular in part, so operations only needed in the back
 				// simultaneously do the same thing on right matrix B
-				galois_multiply_add_region(msg_matrix[j], msg_matrix[i], quotient, ncolB, GF_ORDER);
+				galois_multiply_add_region(msg_matrix[j], msg_matrix[i], quotient, ncolB, GF_POWER);
 				ops1 += ncolB;				
 				ces_matrix[j][i] = 0;			// eliminate the item
 			}
@@ -335,13 +335,13 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 
 			// process the item on (j, i)
 			if (ces_matrix[j][i] != 0) {
-				quotient = galois_divide(ces_matrix[j][i], ces_matrix[i][i], GF_ORDER);
+				quotient = galois_divide(ces_matrix[j][i], ces_matrix[i][i], GF_POWER);
 				ops1 += 1;
 				// XOR the corresponding part in the inactive part
-				galois_multiply_add_region(&(ces_matrix[j][ncolA-ias]), &(ces_matrix[i][ncolA-ias]), quotient, ias, GF_ORDER);
+				galois_multiply_add_region(&(ces_matrix[j][ncolA-ias]), &(ces_matrix[i][ncolA-ias]), quotient, ias, GF_POWER);
 				ops1 += ias;	// This part of matrix in processing is lower triangular in part, so operations only needed in the back
 				// simultaneously do the same thing on right matrix B
-				galois_multiply_add_region(msg_matrix[j], msg_matrix[i], quotient, ncolB, GF_ORDER);
+				galois_multiply_add_region(msg_matrix[j], msg_matrix[i], quotient, ncolB, GF_POWER);
 				ops1 += ncolB;				
 				ces_matrix[j][i] = 0;			// eliminate the item
 			}

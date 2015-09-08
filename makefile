@@ -3,7 +3,8 @@
 
 CC = gcc
 #CFLAGS = -fdiagnostics-color=auto -std=c99 -g -lm
-CFLAGS = -std=c99 -g -lm
+CFLAGS = -std=c99 -g -lm -mssse3 -DINTEL_SSSE3
+#CFLAGS = -std=c99 -g -lm
 
 TEST_GGDEC = test.GGdecoder.o bipartite.o gncEncoder.o gncGGDecoder.o galois.o gaussian.o common.o
 TEST_GGDEC_FILE = test.GGdecoder.file.o bipartite.o gncEncoder.o gncGGDecoder.o galois.o gaussian.o common.o

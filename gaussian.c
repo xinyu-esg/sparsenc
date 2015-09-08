@@ -50,13 +50,13 @@ long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF
 				for (j=i+1; j<nrow; j++) {
 					if (A[j][i] == 0)
 						continue;			// the matrix we are dealing here is high likely being sparse, so we use this to avoid unnecessary operations
-					quotient = galois_divide(A[j][i], A[i][i], GF_ORDER);
+					quotient = galois_divide(A[j][i], A[i][i], GF_POWER);
 					operations += 1;
 					// eliminate the items under row i at col i
-					galois_multiply_add_region(A[j], A[i], quotient, ncolA, GF_ORDER);
+					galois_multiply_add_region(A[j], A[i], quotient, ncolA, GF_POWER);
 					operations += (ncolA-i);
 					// simultaneously do the same thing on right matrix B
-					galois_multiply_add_region(B[j], B[i], quotient, ncolB, GF_ORDER);
+					galois_multiply_add_region(B[j], B[i], quotient, ncolB, GF_POWER);
 					operations += ncolB;
 				}
 			}
@@ -64,13 +64,13 @@ long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF
 			for (j=i+1; j<nrow; j++) {
 				if (A[j][i] == 0)
 					continue;			// the matrix we are dealing here is high likely being sparse, so we use this to avoid unnecessary operations
-				quotient = galois_divide(A[j][i], A[i][i], GF_ORDER);
+				quotient = galois_divide(A[j][i], A[i][i], GF_POWER);
 				operations += 1;
 				// eliminate the items under row i at col i
-				galois_multiply_add_region(A[j], A[i], quotient, ncolA, GF_ORDER);
+				galois_multiply_add_region(A[j], A[i], quotient, ncolA, GF_POWER);
 				operations += (ncolA-i);
 				// simultaneously do the same thing on right matrix B
-				galois_multiply_add_region(B[j], B[i], quotient, ncolB, GF_ORDER);
+				galois_multiply_add_region(B[j], B[i], quotient, ncolB, GF_POWER);
 				operations += ncolB;
 			}
 		}
@@ -91,14 +91,14 @@ long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_EL
 		for (j=0; j<i; j++) {
 			if (A[j][i] == 0)
 				continue;				// the matrix we are dealing here is high likely being sparse, so we use this to avoid unnecessary operations
-			GF_ELEMENT quotient = galois_divide(A[j][i], A[i][i], GF_ORDER);
+			GF_ELEMENT quotient = galois_divide(A[j][i], A[i][i], GF_POWER);
 			operations += 1;
 
-			A[j][i] = galois_sub(A[j][i], galois_multiply(A[i][i], quotient, GF_ORDER));
+			A[j][i] = galois_sub(A[j][i], galois_multiply(A[i][i], quotient, GF_POWER));
 			operations += 1;
 
 			// doing accordingly to B
-			galois_multiply_add_region(B[j], B[i], quotient, ncolB, GF_ORDER);
+			galois_multiply_add_region(B[j], B[i], quotient, ncolB, GF_POWER);
 			operations += ncolB;
 		}
 	}
@@ -107,7 +107,7 @@ long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_EL
 	for (l=0; l<ncolA; l++) {
 		if (A[l][l] != 0) {
 			for (k=0; k<ncolB; k++) {
-				B[l][k] = galois_divide(B[l][k], A[l][l], GF_ORDER);
+				B[l][k] = galois_divide(B[l][k], A[l][l], GF_POWER);
 				operations += 1;
 			}
 			A[l][l] = 1;
@@ -140,17 +140,17 @@ long long matrix_to_REF(int ncolA, int ncolB, GF_ELEMENT *A[], GF_ELEMENT *B[])
 			if (A[l][k] == 0)
 				continue;
 				
-			quotient = galois_divide(A[l][k], A[k][k], GF_ORDER);
+			quotient = galois_divide(A[l][k], A[k][k], GF_POWER);
 			operations += 1;
 			A[l][k] = 0;
 			// 注意后面有的列可能并非为零列(也就是对角元素非零)，这些也要eliminate
 			for (int m=k+1; m<ncolA; m++) {
 				if (A[m][m] == 0) {
-					A[l][m] = galois_add(A[l][m], galois_multiply(A[k][m], quotient, GF_ORDER));
+					A[l][m] = galois_add(A[l][m], galois_multiply(A[k][m], quotient, GF_POWER));
 					operations += 1;
 				}
 			}
-			galois_multiply_add_region(B[l], B[k], quotient, ncolB, GF_ORDER);
+			galois_multiply_add_region(B[l], B[k], quotient, ncolB, GF_POWER);
 			operations += ncolB;
 		}
 	}

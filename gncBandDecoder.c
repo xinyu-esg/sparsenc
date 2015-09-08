@@ -83,12 +83,12 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct coded_packet 
 		for (i=0; i<numpp; i++) {
 			if (ces[i] != 0) {
 				if (dec_ctx->coefficient[i][i] != 0) {
-					quotient = galois_divide(ces[i], dec_ctx->coefficient[i][i], GF_ORDER);
+					quotient = galois_divide(ces[i], dec_ctx->coefficient[i][i], GF_POWER);
 					dec_ctx->operations += 1;
 					int band_width = numpp-i > gensize ? gensize : numpp-i;
-					galois_multiply_add_region(ces+i, &(dec_ctx->coefficient[i][i]), quotient, band_width, GF_ORDER);
+					galois_multiply_add_region(ces+i, &(dec_ctx->coefficient[i][i]), quotient, band_width, GF_POWER);
 					dec_ctx->operations += band_width;
-					galois_multiply_add_region(pkt->syms, dec_ctx->message[i], quotient, pktsize, GF_ORDER);
+					galois_multiply_add_region(pkt->syms, dec_ctx->message[i], quotient, pktsize, GF_POWER);
 					dec_ctx->operations += pktsize;
 				} else {
 					pivotfound = 1;
@@ -109,11 +109,11 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct coded_packet 
 		for (i=0; i<numpp; i++) {
 			if (ces[i] != 0) {
 				if (dec_ctx->coefficient[i][i] != 0) {
-					quotient = galois_divide(ces[i], dec_ctx->coefficient[i][i], GF_ORDER);
+					quotient = galois_divide(ces[i], dec_ctx->coefficient[i][i], GF_POWER);
 					dec_ctx->operations += 1;
-					galois_multiply_add_region(ces+i, &(dec_ctx->coefficient[i][i]), quotient, numpp-i, GF_ORDER);
+					galois_multiply_add_region(ces+i, &(dec_ctx->coefficient[i][i]), quotient, numpp-i, GF_POWER);
 					dec_ctx->operations += (numpp - i);
-					galois_multiply_add_region(pkt->syms, dec_ctx->message[i], quotient, pktsize, GF_ORDER);
+					galois_multiply_add_region(pkt->syms, dec_ctx->message[i], quotient, pktsize, GF_POWER);
 					dec_ctx->operations += pktsize;
 				} else {
 					pivotfound = 1;
@@ -184,19 +184,19 @@ static int partially_diag_decoding_matrix(struct decoding_context_BD *dec_ctx)
 				if (dec_ctx->coefficient[i][j] == 0)
 					continue;
 				
-				quotient = galois_divide(dec_ctx->coefficient[i][j], dec_ctx->coefficient[j][j], GF_ORDER);
+				quotient = galois_divide(dec_ctx->coefficient[i][j], dec_ctx->coefficient[j][j], GF_POWER);
 				operations += 1;
 				dec_ctx->coefficient[i][j] = 0;			// eliminiate the element
 				// Important: corresponding operations on behind columns whose diagonal elements are zeros
 				for (int z=0; z<zero_p; z++) {
 					l = zeropivots[z];
 					if (dec_ctx->coefficient[j][l] != 0) {
-						dec_ctx->coefficient[i][l] = galois_add(dec_ctx->coefficient[i][l], galois_multiply(dec_ctx->coefficient[j][l], quotient, GF_ORDER));
+						dec_ctx->coefficient[i][l] = galois_add(dec_ctx->coefficient[i][l], galois_multiply(dec_ctx->coefficient[j][l], quotient, GF_POWER));
 						operations += 1;
 					}
 				}
 				// correspoding operations on the message matrix
-				galois_multiply_add_region(dec_ctx->message[i], dec_ctx->message[j], quotient, pktsize, GF_ORDER);
+				galois_multiply_add_region(dec_ctx->message[i], dec_ctx->message[j], quotient, pktsize, GF_POWER);
 				operations += pktsize;
 			}
 		}
