@@ -2,9 +2,10 @@
 #include <fcntl.h>
 #include "common.h"
 #include "gncEncoder.h"
-#include "gncBandDecoder.h"
+#include "gncGGDecoder.h"
+extern void print_code_summary(struct gnc_metainfo *meta, int overhead, long operations);
 
-char usage[] = "usage: ./test.BDdecoder datasize size_b size_g size_p";
+char usage[] = "usage: ./test.GGdecoder datasize size_b size_g size_p";
 int main(int argc, char *argv[])
 {
 	if (argc != 5) {
@@ -15,7 +16,7 @@ int main(int argc, char *argv[])
 	int  size_b   = atoi(argv[2]);
 	int  size_g   = atoi(argv[3]);
 	int  size_p   = atoi(argv[4]);
-	int  gnc_type = BAND_GNC_CODE;
+	int  gnc_type = RAND_GNC_CODE;
 
 	srand( (int) time(0) );
 	char *buf = malloc(datasize);
@@ -30,19 +31,12 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	printf("File size: %ld\n", gc->meta.datasize);
-	printf("Number of packets: %d\n", gc->meta.snum);
-
-	struct decoding_context_BD *dec_ctx = malloc(sizeof(struct decoding_context_BD));
-	create_decoding_context_BD(dec_ctx, gc->meta.datasize, gc->meta.size_b, gc->meta.size_g, gc->meta.size_p, gc->meta.type);
+	struct decoding_context_GG *dec_ctx = malloc(sizeof(struct decoding_context_GG));
+	create_decoding_context_GG(dec_ctx, gc->meta.datasize, gc->meta.size_b, gc->meta.size_g, gc->meta.size_p, gc->meta.type);
 	while (dec_ctx->finished != 1) {
 		struct coded_packet *pkt = generate_gnc_packet(gc);
-		process_packet_BD(dec_ctx, pkt);
+		process_packet_GG(dec_ctx, pkt);
 	}
-	printf("overhead: %f computation: %f/symbol\n", 
-					(double) dec_ctx->overhead/dec_ctx->gc->meta.snum,
-					(double) dec_ctx->operations/dec_ctx->gc->meta.snum/(dec_ctx->gc->meta.size_p));
-
 
 	unsigned char *rec_buf = recover_data(dec_ctx->gc);
 	if (memcmp(buf, rec_buf, datasize) != 0) 
@@ -50,7 +44,9 @@ int main(int argc, char *argv[])
 	else
 		printf("recovered is identical to original.\n");
 
+	print_code_summary(&dec_ctx->gc->meta, dec_ctx->overhead, dec_ctx->operations);
+
 	free_gnc_context(gc);
-	free_decoding_context_BD(dec_ctx);
+	free_decoding_context_GG(dec_ctx);
 	return 0;
 }

@@ -156,10 +156,10 @@ static int verify_code_parameter(struct gnc_metainfo *meta)
 		printf("code parameter error: size_b > size_g\n");
 		return(-1);
 	}
-	//if (meta->gnum*meta->size_b*meta->size_p > meta->datasize) {
-	//	printf("code parameter error: B x L x K > datasize\n");
-	//	return(-1);
-	//}
+	if (meta->size_b*meta->size_p > meta->datasize) {
+		printf("code parameter error: size_b X size_p > datasize\n");
+		return(-1);
+	}
 	return(0);
 }
 

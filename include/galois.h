@@ -1,5 +1,5 @@
-#ifndef _CCFD_GALOIS_H
-#define _CCFD_GALOIS_H
+#ifndef _GALOIS_H
+#define _GALOIS_H
 #include <stdio.h>
 #include <stdlib.h>
 #define GF_POWER	8			/* Order of Galois field: 2^8, don't change it */
