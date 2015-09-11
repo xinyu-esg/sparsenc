@@ -48,7 +48,7 @@ void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasi
 	// gc->pp will be filled by decoded packets
 	struct gnc_context *gc;
 	if (create_gnc_context(NULL, datasize, &gc, s_b, s_g, s_p, type) != 0) 
-		printf("%s: create decoding context failed", fname);
+		fprintf(stderr, "%s: create decoding context failed", fname);
 
 	dec_ctx->gc = gc;
 
@@ -65,11 +65,11 @@ void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasi
 	// Allocate matrices for per-generation decoding
 	dec_ctx->Matrices = calloc(dec_ctx->gc->meta.gnum, sizeof(struct running_matrix*));
 	if (dec_ctx->Matrices == NULL)
-		printf("%s: calloc dec_ctx->Matrices\n", fname);
+		fprintf(stderr, "%s: calloc dec_ctx->Matrices\n", fname);
 	for (i=0; i<dec_ctx->gc->meta.gnum; i++) { 
 		dec_ctx->Matrices[i] = calloc(1, sizeof(struct running_matrix));
 		if (dec_ctx->Matrices[i] == NULL)
-			printf("%s: malloc dec_ctx->Matrices[%d]\n", fname, i);
+			fprintf(stderr, "%s: malloc dec_ctx->Matrices[%d]\n", fname, i);
 		dec_ctx->Matrices[i]->overhead = 0;
 		
 		// Allocate coefficient and message matrices in running_matrix
@@ -78,28 +78,28 @@ void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasi
 		// Dim-1) Pointers to each row
 		dec_ctx->Matrices[i]->coefficient = calloc(gensize, sizeof(GF_ELEMENT*));
 		if (dec_ctx->Matrices[i]->coefficient == NULL)
-			printf("%s: calloc dec_ctx->Matrices[%d]->coefficient\n", fname, i);
+			fprintf(stderr, "%s: calloc dec_ctx->Matrices[%d]->coefficient\n", fname, i);
 		dec_ctx->Matrices[i]->message = calloc(gensize, sizeof(GF_ELEMENT*));
 		if (dec_ctx->Matrices[i]->message == NULL)
-			printf("%s: calloc dec_ctx->Matrices[%d]->messsage\n", fname, i);
+			fprintf(stderr, "%s: calloc dec_ctx->Matrices[%d]->messsage\n", fname, i);
 		// Dim-2) Elements of each row
 		for (j=0; j<gensize; j++) {
 			dec_ctx->Matrices[i]->coefficient[j] = calloc(gensize, sizeof(GF_ELEMENT));
 			if (dec_ctx->Matrices[i]->coefficient[j] == NULL)
-				printf("%s: calloc dec_ctx->Matrices[%d]->coefficient[%d]\n", fname, i, j);
+				fprintf(stderr, "%s: calloc dec_ctx->Matrices[%d]->coefficient[%d]\n", fname, i, j);
 			dec_ctx->Matrices[i]->message[j] = calloc(pktsize, sizeof(GF_ELEMENT));
 			if (dec_ctx->Matrices[i]->message[j] == NULL)
-				printf("%s: calloc dec_ctx->Matrices[%d]->messsage[%d]\n", fname, i, j);
+				fprintf(stderr, "%s: calloc dec_ctx->Matrices[%d]->messsage[%d]\n", fname, i, j);
 		}
 	}
 
 	// Allocate matrices for global decoding
 	dec_ctx->JMBcoefficient = calloc(numpp+dec_ctx->aoh, sizeof(GF_ELEMENT*));
 	if (dec_ctx->JMBcoefficient == NULL)
-		printf("%s: calloc dec_ctx->JMBcoefficient\n", fname);
+		fprintf(stderr, "%s: calloc dec_ctx->JMBcoefficient\n", fname);
 	dec_ctx->JMBmessage     = calloc(numpp+dec_ctx->aoh, sizeof(GF_ELEMENT*));
 	if (dec_ctx->JMBmessage == NULL)
-		printf("%s: calloc dec_ctx->JMBmessage\n", fname);
+		fprintf(stderr, "%s: calloc dec_ctx->JMBmessage\n", fname);
 
 	for (i=0; i<numpp+dec_ctx->aoh; i++) {
 		dec_ctx->JMBcoefficient[i] = calloc(numpp, sizeof(GF_ELEMENT));
@@ -305,8 +305,10 @@ static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
 	int numpp   = dec_ctx->gc->meta.snum + dec_ctx->gc->meta.cnum;
 
 	// Recover inactivated packets
+#if defined(GNCTRACE)
 	printf("Finishing decoding...\n");
 	printf("Recovering \"inactive\" packets...\n");
+#endif
 	int ias = dec_ctx->inactives;
 	GF_ELEMENT **ces_submatrix = calloc(ias, sizeof(GF_ELEMENT*));
 	for (i=0; i<ias; i++) {
@@ -324,7 +326,7 @@ static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
 		pktid = dec_ctx->ctoo_mapping[numpp-ias+i];	
 		// Construct decoded packets
 		if ( (dec_ctx->gc->pp[pktid] = calloc(pktsize, sizeof(GF_ELEMENT))) == NULL )
-			printf("%s: calloc gc->pp[%d]\n", fname, pktid);
+			fprintf(stderr, "%s: calloc gc->pp[%d]\n", fname, pktid);
 		memcpy(dec_ctx->gc->pp[pktid], dec_ctx->JMBmessage[numpp-ias+i], sizeof(GF_ELEMENT)*pktsize);
 	}
 	/* free ces_submatrix */
@@ -334,7 +336,9 @@ static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
 	
 
 	// Recover active packets
+#if defined(GNCTRACE)
 	printf("Recovering \"active\" packets...\n");
+#endif
 	GF_ELEMENT quotient;
 	for (i=0; i<numpp-ias; i++) {
 		/* 
@@ -355,8 +359,7 @@ static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
 		// Convert diagonal elements of top-left part of T to 1
 		quotient = dec_ctx->JMBcoefficient[i][i];
 		if (quotient != 1) {
-			for (int n=0; n<pktsize; n++)
-				dec_ctx->JMBmessage[i][n] = galois_divide(dec_ctx->JMBmessage[i][n], quotient, GF_POWER);
+			galois_multiply_region(dec_ctx->JMBmessage[i], galois_divide(1, quotient, GF_POWER), pktsize, GF_POWER);
 			dec_ctx->operations += pktsize;
 			dec_ctx->JMBcoefficient[i][i] = 1;
 		}
@@ -364,9 +367,9 @@ static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
 		// Save the decoded packet
 		pktid = dec_ctx->ctoo_mapping[i];
 		if ( dec_ctx->gc->pp[pktid] != NULL )
-			printf("%s：warning: packet %d is already recovered.\n", fname, pktid);
+			fprintf(stderr, "%s：warning: packet %d is already recovered.\n", fname, pktid);
 		if ( (dec_ctx->gc->pp[pktid] = calloc(pktsize, sizeof(GF_ELEMENT))) == NULL )
-			printf("%s: calloc gc->pp[%d]\n", fname, pktid);
+			fprintf(stderr, "%s: calloc gc->pp[%d]\n", fname, pktid);
 		memcpy(dec_ctx->gc->pp[pktid], dec_ctx->JMBmessage[i], sizeof(GF_ELEMENT)*pktsize);
 	}
 
@@ -416,8 +419,10 @@ static long running_matrix_to_REF(struct decoding_context_OA *dec_ctx)
 				operations += pktsize;
 			}
 		}
+#if defined(GNCTRACE)
 		if (consecutive == 1) 
 			printf("Class %d is self-decodable.\n", i);
+#endif
 	}
 	return operations;
 }
@@ -452,7 +457,9 @@ static void construct_GDM(struct decoding_context_OA *dec_ctx)
 		}
 	}
 	free(global_ces);
+#if defined(GNCTRACE)
 	printf("%d local DoFs are available, copied %d to GDM.\n", dec_ctx->local_DoF, p_copy);
+#endif
 
 	/* Transform GDM using 2 rounds of pivoting */
 	//dec_ctx->operations += pivot_matrix(numpp+dec_ctx->aoh, numpp, pktsize, dec_ctx->JMBcoefficient, dec_ctx->JMBmessage, dec_ctx->otoc_mapping, dec_ctx->ctoo_mapping, &(dec_ctx->inactives));

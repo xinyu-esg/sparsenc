@@ -1,5 +1,4 @@
 #include <stdlib.h>
-#include <stdint.h>
 #include <string.h>
 #if defined(INTEL_SSSE3)
 #include <tmmintrin.h>
@@ -127,7 +126,6 @@ static int galois_create_mult_table(int npower)
 		printf("create log/ilog tables failed\n");
 		return -1;
 	}
-
  
 	/* Set mult/div tables for x = 0 */
   	j = 0;
@@ -165,20 +163,18 @@ static int galois_create_mult_table(int npower)
   	return 0;
 }
 
-
-
 // add operation over GF(2^m)
-uint8_t galois_add(uint8_t a, uint8_t b)
+inline uint8_t galois_add(uint8_t a, uint8_t b)
 {
 	return a ^ b;
 }
 
-uint8_t galois_sub(uint8_t a, uint8_t b)
+inline uint8_t galois_sub(uint8_t a, uint8_t b)
 {
 	return a ^ b;
 }
 
-uint8_t galois_multiply(uint8_t a, uint8_t b, int npower)
+inline uint8_t galois_multiply(uint8_t a, uint8_t b, int npower)
 {
 	if (a ==0 || b== 0)
 		return 0;
@@ -193,7 +189,7 @@ uint8_t galois_multiply(uint8_t a, uint8_t b, int npower)
 }
 
 // return a/b
-uint8_t galois_divide(uint8_t a, uint8_t b, int npower)
+inline uint8_t galois_divide(uint8_t a, uint8_t b, int npower)
 {
 	if (b == 0) {
 		printf("ERROR! Divide by ZERO!\n");
@@ -215,53 +211,66 @@ uint8_t galois_divide(uint8_t a, uint8_t b, int npower)
  */
 void galois_multiply_add_region(uint8_t *dst, uint8_t *src, uint8_t multiplier, int bytes, int npower)
 {
-if (bytes % 16 != 0)
-	goto NOSIMD;
-#ifdef   INTEL_SSSE3
-	if (multiplier == 0) {
-		// add nothing to bytes starting from *dst, just return
-		return;
-	}
-
-  	uint8_t *bh, *bl;
-	bh = (uint8_t*) galois_half_mult_table_high;
-	bh += (multiplier << 4);
-  	bl = (uint8_t*) galois_half_mult_table_low;
-  	bl += (multiplier << 4);
-
-  	uint8_t *sptr, *dptr, *top;
-	sptr = src;
-	dptr = dst;
-	top  = src + bytes;
-
-	// read split tables as 128-bit values
-  	__m128i mth = _mm_loadu_si128((__m128i *)(bh));
-  	__m128i mtl = _mm_loadu_si128((__m128i *)(bl));
-  	__m128i loset = _mm_set1_epi8(0x0f);
-
-	__m128i va, r, t1;
-    while (sptr < top) 
-	{
-		va = _mm_loadu_si128 ((__m128i *)(sptr));
-      	t1 = _mm_and_si128 (loset, va);
-      	r = _mm_shuffle_epi8 (mtl, t1);
-      	va = _mm_srli_epi64 (va, 4);
-      	t1 = _mm_and_si128 (loset, va);
-      	r = _mm_xor_si128 (r, _mm_shuffle_epi8 (mth, t1));
-      	va = _mm_loadu_si128 ((__m128i *)(dptr));
-      	r = _mm_xor_si128 (r, va);
-      	_mm_storeu_si128 ((__m128i *)(dptr), r);
-      	dptr += 16;
-      	sptr += 16;
-    }
-	return;
-#endif
-NOSIMD:
 	if (multiplier == 0) {
 		// add nothing to bytes starting from *dst, just return
 		return;
 	}
 	int i;
+#if	defined(INTEL_SSSE3)
+  	uint8_t *sptr, *dptr, *top;
+	sptr = src;
+	dptr = dst;
+	top  = src + bytes;
+
+  	uint8_t *bh, *bl;
+	__m128i mth, mtl, loset;
+	if (multiplier != 1) {
+		/* half tables only needed for multiplier != 1 */
+		bh = (uint8_t*) galois_half_mult_table_high;
+		bh += (multiplier << 4);
+  		bl = (uint8_t*) galois_half_mult_table_low;
+  		bl += (multiplier << 4);
+		// read split tables as 128-bit values
+  		mth = _mm_loadu_si128((__m128i *)(bh));
+  		mtl = _mm_loadu_si128((__m128i *)(bl));
+  		loset = _mm_set1_epi8(0x0f);
+	}
+
+	__m128i va, vb, r, t1;
+    while (sptr < top) 
+	{
+		if (sptr + 16 > top) {
+			/* remaining data doesn't fit into __m128i, do not use SSE */
+			for (i=0; i<top-sptr; i++) {
+				if (multiplier == 1)
+					*(dptr+i) ^= *(sptr+i);
+				else
+					*(dptr+i) ^= galois_mult_table[((*(sptr+i))<<npower) | multiplier];
+			}
+			break;
+		}
+		va = _mm_loadu_si128 ((__m128i *)(sptr));
+		if (multiplier == 1) {
+			/* just XOR */
+			vb = _mm_loadu_si128 ((__m128i *)(dptr));
+			vb = _mm_xor_si128(va, vb);
+      		_mm_storeu_si128 ((__m128i *)(dptr), vb);
+		} else {
+			/* use half tables */
+      		t1 = _mm_and_si128 (loset, va);
+      		r = _mm_shuffle_epi8 (mtl, t1);
+      		va = _mm_srli_epi64 (va, 4);
+      		t1 = _mm_and_si128 (loset, va);
+      		r = _mm_xor_si128 (r, _mm_shuffle_epi8 (mth, t1));
+      		va = _mm_loadu_si128 ((__m128i *)(dptr));
+      		r = _mm_xor_si128 (r, va);
+      		_mm_storeu_si128 ((__m128i *)(dptr), r);
+		}
+      	dptr += 16;
+      	sptr += 16;
+    }
+	return;
+#else
 	if (multiplier == 1) {
 		for (i=0; i<bytes; i++)
 			dst[i] ^= src[i];
@@ -271,4 +280,61 @@ NOSIMD:
     for (i = 0; i < bytes; i++) 
       	dst[i] ^= galois_mult_table[(src[i]<<npower) | multiplier];
 	return;
+#endif
+}
+
+/*
+ * Muliply a region of elements with multiplier. When SSE is available, use it
+ */
+void galois_multiply_region(uint8_t *src, uint8_t multiplier, int bytes, int npower)
+{
+	if (multiplier == 0) {
+		memset(src, 0, sizeof(uint8_t)*bytes);
+		return;
+	} else if (multiplier == 1) {
+		return;
+	}
+#if defined(INTEL_SSSE3)
+  	uint8_t *sptr, *top;
+	sptr = src;
+	top  = src + bytes;
+
+  	uint8_t *bh, *bl;
+	__m128i mth, mtl, loset;
+	if (multiplier != 1) {
+		/* half tables only needed for multiplier != 1 */
+		bh = (uint8_t*) galois_half_mult_table_high;
+		bh += (multiplier << 4);
+  		bl = (uint8_t*) galois_half_mult_table_low;
+  		bl += (multiplier << 4);
+		// read split tables as 128-bit values
+  		mth = _mm_loadu_si128((__m128i *)(bh));
+  		mtl = _mm_loadu_si128((__m128i *)(bl));
+  		loset = _mm_set1_epi8(0x0f);
+	}
+
+	__m128i va, r, t1;
+    while (sptr < top) 
+	{
+		if (sptr + 16 > top) {
+			/* remaining data doesn't fit into __m128i, do not use SSE */
+			for (int i=0; i<top-sptr; i++)
+				*(sptr+i) = galois_mult_table[((*(sptr+i))<<npower) | multiplier];
+			break;
+		}
+		va = _mm_loadu_si128 ((__m128i *)(sptr));
+      	t1 = _mm_and_si128 (loset, va);
+      	r = _mm_shuffle_epi8 (mtl, t1);
+      	va = _mm_srli_epi64 (va, 4);
+      	t1 = _mm_and_si128 (loset, va);
+      	r = _mm_xor_si128 (r, _mm_shuffle_epi8 (mth, t1));
+		_mm_storeu_si128 ((__m128i *)(sptr), r);
+      	sptr += 16;
+    }
+	return;
+#else
+	for (int i=0; i<bytes; i++) 
+		src[i] = galois_mult_table[((src[i])<<npower) | multiplier];
+	return;
+#endif
 }

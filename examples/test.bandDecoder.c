@@ -25,9 +25,11 @@ int main(int argc, char *argv[])
 	close(rnd);
 	struct gnc_context *gc;
 
+	/* Measure time */
+	clock_t start = clock();
 	// Construct a GNC code (32, 40, 1024)
 	if (create_gnc_context(buf, datasize, &gc, size_b, size_g, size_p, gnc_type) != 0) {
-		printf("Cannot create File Context.\n");
+		fprintf(stderr, "Cannot create File Context.\n");
 		return 1;
 	}
 
@@ -37,12 +39,12 @@ int main(int argc, char *argv[])
 		struct coded_packet *pkt = generate_gnc_packet(gc);
 		process_packet_BD(dec_ctx, pkt);
 	}
+	clock_t stop = clock();
+	printf("enc/dec-time: %.2f ", ((double) (stop - start))/CLOCKS_PER_SEC);
 
 	unsigned char *rec_buf = recover_data(dec_ctx->gc);
 	if (memcmp(buf, rec_buf, datasize) != 0) 
-		printf("recovered is NOT identical to original.\n");
-	else
-		printf("recovered is identical to original.\n");
+		fprintf(stderr, "recovered is NOT identical to original.\n");
 
 	print_code_summary(&dec_ctx->gc->meta, dec_ctx->overhead, dec_ctx->operations);
 

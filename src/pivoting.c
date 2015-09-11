@@ -118,10 +118,6 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 	ssList *col_pivots = malloc(sizeof(ssList));
 	row_pivots->ssFirst = row_pivots->ssLast = NULL;
 	col_pivots->ssFirst = col_pivots->ssLast = NULL;
-	double pivoting_time=0.0;
-	time_t start_pivoting, stop_pivoting;
-	printf("Start pivoting...\n");
-	time(&start_pivoting);
 	
 	// Make a local copy of A and B
 	GF_ELEMENT **ces_matrix = calloc(nrow, sizeof(GF_ELEMENT*));
@@ -133,13 +129,20 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 		memcpy(msg_matrix[i], B[i], ncolB * sizeof(GF_ELEMENT));
 	}
 
+#if defined(GNCTRACE)
+	double pivoting_time=0.0;
+	time_t start_pivoting, stop_pivoting;
+	time(&start_pivoting);
 	printf("Inactivation pivoting strategy is used. IA_INIT: %d, IA_STEP: %d.\n", IA_INIT, IA_STEP);
+#endif
 	int ias = inactivation_pivoting(nrow, ncolA, ces_matrix, row_pivots, col_pivots);
 	*inactives = ias;
+#if defined(GNCTRACE)
 	printf("A total of %d/%d columns are inactivated.\n", ias, ncolA);
 	time(&stop_pivoting);
 	pivoting_time += difftime(stop_pivoting, start_pivoting);
 	printf("Time consumed in pivoting T: %.0f seconds.\n", pivoting_time);
+#endif
 
 	// 保存re-order过后列的顺序
 	// Inactivation后第一次re-ordering，记下indices的mapping
@@ -151,14 +154,17 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 		ss_pt = ss_pt->next;
 	}
 
+#if defined(GNCTRACE)
 	printf("Start matrix re-ordering after the inactivation...\n");
 	double reordering_time = 0.0;
 	time_t start_reorder, stop_reorder;
 	time(&start_reorder);
+#endif
 	/* reorder rows and columns of ces_matrix and msg_matrix after pivoting*/
 	reshape_matrix(nrow, ncolA, ncolB, ces_matrix, msg_matrix, row_pivots, col_pivots);
 	free_subscriptList(row_pivots);
 	free_subscriptList(col_pivots);
+#if defined(GNCTRACE)
 	time(&stop_reorder);
 	reordering_time = difftime(stop_reorder, start_reorder);
 	printf("Time consumed in matrix re-ordering after pivoting T: %.0f seconds.\n", reordering_time);
@@ -171,15 +177,17 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 		}
 	}
 	printf("There are %d pivots missing\n", missing_pivots);
-
 	//diagonalize active part
 	printf("Convert the left half of T (lower triangular) to diagonal...\n");	
+#endif
 	long long ops1=0;
 	GF_ELEMENT quotient;
 	for (i=0; i<ncolA-ias; i++) {
 		for (j=i+1; j<nrow; j++) {
+#if defined(GNCTRACE)
 			if (ces_matrix[i][i] == 0)
 				printf("The diagonal element after re-ordering is nonzero.\n");
+#endif
 
 			// process the item on (j, i)
 			if (ces_matrix[j][i] != 0) {
@@ -207,7 +215,9 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 		memcpy(msg_submatrix[i], msg_matrix[ncolA-ias+i], ncolB*sizeof(GF_ELEMENT));
 	}
 
+#if defined(GNCTRACE)
 	printf("Perform forward substitution on the bottom-right part of GDM (size: %d x %d)...\n", ias, ias);
+#endif
 	long long ops = forward_substitute(ias+nrow-ncolA, ias, ncolB, ces_submatrix, msg_submatrix);
 	operations += ops;
 
@@ -255,10 +265,12 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 	ssList *col_pivots = malloc(sizeof(ssList));
 	row_pivots->ssFirst = row_pivots->ssLast = NULL;
 	col_pivots->ssFirst = col_pivots->ssLast = NULL;
+#if defined(GNCTRACE)
 	double pivoting_time=0.0;
 	time_t start_pivoting, stop_pivoting;
 	printf("Start pivoting...\n");
 	time(&start_pivoting);
+#endif
 	
 	// Make a local copy of A and B
 	GF_ELEMENT **ces_matrix = calloc(nrow, sizeof(GF_ELEMENT*));
@@ -270,13 +282,17 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 		memcpy(msg_matrix[i], B[i], ncolB * sizeof(GF_ELEMENT));
 	}
 
+#if defined(GNCTRACE)
 	printf("Inactivation pivoting strategy is used. IA_INIT: %d, IA_STEP: %d.\n", IA_INIT, IA_STEP);
+#endif
 	int ias = inactivation_pivoting(nrow, ncolA, ces_matrix, row_pivots, col_pivots);
 	*inactives = ias;
+#if defined(GNCTRACE)
 	printf("A total of %d/%d columns are inactivated.\n", ias, ncolA);
 	time(&stop_pivoting);
 	pivoting_time += difftime(stop_pivoting, start_pivoting);
 	printf("Time consumed in pivoting T: %.0f seconds.\n", pivoting_time);
+#endif
 
 	// 保存re-order过后列的顺序
 	// Inactivation后第一次re-ordering，记下indices的mapping
@@ -288,14 +304,17 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 		ss_pt = ss_pt->next;
 	}
 
+#if defined(GNCTRACE)
 	printf("Start matrix re-ordering after the inactivation...\n");
 	double reordering_time = 0.0;
 	time_t start_reorder, stop_reorder;
 	time(&start_reorder);
+#endif
 	/* reorder rows and columns of ces_matrix and msg_matrix after pivoting*/
 	reshape_matrix(nrow, ncolA, ncolB, ces_matrix, msg_matrix, row_pivots, col_pivots);
 	free_subscriptList(row_pivots);
 	free_subscriptList(col_pivots);
+#if defined(GNCTRACE)
 	time(&stop_reorder);
 	reordering_time = difftime(stop_reorder, start_reorder);
 	printf("Time consumed in matrix re-ordering after pivoting T: %.0f seconds.\n", reordering_time);
@@ -326,12 +345,15 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 
 	//diagonalize active part
 	printf("Convert the left half of T (lower triangular) to diagonal...\n");	
+#endif
 	long long ops1=0;
 	GF_ELEMENT quotient;
 	for (i=0; i<ncolA-ias; i++) {
 		for (j=i+1; j<nrow; j++) {
+#if defined(GNCTRACE)
 			if (ces_matrix[i][i] == 0)
 				printf("The diagonal element after re-ordering is nonzero.\n");
+#endif
 
 			// process the item on (j, i)
 			if (ces_matrix[j][i] != 0) {
@@ -350,7 +372,9 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 	operations += ops1;
 	
 	/* Second time pivoting on the iasxias dense inactivated matrix. */ 
+#if defined(GNCTRACE)
 	printf("Perform another time of pivoting after partly diagonalizing T\n");
+#endif
 	GF_ELEMENT **ces_submatrix = calloc(ias+nrow-ncolA, sizeof(GF_ELEMENT*));
 	GF_ELEMENT **msg_submatrix = calloc(ias+nrow-ncolA, sizeof(GF_ELEMENT*));
 	for (i=0; i<ias+nrow-ncolA; i++){
@@ -364,9 +388,13 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 	ssList *col_pivots_2nd = malloc(sizeof(ssList));
 	row_pivots_2nd->ssFirst = row_pivots_2nd->ssLast = NULL;
 	col_pivots_2nd->ssFirst = col_pivots_2nd->ssLast = NULL;
+#if defined(GNCTRACE)
 	printf("Start the second-time pivoting...\n");
+#endif
 	int ias_2nd = zlatev_pivoting(ias+nrow-ncolA, ias, ces_submatrix, row_pivots_2nd, col_pivots_2nd);
+#if defined(GNCTRACE)
 	printf("A total of %d/%d columns are further inactivated.\n", ias_2nd, ias);
+#endif
 	
 	// Update otoc_mapping & ctoo_mapping after second-time pivoting
 	// Careful!! This step is critical.
@@ -405,20 +433,11 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 	// 3, perform forward substitution on the re-ordered matrix
 	// Feb01注：此时只需要对T的右下角sub-matrix作Gaussian Elimination
 	// 动态分配decoding matrix和message matrix，用来保存T右下角的矩阵及其对应的message矩阵
+#if defined(GNCTRACE)
 	printf("Perform forward substitution on the bottom-right part of GDM (size: %d x %d)...\n", ias, ias);
+#endif
 	long long ops = forward_substitute(ias+nrow-ncolA, ias, ncolB, ces_submatrix, msg_submatrix);
 	operations += ops;
-
-	/*
-	int missing_DoF = 0;
-	for (i=0; i<ias; i++) {
-		if (ces_submatrix[i][i] == 0) {
-			missing_DoF += 1;
-		}
-	}
-	printf("There are %d DoFs missing after performed forward substitution.\n", missing_DoF);
-	*innovatives = (ncolA - missing_DoF);
-	*/
 
 	// save the processed matrices back to A and B
 	for (i=0; i<ncolA-ias; i++) {
@@ -526,7 +545,9 @@ static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 
 	int nonallzero_rows = nrow - allzero_rows;
 	int nonallzero_cols = ncolA - allzero_cols;
+#if defined(GNCTRACE)
 	printf("there are %d all-zero rows and %d all-zero cols in the matrix.\n", allzero_rows, allzero_cols);
+#endif
 	//printf("there are %d not all-zero rows and %d not all-zero cols in the matrix.\n", nonallzero_rows, nonallzero_cols);
 	//Jan28注：如果有全零列，则必须在pivoting最后把它们的序号加上去
 
@@ -598,9 +619,11 @@ static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 		
 		if (potential_r == -1 || potential_c == -1) {
 			//printf("error: no pivot is found, the matrix is not full-rank.\n");
+#if defined(GNCTRACE)
 			printf("%d rows reduced to all-zero.\n", toallzero_rows);
 			printf("%d cols reduced to all-zero.\n", toallzero_cols);
 			printf("(partial success) %d/%d pivots were found out of %d rows.\n", pivots_found, ncolA, nrow);
+#endif
 			// 说明有被reduce到全零的行列，把他们当作pivot，anyway
 			Subscript *sub_ptt;
 			sub_ptt = ColID_lists[0]->ssFirst;
@@ -625,8 +648,9 @@ static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 				insertSubAtEnd(RowPivots, newRpivot0);
 				sub_ptt = sub_ptt->next;
 			}
-
+#if defined(GNCTRACE)
 			printf("There are %d/%d singleton rows were found as pivots.\n", singletons, pivots_found);
+#endif
 			//return (pivots_found+toallzero_cols);
 			return ncolA;
 		}
@@ -717,11 +741,12 @@ found:
 		free_subscriptList(RowID_lists[i]);
 	for (i=0; i<max_col1s+1; i++)
 		free_subscriptList(ColID_lists[i]);
-
+#if defined(GNCTRACE)
 	printf("%d rows reduced to all-zero.\n", toallzero_rows);
 	printf("%d cols reduced to all-zero.\n", toallzero_cols);
 	printf("(full success) %d/%d pivots were found out of %d rows.\n", pivots_found, ncolA, nrow);
 	printf("There are %d/%d singleton rows were found as pivots.\n", singletons, pivots_found);
+#endif
 	return pivots_found;
 }
 
@@ -731,7 +756,9 @@ found:
 //  3) given the structure (heavier columns are in the back), declare inactive columns from the back
 static int inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivots, ssList *ColPivots)
 {
+#if defined(GNCTRACE)
 	printf("Pivoting matrix of size %d x %d via inactivation.\n", nrow, ncolA);
+#endif
 
 	int i, j, k;
 	// 对矩阵中初始非零元素进行计数

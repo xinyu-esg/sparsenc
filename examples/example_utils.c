@@ -1,6 +1,6 @@
 #include "gncEncoder.h"
 
-void print_code_summary(struct gnc_metainfo *meta, int overhead, int operations)
+void print_code_summary(struct gnc_metainfo *meta, int overhead, long long operations)
 {
 	char typestr[20];
 	switch(meta->type) {

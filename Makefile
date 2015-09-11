@@ -11,8 +11,9 @@ SED = sed
 
 
 CC = gcc
-#CFLAGS = -fdiagnostics-color=auto -std=c99 -g -lm
-CFLAGS = -std=c99 -g -I$(INCLUDEDIR) -lm -mssse3 -DINTEL_SSSE3
+CFLAGS0 = -Winline -std=c99 -lm
+CFLAGS = -std=c99 -I$(INCLUDEDIR) -lm 
+#CFLAGS = -O3 -I$(INCLUDEDIR) -mssse3 -DINTEL_SSSE3
 #CFLAGS = -std=c99 -g -lm
 
 vpath %.h include
@@ -32,26 +33,26 @@ all: band.OA.example band.GG.example band.BD.example rand.GG.example rand.OA.exa
 #GGband.example
 band.GG.example: $(GNCENC) $(GGDEC) test.GGdecoder.c example_utils.c
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.GGdecoder.c
-	$(CC) -o $@ $(CFLAGS) $^
+	$(CC) -o $@ $(CFLAGS0) $(CFLAGS) $^
 #GGrand.example
 rand.GG.example: $(GNCENC) $(GGDEC) test.GGdecoder.c example_utils.c
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ RAND_GNC_CODE;/' examples/test.GGdecoder.c
-	$(CC) -o $@ $(CFLAGS) $^
+	$(CC) -o $@ $(CFLAGS0) $(CFLAGS) $^
 #OAband.example
 band.OA.example: $(GNCENC) $(OADEC) test.OAdecoder.c example_utils.c
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.OAdecoder.c
-	$(CC) -o $@ $(CFLAGS) $^
+	$(CC) -o $@ $(CFLAGS0) $(CFLAGS) $^
 #OArand.example
 rand.OA.example: $(GNCENC) $(OADEC) test.OAdecoder.c example_utils.c
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ RAND_GNC_CODE;/' examples/test.OAdecoder.c
-	$(CC) -o $@ $(CFLAGS) $^
+	$(CC) -o $@ $(CFLAGS0) $(CFLAGS) $^
 #BDband.example
 band.BD.example: $(GNCENC) $(BDDEC) test.bandDecoder.c example_utils.c
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.bandDecoder.c
-	$(CC) -o $@ $(CFLAGS) $^
+	$(CC) -o $@ $(CFLAGS0) $(CFLAGS) $^
 
 $(OBJDIR)/%.o: $(OBJDIR)/%.c $(DEFS) $(GGDEFS)
-	$(CC) -c -o $@ $< $(CFLAGS)
+	$(CC) -c -o $@ $< $(CFLAGS0) $(CFLAGS)
 
 .PHONY: clean
 

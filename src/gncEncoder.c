@@ -32,7 +32,7 @@ int create_gnc_context(char *buf, long datasize, struct gnc_context **gc, int s_
 	static char fname[] = "create_gnc_context";
 	// Allocate file_context
 	if ( (*gc = calloc(1, sizeof(struct gnc_context))) == NULL ) {
-		printf("%s: calloc file_context\n", fname);
+		fprintf(stderr, "%s: calloc file_context\n", fname);
 		return(-1);
 	}
 	
@@ -53,20 +53,20 @@ int create_gnc_context(char *buf, long datasize, struct gnc_context **gc, int s_
 	 * Verify code parameter
 	 */
 	if (verify_code_parameter(&((*gc)->meta)) != 0) {
-		printf("%s: code parameter is invalid.\n", fname);
+		fprintf(stderr, "%s: code parameter is invalid.\n", fname);
 		return(-1);
 	}
 	/*
 	 * Create generations, bipartite graph
 	 */
 	if (create_context_from_meta(*gc) != 0) {
-		printf("%s: create_context_from_meta\n", fname);
+		fprintf(stderr, "%s: create_context_from_meta\n", fname);
 		return(-1);
 	}
 
 	// Allocating pointers to data
 	if (((*gc)->pp = calloc((*gc)->meta.snum+(*gc)->meta.cnum, sizeof(GF_ELEMENT*))) == NULL) {
-		printf("%s: calloc (*gc)->pp\n", fname);
+		fprintf(stderr, "%s: calloc (*gc)->pp\n", fname);
 		return(-1);
 	}
 
@@ -91,7 +91,7 @@ int create_gnc_context_from_file(FILE *fp, struct gnc_context **gc, int s_b, int
 	static char fname[] = "create_gnc_context_from_file";
 	// Allocate file_context
 	if ( (*gc = calloc(1, sizeof(struct gnc_context))) == NULL ) {
-		printf("%s: calloc file_context\n", fname);
+		fprintf(stderr, "%s: calloc file_context\n", fname);
 		return(-1);
 	}
 	
@@ -103,11 +103,11 @@ int create_gnc_context_from_file(FILE *fp, struct gnc_context **gc, int s_b, int
 	// Get file size
 	/* Seek to file end */
 	if (fseek(fp, 0, SEEK_END) == -1) 
-		printf("%s: fseek SEEK_END\n", fname);
+		fprintf(stderr, "%s: fseek SEEK_END\n", fname);
 	long datasize = ftell(fp);			/* get file size */
 	/* Seek back to file start */
 	if (fseek(fp, 0, SEEK_SET) == -1) 
-		printf("%s: fseek SEEK_SET\n", fname);
+		fprintf(stderr, "%s: fseek SEEK_SET\n", fname);
     /* determine packet and generation numbers */
 	int num_src = ALIGN(datasize, (*gc)->meta.size_p);
 	int num_chk = number_of_checks(num_src);
@@ -119,20 +119,20 @@ int create_gnc_context_from_file(FILE *fp, struct gnc_context **gc, int s_b, int
 	 * Verify code parameter
 	 */
 	if (verify_code_parameter(&((*gc)->meta)) != 0) {
-		printf("%s: code parameter is invalid.\n", fname);
+		fprintf(stderr, "%s: code parameter is invalid.\n", fname);
 		return(-1);
 	}
 	/*
 	 * Create generations, bipartite graph
 	 */
 	if (create_context_from_meta(*gc) != 0) {
-		printf("%s: create_context_from_meta failed\n", fname);
+		fprintf(stderr, "%s: create_context_from_meta failed\n", fname);
 		return(-1);
 	}
 
 	// Allocating pointers to data
 	if (((*gc)->pp = calloc((*gc)->meta.snum+(*gc)->meta.cnum, sizeof(GF_ELEMENT*))) == NULL) {
-		printf("%s: calloc (*gc)->pp\n", fname);
+		fprintf(stderr, "%s: calloc (*gc)->pp\n", fname);
 		return(-1);
 	}
 
@@ -142,7 +142,7 @@ int create_gnc_context_from_file(FILE *fp, struct gnc_context **gc, int s_b, int
 		(*gc)->pp[i] = calloc((*gc)->meta.size_p, sizeof(GF_ELEMENT));
         int toread = (alread+(*gc)->meta.size_p) <= (*gc)->meta.datasize ? (*gc)->meta.size_p : (*gc)->meta.datasize-alread;
 		if (fread((*gc)->pp[i], sizeof(GF_ELEMENT), toread, fp) != toread)
-			printf("%s: fread (*gc)->pp[%d]\n", fname, i);
+			fprintf(stderr, "%s: fread (*gc)->pp[%d]\n", fname, i);
         alread += toread;
     }
 	perform_precoding(*gc);
@@ -153,11 +153,11 @@ int create_gnc_context_from_file(FILE *fp, struct gnc_context **gc, int s_b, int
 static int verify_code_parameter(struct gnc_metainfo *meta)
 {
 	if (meta->size_b > meta->size_g) {
-		printf("code parameter error: size_b > size_g\n");
+		fprintf(stderr, "code parameter error: size_b > size_g\n");
 		return(-1);
 	}
 	if (meta->size_b*meta->size_p > meta->datasize) {
-		printf("code parameter error: size_b X size_p > datasize\n");
+		fprintf(stderr, "code parameter error: size_b X size_p > datasize\n");
 		return(-1);
 	}
 	return(0);
@@ -172,19 +172,19 @@ static int create_context_from_meta(struct gnc_context *gc)
 	// Inintialize generation structures
 	gc->gene  = malloc(sizeof(struct generation *) * gc->meta.gnum);
 	if ( gc->gene == NULL ) {
-		printf("%s: malloc gc->gene\n", fname);
+		fprintf(stderr, "%s: malloc gc->gene\n", fname);
 		return(-1);
 	}
 	for (int j=0; j<gc->meta.gnum; j++) {
 		gc->gene[j] = malloc(sizeof(struct generation));
 		if ( gc->gene[j] == NULL ) { 
-			printf("%s: malloc gc->gene[%d]\n", fname, j);
+			fprintf(stderr, "%s: malloc gc->gene[%d]\n", fname, j);
 			return(-1);
 		}
 		gc->gene[j]->gid = -1;
 		gc->gene[j]->pktid = malloc(sizeof(int)*gc->meta.size_g);
 		if ( gc->gene[j]->pktid == NULL ) {
-			printf("%s: malloc gc->gene[%d]->pktid\n", fname, j);
+			fprintf(stderr, "%s: malloc gc->gene[%d]->pktid\n", fname, j);
 			return(-1);
 		}
 		memset(gc->gene[j]->pktid, -1, sizeof(int)*gc->meta.size_g);
@@ -196,12 +196,13 @@ static int create_context_from_meta(struct gnc_context *gc)
 	else if (gc->meta.type == BAND_GNC_CODE)
 		coverage = group_packets_band(gc);
 
+#if defined(GNCTRACE)
 	printf("Data Size: %ld\t Source Packets: %d\t Check Packets: %d\t Generations: %d\t Coverage: %d\n",gc->meta.datasize, gc->meta.snum, gc->meta.cnum,	gc->meta.gnum, coverage);
-	
+#endif
 	// Creating bipartite graph of the precode
 	if (gc->meta.cnum != 0) {
 		if ( (gc->graph = malloc(sizeof(BP_graph))) == NULL ) {
-			printf("%s: malloc BP_graph\n", fname);
+			fprintf(stderr, "%s: malloc BP_graph\n", fname);
 			return (-1);
 		}
 		create_bipartite_graph(gc->graph, gc->meta.snum, gc->meta.cnum);
@@ -239,7 +240,7 @@ unsigned char *recover_data(struct gnc_context *gc)
 	
 	unsigned char *data;
 	if ( (data = malloc(datasize)) == NULL) {
-		printf("%s: malloc(datasize) failed.\n", fname);
+		fprintf(stderr, "%s: malloc(datasize) failed.\n", fname);
 		return NULL;
 	}
 	int pc = 0;
@@ -259,12 +260,15 @@ long recover_data_to_file(FILE *fp, struct gnc_context *gc)
 	long alwrote = 0;
 	long towrite = datasize;
 	
+#if defined(GNCTRACE)
 	printf("Writing to decoded file.\n");
+#endif
+
 	int pc = 0;
 	while (alwrote < datasize) {
 		towrite = ((alwrote + gc->meta.size_p) <= datasize) ? gc->meta.size_p : datasize - alwrote;
 		if (fwrite(gc->pp[pc], sizeof(GF_ELEMENT), towrite, fp) != towrite) 
-			printf("%s: fwrite gc->pp[%d]\n", fname, pc);
+			fprintf(stderr, "%s: fwrite gc->pp[%d]\n", fname, pc);
 		pc++;
 		alwrote += towrite;
 	}

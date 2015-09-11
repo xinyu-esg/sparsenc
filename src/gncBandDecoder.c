@@ -17,12 +17,12 @@ void create_decoding_context_BD(struct decoding_context_BD *dec_ctx, long datasi
 	// Since this is decoding, we construct GNC context without data
 	// gc->pp will be filled by decoded packets
 	if (type != BAND_GNC_CODE) {
-		printf("Band decoder only applies to band GNC code.\n");
+		fprintf(stderr, "Band decoder only applies to band GNC code.\n");
 		return;
 	}
 	struct gnc_context *gc;
 	if (create_gnc_context(NULL, datasize, &gc, s_b, s_g, s_p, type) != 0) 
-		printf("%s: create decoding context failed", fname);
+		fprintf(stderr, "%s: create decoding context failed", fname);
 
 	dec_ctx->gc = gc;
 
@@ -134,11 +134,17 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct coded_packet 
 	// If the number of received DoF is equal to NUM_SRC, apply the parity-check matrix.
 	// The messages corresponding to rows of parity-check matrix are all-zero.
 	if (dec_ctx->DoF == dec_ctx->gc->meta.snum) {
+#if defined(GNCSTRACE)
 		printf("Start to apply the parity-check matrix...\n");
+#endif
 		int allzeros = partially_diag_decoding_matrix(dec_ctx);	
+#if defined(GNCSTRACE)
 		printf("%d all-zero rows when partially diagonalizing the decoding matrix.\n", allzeros);
+#endif
 		int missing_DoF = apply_parity_check_matrix(dec_ctx);
+#if defined(GNCSTRACE)
 		printf("After applying the parity-check matrix, %d DoF are missing.\n", missing_DoF);
+#endif
 		dec_ctx->DoF = numpp - missing_DoF;
 		dec_ctx->de_precode = 1;
 	}

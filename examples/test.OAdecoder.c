@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
 	int  size_b   = atoi(argv[2]);
 	int  size_g   = atoi(argv[3]);
 	int  size_p   = atoi(argv[4]);
-	int  gnc_type = RAND_GNC_CODE;
+	int  gnc_type = BAND_GNC_CODE;
 
 	srand( (int) time(0) );
 	char *buf = malloc(datasize);
