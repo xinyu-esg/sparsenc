@@ -169,14 +169,6 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 	reordering_time = difftime(stop_reorder, start_reorder);
 	printf("Time consumed in matrix re-ordering after pivoting T: %.0f seconds.\n", reordering_time);
 	pivoting_time += reordering_time;
-
-	int missing_pivots = 0;
-	for (i=0; i<nrow; i++) {
-		if (ces_matrix[i][i] == 0) {
-			missing_pivots += 1;
-		}
-	}
-	printf("There are %d pivots missing\n", missing_pivots);
 	//diagonalize active part
 	printf("Convert the left half of T (lower triangular) to diagonal...\n");	
 #endif

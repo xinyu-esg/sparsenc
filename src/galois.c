@@ -90,7 +90,7 @@ static int galois_create_log_table(int npower)
 		nw		=  1 << 8;
 		nwml	= (1 << 8) - 1;
 	} else {
-		printf("ERROR! We only accept field size 2^[1, 2, 4, 8, 16]\n");
+		fprintf(stderr, "ERROR! We only accept field size 2^[1, 2, 4, 8, 16]\n");
 		return 0;
 	}
 
@@ -123,7 +123,7 @@ static int galois_create_mult_table(int npower)
 
 	// create tables
     if (galois_create_log_table(npower) < 0) {
-		printf("create log/ilog tables failed\n");
+		fprintf(stderr, "create log/ilog tables failed\n");
 		return -1;
 	}
  
@@ -192,7 +192,7 @@ inline uint8_t galois_multiply(uint8_t a, uint8_t b, int npower)
 inline uint8_t galois_divide(uint8_t a, uint8_t b, int npower)
 {
 	if (b == 0) {
-		printf("ERROR! Divide by ZERO!\n");
+		fprintf(stderr, "ERROR! Divide by ZERO!\n");
 		return -1;
 	}
 	
@@ -300,18 +300,15 @@ void galois_multiply_region(uint8_t *src, uint8_t multiplier, int bytes, int npo
 	top  = src + bytes;
 
   	uint8_t *bh, *bl;
-	__m128i mth, mtl, loset;
-	if (multiplier != 1) {
-		/* half tables only needed for multiplier != 1 */
-		bh = (uint8_t*) galois_half_mult_table_high;
-		bh += (multiplier << 4);
-  		bl = (uint8_t*) galois_half_mult_table_low;
-  		bl += (multiplier << 4);
-		// read split tables as 128-bit values
-  		mth = _mm_loadu_si128((__m128i *)(bh));
-  		mtl = _mm_loadu_si128((__m128i *)(bl));
-  		loset = _mm_set1_epi8(0x0f);
-	}
+	/* half tables only needed for multiplier != 1 */
+	bh = (uint8_t*) galois_half_mult_table_high;
+	bh += (multiplier << 4);
+  	bl = (uint8_t*) galois_half_mult_table_low;
+  	bl += (multiplier << 4);
+	// read split tables as 128-bit values
+  	__m128i mth = _mm_loadu_si128((__m128i *)(bh));
+  	__m128i mtl = _mm_loadu_si128((__m128i *)(bl));
+  	__m128i loset = _mm_set1_epi8(0x0f);
 
 	__m128i va, r, t1;
     while (sptr < top) 

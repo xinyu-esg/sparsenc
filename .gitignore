@@ -3,5 +3,6 @@
 # ignore objects and archives
 *.[oa]
 *.mp3
+*.out
 *.example
 test/*

@@ -1,4 +1,10 @@
+/*
+ * This file contains forward and backward substitution functions of 
+ * a general form Guassian elimination solving
+ * 		A x = B
+ */
 #include "galois.h"
+#include <omp.h>
 
 // perform forward substitution on a matrix to transform it to a upper triangular structure
 //static long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT A[][ncolA], GF_ELEMENT B[][ncolB])
@@ -68,7 +74,7 @@ long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_EL
 	//printf("entering back_substitute()...\n");
 	long operations = 0;
 
-	// 1, transform the upper triangular matrix A into diagonal.
+	// Transform the upper triangular matrix A into diagonal.
 	int i, j, k, l;
 	for (i=ncolA-1; i>=0; i--) {
 		// eliminate all items above A[i][i]
@@ -82,15 +88,13 @@ long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_EL
 			galois_multiply_add_region(B[j], B[i], quotient, ncolB, GF_POWER);
 			operations += ncolB;
 		}
-	}
-
-	// 2, transform matrix A into identity matrix
-	for (l=0; l<ncolA; l++) {
-		if (A[l][l] != 0 && A[l][l] != 1) {
-			galois_multiply_region(B[l], galois_divide(1, A[l][l], GF_POWER), ncolB, GF_POWER);
+		// diagonalize diagonal element
+		if (A[i][i] != 1) {
+			galois_multiply_region(B[i], galois_divide(1, A[i][i], GF_POWER), ncolB, GF_POWER);
 			operations += ncolB;
-			A[l][l] = 1;
+			A[i][i] = 1;
 		}
+
 	}
 	return operations;
 }

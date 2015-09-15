@@ -134,15 +134,15 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct coded_packet 
 	// If the number of received DoF is equal to NUM_SRC, apply the parity-check matrix.
 	// The messages corresponding to rows of parity-check matrix are all-zero.
 	if (dec_ctx->DoF == dec_ctx->gc->meta.snum) {
-#if defined(GNCSTRACE)
+#if defined(GNCTRACE)
 		printf("Start to apply the parity-check matrix...\n");
 #endif
 		int allzeros = partially_diag_decoding_matrix(dec_ctx);	
-#if defined(GNCSTRACE)
+#if defined(GNCTRACE)
 		printf("%d all-zero rows when partially diagonalizing the decoding matrix.\n", allzeros);
 #endif
 		int missing_DoF = apply_parity_check_matrix(dec_ctx);
-#if defined(GNCSTRACE)
+#if defined(GNCTRACE)
 		printf("After applying the parity-check matrix, %d DoF are missing.\n", missing_DoF);
 #endif
 		dec_ctx->DoF = numpp - missing_DoF;
@@ -159,7 +159,10 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct coded_packet 
 	ces = NULL;
 }
 
-// Partially diagonalize the decoding matrix, i.e., remove nonzero elements above nonzero diagonal elements
+/* 
+ * Partially diagonalize the upper-trianguler decoding matrix, 
+ * i.e., remove nonzero elements above nonzero diagonal elements
+ */
 static int partially_diag_decoding_matrix(struct decoding_context_BD *dec_ctx)
 {
 	int 		i, j, l;
@@ -272,7 +275,7 @@ static void finish_recovering_BD(struct decoding_context_BD *dec_ctx)
 
 void free_decoding_context_BD(struct decoding_context_BD *dec_ctx)
 {
-	for (int i=0; i<dec_ctx->gc->meta.snum+dec_ctx->gc->meta.cnum; i++) {
+	for (int i=dec_ctx->gc->meta.snum+dec_ctx->gc->meta.cnum-1; i>=0; i--) {
 		free(dec_ctx->coefficient[i]);
 		free(dec_ctx->message[i]);
 	}

@@ -400,8 +400,12 @@ struct coded_packet *generate_gnc_packet(struct gnc_context *gc)
 
 void free_gnc_packet(struct coded_packet *pkt)
 {
-	free(pkt->coes);
-	free(pkt->syms);
+	if (pkt == NULL)
+		return;
+	if (pkt->coes != NULL)
+		free(pkt->coes);
+	if (pkt->syms != NULL)
+		free(pkt->syms);
 	free(pkt);
 }
 

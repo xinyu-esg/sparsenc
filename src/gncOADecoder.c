@@ -93,40 +93,10 @@ void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasi
 		}
 	}
 
-	// Allocate matrices for global decoding
-	dec_ctx->JMBcoefficient = calloc(numpp+dec_ctx->aoh, sizeof(GF_ELEMENT*));
-	if (dec_ctx->JMBcoefficient == NULL)
-		fprintf(stderr, "%s: calloc dec_ctx->JMBcoefficient\n", fname);
-	dec_ctx->JMBmessage     = calloc(numpp+dec_ctx->aoh, sizeof(GF_ELEMENT*));
-	if (dec_ctx->JMBmessage == NULL)
-		fprintf(stderr, "%s: calloc dec_ctx->JMBmessage\n", fname);
-
-	for (i=0; i<numpp+dec_ctx->aoh; i++) {
-		dec_ctx->JMBcoefficient[i] = calloc(numpp, sizeof(GF_ELEMENT));
-		dec_ctx->JMBmessage[i]     = calloc(pktsize, sizeof(GF_ELEMENT));
-	}
-
-	dec_ctx->inactives   = 0;
-	dec_ctx->otoc_mapping = malloc(sizeof(int) * numpp);
-	dec_ctx->ctoo_mapping = malloc(sizeof(int) * numpp);
-	for (j=0; j<numpp; j++) {
-		dec_ctx->otoc_mapping[j]   = j;				// original to current mapping
-		dec_ctx->ctoo_mapping[j]   = j;				// current to original mapping
-	}
-
-	// JMB_coeffcient矩阵最下面的CHECKS行对应的是precoding generation，这部分从一开始就固定下来
-	for (i=0; i<dec_ctx->gc->meta.cnum; i++) {
-		dec_ctx->JMBcoefficient[dec_ctx->gc->meta.snum+dec_ctx->aoh+i][dec_ctx->gc->meta.snum+i] = 1;
-
-		NBR_node *variable_node = dec_ctx->gc->graph->l_nbrs_of_r[i]->first; 		//ldpc_graph->nbrs_of_right[i];
-		while (variable_node != NULL) {
-			// 标记与该check packet连结的所有source packet node
-			int src_pktid = variable_node->data;						//variable_node->nb_index;
-			dec_ctx->JMBcoefficient[dec_ctx->gc->meta.snum+dec_ctx->aoh+i][src_pktid] = 1;
-			//dec_ctx->JMBcoefficient[NUM_SRC+OHS+i][src_pktid] = variable_node->nb_ce;
-			variable_node = variable_node->next;
-		}
-	}
+	/*
+	 * We don't allocate memory for global decoding (ie GDM) here. We only allocate 
+	 * when OA ready. This avoids occupying a big amount of memory for a long time.
+	 */
 
 	// performance indices
 	dec_ctx->operations = 0;
@@ -429,12 +399,47 @@ static long running_matrix_to_REF(struct decoding_context_OA *dec_ctx)
 
 static void construct_GDM(struct decoding_context_OA *dec_ctx)
 {
+	static char fname[] = "construct_GDM";
 	int i, j, k;
 	struct running_matrix *matrix;
 
 	int gensize = dec_ctx->gc->meta.size_g;
 	int pktsize = dec_ctx->gc->meta.size_p;
 	int numpp   = dec_ctx->gc->meta.snum + dec_ctx->gc->meta.cnum;
+
+	//Allocate GDM to decoding_context, apply precoding matrix
+	dec_ctx->JMBcoefficient = calloc(numpp+dec_ctx->aoh, sizeof(GF_ELEMENT*));
+	if (dec_ctx->JMBcoefficient == NULL)
+		fprintf(stderr, "%s: calloc dec_ctx->JMBcoefficient\n", fname);
+	dec_ctx->JMBmessage     = calloc(numpp+dec_ctx->aoh, sizeof(GF_ELEMENT*));
+	if (dec_ctx->JMBmessage == NULL)
+		fprintf(stderr, "%s: calloc dec_ctx->JMBmessage\n", fname);
+
+	for (i=0; i<numpp+dec_ctx->aoh; i++) {
+		dec_ctx->JMBcoefficient[i] = calloc(numpp, sizeof(GF_ELEMENT));
+		dec_ctx->JMBmessage[i]     = calloc(pktsize, sizeof(GF_ELEMENT));
+	}
+	dec_ctx->inactives   = 0;
+	dec_ctx->otoc_mapping = malloc(sizeof(int) * numpp);
+	dec_ctx->ctoo_mapping = malloc(sizeof(int) * numpp);
+	for (j=0; j<numpp; j++) {
+		dec_ctx->otoc_mapping[j]   = j;				// original to current mapping
+		dec_ctx->ctoo_mapping[j]   = j;				// current to original mapping
+	}
+	// Apply precoding matrix
+	for (i=0; i<dec_ctx->gc->meta.cnum; i++) {
+		dec_ctx->JMBcoefficient[dec_ctx->gc->meta.snum+dec_ctx->aoh+i][dec_ctx->gc->meta.snum+i] = 1;
+
+		NBR_node *variable_node = dec_ctx->gc->graph->l_nbrs_of_r[i]->first; 		//ldpc_graph->nbrs_of_right[i];
+		while (variable_node != NULL) {
+			// 标记与该check packet连结的所有source packet node
+			int src_pktid = variable_node->data;						//variable_node->nb_index;
+			dec_ctx->JMBcoefficient[dec_ctx->gc->meta.snum+dec_ctx->aoh+i][src_pktid] = 1;
+			//dec_ctx->JMBcoefficient[NUM_SRC+OHS+i][src_pktid] = variable_node->nb_ce;
+			variable_node = variable_node->next;
+		}
+	}
+
 
 	// Step 1, translate LEVs to GEV and move them to GDM
 	GF_ELEMENT *global_ces = calloc(numpp, sizeof(GF_ELEMENT));

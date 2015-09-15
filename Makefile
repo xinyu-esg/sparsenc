@@ -7,12 +7,20 @@
 TOP = .
 OBJDIR := src
 INCLUDEDIR = include
-SED = sed
 
+UNAME := $(shell uname)
+ifeq ($(UNAME), Darwin)
+	SED = gsed
+	CC  = gcc-5
+endif
+ifeq ($(UNAME), Linux)
+	SED = sed
+	CC  = gcc
+endif
 
-CC = gcc
+#CC = gcc
 CFLAGS0 = -Winline -std=c99 -lm
-CFLAGS = -std=c99 -I$(INCLUDEDIR) -lm 
+CFLAGS = -pg -DNDEBUG -I$(INCLUDEDIR) -mssse3 -DINTEL_SSSE3
 #CFLAGS = -O3 -I$(INCLUDEDIR) -mssse3 -DINTEL_SSSE3
 #CFLAGS = -std=c99 -g -lm
 
@@ -25,10 +33,11 @@ GNCENC  := $(OBJDIR)/common.o $(OBJDIR)/bipartite.o $(OBJDIR)/gncEncoder.o $(OBJ
 GGDEC   := $(OBJDIR)/gncGGDecoder.o 
 OADEC   := $(OBJDIR)/gncOADecoder.o $(OBJDIR)/pivoting.o
 BDDEC   := $(OBJDIR)/gncBandDecoder.o $(OBJDIR)/pivoting.o
-DECDEFS := gncGGDecoder.h gncOADecoder.h gncBandDecoder.h
+CBDDEC  := $(OBJDIR)/gncCBDDecoder.o
+DECDEFS := gncGGDecoder.h gncOADecoder.h gncBandDecoder.h gncCBDDecoder.h
 
 .PHONY: all
-all: band.OA.example band.GG.example band.BD.example rand.GG.example rand.OA.example
+all: band.OA.example band.GG.example band.BD.example band.CBD.example rand.GG.example rand.OA.example
 	
 #GGband.example
 band.GG.example: $(GNCENC) $(GGDEC) test.GGdecoder.c example_utils.c
@@ -49,6 +58,10 @@ rand.OA.example: $(GNCENC) $(OADEC) test.OAdecoder.c example_utils.c
 #BDband.example
 band.BD.example: $(GNCENC) $(BDDEC) test.bandDecoder.c example_utils.c
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.bandDecoder.c
+	$(CC) -o $@ $(CFLAGS0) $(CFLAGS) $^
+#CBDband.example
+band.CBD.example: $(GNCENC) $(CBDDEC) test.CBDDecoder.c example_utils.c
+	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.CBDDecoder.c
 	$(CC) -o $@ $(CFLAGS0) $(CFLAGS) $^
 
 $(OBJDIR)/%.o: $(OBJDIR)/%.c $(DEFS) $(GGDEFS)

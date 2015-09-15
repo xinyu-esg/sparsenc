@@ -2,10 +2,10 @@
 #include <fcntl.h>
 #include "common.h"
 #include "gncEncoder.h"
-#include "gncBandDecoder.h"
+#include "gncCBDDecoder.h"
 extern void print_code_summary(struct gnc_metainfo *meta, int overhead, long operations);
 
-char usage[] = "usage: ./test.BDdecoder datasize size_b size_g size_p";
+char usage[] = "usage: ./test.CBDdecoder datasize size_b size_g size_p";
 int main(int argc, char *argv[])
 {
 	if (argc != 5) {
@@ -31,14 +31,14 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	struct decoding_context_BD *dec_ctx = malloc(sizeof(struct decoding_context_BD));
-	create_decoding_context_BD(dec_ctx, gc->meta.datasize, gc->meta.size_b, gc->meta.size_g, gc->meta.size_p, gc->meta.type);
+	struct decoding_context_CBD *dec_ctx = malloc(sizeof(struct decoding_context_CBD));
+	create_decoding_context_CBD(dec_ctx, gc->meta.datasize, gc->meta.size_b, gc->meta.size_g, gc->meta.size_p, gc->meta.type);
 	clock_t start, stop, dtime = 0;
 	while (dec_ctx->finished != 1) {
 		struct coded_packet *pkt = generate_gnc_packet(gc);
 		/* Measure decoding time */
 		start = clock();
-		process_packet_BD(dec_ctx, pkt);
+		process_packet_CBD(dec_ctx, pkt);
 		stop = clock();
 		dtime += stop - start;
 	}
@@ -51,6 +51,6 @@ int main(int argc, char *argv[])
 	print_code_summary(&dec_ctx->gc->meta, dec_ctx->overhead, dec_ctx->operations);
 
 	free_gnc_context(gc);
-	free_decoding_context_BD(dec_ctx);
+	free_decoding_context_CBD(dec_ctx);
 	return 0;
 }
