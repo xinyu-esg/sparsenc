@@ -3,10 +3,10 @@
  *
  * The decoder only applies to band GNC code. 
  *
- * Unlike regular band decoder, CBD decoder is compact in terms of 
- * coefficient matrix storage. By using compact row vectors, only the band
- * containing nonzero elements is stored. A price to pay is that pivoting 
- * has to be removed due to the limited random access and row/col 
+ * Unlike regular band decoder (gncBandDecoder.c), CBD decoder is 
+ * compact in coefficient matrix storage. Only coefficients in the band
+ * (which are nonzeros) are stored. A price to pay is that pivoting 
+ * cannot be performed due to the limited random access and row/col 
  * manipulation capability of using compact row vectors.
  ********************************************************************/
 #include "gncCBDDecoder.h"

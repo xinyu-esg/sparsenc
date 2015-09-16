@@ -1,8 +1,13 @@
-/*
+/*--------------------------- gaussian.c ----------------------------
+ *
  * This file contains forward and backward substitution functions of 
- * a general form Guassian elimination solving
+ * Guassian elimination solving
+ *
  * 		A x = B
- */
+ *
+ * No specific form of A and B is assumed. Operations on A and B are
+ * performed simultaneously.
+ -------------------------------------------------------------------*/
 #include "galois.h"
 #include <omp.h>
 

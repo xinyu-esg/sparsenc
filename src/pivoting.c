@@ -14,9 +14,9 @@
 #include <time.h>
 #include <string.h>
 #include "galois.h"
-#define ZLATEVS			3				// the number of searching rows using Zlatev's strategy 
-#define IA_INIT			0
-#define IA_STEP			1				// gradually inactivate more columns
+#define ZLATEVS			3    // Number of searching rows using Zlatev's strategy 
+#define IA_INIT			0    // Initial number of inactivated columns
+#define IA_STEP			1    // Gradually inactivate more columns
 /*
  * Pivoting algorithms use double-linked lists to store numbers of 
  * nonzeros of rows and columns of a matrix.
@@ -144,12 +144,12 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 	printf("Time consumed in pivoting T: %.0f seconds.\n", pivoting_time);
 #endif
 
-	// 保存re-order过后列的顺序
-	// Inactivation后第一次re-ordering，记下indices的mapping
+	// Save orders of column indices after re-ordering
+	// Current-to-original mapping
 	int *ctoo = (int *) malloc(sizeof(int)*ncolA);
 	Subscript *ss_pt = col_pivots->ssFirst;
 	for (i=0; i<ncolA; i++) {
-		otoc[ss_pt->index] = i;		// 第i个pivot对应的原来第ss_pt->index列
+		otoc[ss_pt->index] = i;	 // Original-to-current mapping	
 		ctoo[i] = ss_pt->index;	
 		ss_pt = ss_pt->next;
 	}
@@ -180,7 +180,6 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 			if (ces_matrix[i][i] == 0)
 				printf("The diagonal element after re-ordering is nonzero.\n");
 #endif
-
 			// process the item on (j, i)
 			if (ces_matrix[j][i] != 0) {
 				quotient = galois_divide(ces_matrix[j][i], ces_matrix[i][i], GF_POWER);
@@ -243,11 +242,14 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 	return operations;
 }
 
-/*
- * Pivot matrix for two rounds. First round uses inactivation pivoting against the whole matrix.
- * The second round performs on the relatively dense bottom-right corner corresponding to the
- * inactivated columns. Zlatev pivoting is used.
- */
+/********************************************************************************
+ * 
+ * Pivot matrix for two rounds. First round uses inactivation pivoting against 
+ * the whole matrix. The second round performs on the relatively denser 
+ * bottom-right corner corresponding to the inactivated columns. Zlatev pivoting
+ * is used for the second round.
+ *
+ ********************************************************************************/
 long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int *otoc, int *inactives)
 {
 	int i, j, k;
@@ -319,13 +321,7 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 		}
 	}
 	printf("There are %d pivots missing\n", missing_pivots);
-
-	/********
-	 *
-	 * Check the density of the lower half of the active part
-	 *
-	 *******/
-	
+	/* Check the density of the lower half of the active part */
 	long long nonzeros = 0;
 	for (i=ncolA-ias; i<ncolA; i++) {
 		for (j=0; j<ncolA-ias; j++)
@@ -333,8 +329,6 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 				nonzeros++;
 	}
 	printf("Fraction of nonzeros in the lower half of the active part: %f\n", (double) nonzeros/(ncolA-ias)/ias);
-
-
 	//diagonalize active part
 	printf("Convert the left half of T (lower triangular) to diagonal...\n");	
 #endif
@@ -346,7 +340,6 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 			if (ces_matrix[i][i] == 0)
 				printf("The diagonal element after re-ordering is nonzero.\n");
 #endif
-
 			// process the item on (j, i)
 			if (ces_matrix[j][i] != 0) {
 				quotient = galois_divide(ces_matrix[j][i], ces_matrix[i][i], GF_POWER);
@@ -423,8 +416,6 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 	// second pivoting is done
 
 	// 3, perform forward substitution on the re-ordered matrix
-	// Feb01注：此时只需要对T的右下角sub-matrix作Gaussian Elimination
-	// 动态分配decoding matrix和message matrix，用来保存T右下角的矩阵及其对应的message矩阵
 #if defined(GNCTRACE)
 	printf("Perform forward substitution on the bottom-right part of GDM (size: %d x %d)...\n", ias, ias);
 #endif
@@ -468,17 +459,21 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 }
 
 
-// Use Zlatev pivoting scheme
+/*****************************************************************************
+*     Zlatev pivoting
+*
+* A special kind of Markowitz pivoting in which pivots are selected from 3 
+* candidates who have the smallest nonzeros.
+******************************************************************************/
 static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivots, ssList *ColPivots)
 {	
-	// 对A的各行各列的非零元素计数
-	//对A的各行各列的非零元素计数
+	// Nonzeros of each rows and cols
 	int *row_counts = (int *) calloc(nrow, sizeof(int));
 	int *col_counts = (int *) calloc(ncolA, sizeof(int));
 
 	int i, j, k;
-	int max_row1s = 0;					// 记录初始矩阵里行中非零元素数目的最大值
-	int max_col1s = 0;					// 记录初始矩阵里列中非零元素数目的最大值
+	int max_row1s = 0;			// Max number of nonzeros in a row
+	int max_col1s = 0;			// Max number of nonzeros in a column
 	for (i=0; i<nrow; i++) {
 		for (j=0; j<ncolA; j++) {
 			if (A[i][j] != 0) {
@@ -492,16 +487,13 @@ static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 			}
 		}
 	}
-	//printf("max_row1s: %d, max_col1s: %d\n", max_row1s, max_col1s);
-	//for (i=0; i<ncolA; i++)
-	//	printf("%d\t", col_counts[i]);
-	//printf("\n");
-
-	//ssList **RowID_lists;
-	//ssList **ColID_lists;
-	//RowID_lists = (ssList *) malloc(sizeof(ssList*) * (max_row1s+1));
-	ssList **RowID_lists = (ssList **) malloc(sizeof(ssList*) * (max_row1s+1)); // 指针数组，每个指针指向一个双向链表，同一个链表中的行具有相同数目的非零元素
-	ssList **ColID_lists = (ssList **) malloc(sizeof(ssList*) * (max_col1s+1)); // 指针数组，每个指针指向一个双向链表，同一个链表中的列具有相同数目的非零元素
+	/*************************************************************************
+	 * A list of double lists. Elements of each double list contain rows/cols 
+	 * indices. Rows/cols of same double-linked list have the same number of 
+	 * nonzero elements. 
+	 **************************************************************************/
+	ssList **RowID_lists = (ssList **) malloc(sizeof(ssList*) * (max_row1s+1)); 
+	ssList **ColID_lists = (ssList **) malloc(sizeof(ssList*) * (max_col1s+1));
 	for (i=0; i<max_row1s+1; i++) {
 		RowID_lists[i] = (ssList *) malloc(sizeof(ssList));
 		RowID_lists[i]->ssFirst = RowID_lists[i]->ssLast = NULL;
@@ -510,8 +502,7 @@ static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 		ColID_lists[i] = (ssList *) malloc(sizeof(ssList));
 		ColID_lists[i]->ssFirst = ColID_lists[i]->ssLast = NULL;
 	}
-	// 分类具有不同数目非零元素的行和列
-	//
+	// Travel through the matrix and populate double-linked lists
 	int allzero_rows = 0;
 	for (i=0; i<nrow; i++) {
 		int row_count = row_counts[i];
@@ -540,10 +531,8 @@ static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 #if defined(GNCTRACE)
 	printf("there are %d all-zero rows and %d all-zero cols in the matrix.\n", allzero_rows, allzero_cols);
 #endif
-	//printf("there are %d not all-zero rows and %d not all-zero cols in the matrix.\n", nonallzero_rows, nonallzero_cols);
-	//Jan28注：如果有全零列，则必须在pivoting最后把它们的序号加上去
 
-	// 有了row_counts[], col_counts[], RowID_lists, ColID_lists之后，即开始Markowitz reordering
+	// Markowitz pivoting using row_counts, col_counts, RowID_lists, ColID_lists
 	int pivots_found = 0;
 	int removed_cols = 0;
 	int toallzero_cols = 0;
@@ -565,7 +554,7 @@ static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 		Subscript *rows_inchecking, *cols_inchecking;
 		int row_id, col_id;
 		
-		// 按行搜索，并且逐次遍历
+		// Search rows
 		int searched_rows = 0;
 		for (i=1; i<=max_row1s; i++) {
 			// 先按行的非零元素多少搜索
@@ -577,8 +566,6 @@ static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 			while (rows_inchecking != NULL && (searched_rows < ZLATEVS)) {
 				searched_rows += 1;
 				row_id = rows_inchecking->index;
-				//printf("row %d contains only one entry.\n", row_id);
-
 				// 再按列的非零元素多少做test
 				for (j=1; j<=max_col1s; j++) {
 					cols_inchecking = ColID_lists[j]->ssFirst;
@@ -608,7 +595,6 @@ static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 			}
 		}
 
-		
 		if (potential_r == -1 || potential_c == -1) {
 			//printf("error: no pivot is found, the matrix is not full-rank.\n");
 #if defined(GNCTRACE)
@@ -616,7 +602,8 @@ static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 			printf("%d cols reduced to all-zero.\n", toallzero_cols);
 			printf("(partial success) %d/%d pivots were found out of %d rows.\n", pivots_found, ncolA, nrow);
 #endif
-			// 说明有被reduce到全零的行列，把他们当作pivot，anyway
+			// There are row/col being reduced to all-zero, take them
+			// as pivot anyway because we have no other choices
 			Subscript *sub_ptt;
 			sub_ptt = ColID_lists[0]->ssFirst;
 			int zerocols = 0;
@@ -648,13 +635,11 @@ static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivo
 		}
 
 found:	
-		// 找到了一个pivot，保存之
-		//printf("a pivot at (%d, %d) is found.\n", potential_r, potential_c);
+		// Found a pivot, save it
 		pivots_found += 1;
 		int p_r = potential_r;
 		int p_c = potential_c;
-		
-		// 保存该pivot的坐标
+		// Save coordiate (p_r, p_c)
 		Subscript *newRpivot = malloc(sizeof(Subscript));
 		newRpivot->index = p_r;
 		newRpivot->nonzeros = row_counts[p_r];
@@ -666,12 +651,12 @@ found:
 		newCpivot->prev = newCpivot->next = NULL;
 		insertSubAtEnd(ColPivots, newCpivot);
 
-		// 更新row_counts[], col_counts[], RowID_lists, ColID_lists
-		// 1, check potential_r 这一行的所有非零元素，更改它们对应的列的非零元素数目(col_counts[]以及调整ColID_lists)
+		// Update row_counts[], col_counts[], RowID_lists, ColID_lists
+		// 1, check nonzero elements of the row: potential_r, update numbers of nonzero elements of the correspondings columns(col_counts[] and ColID_lists).
 		int nzs;
 		Subscript *ss_pt;
 		Subscript *ss_pt_next;
-		// 注意有些行和列已经被eliminated了，因此这里采取遍历Subscript对象来更新
+		// Note: some row/col have been eliminated, so we need to traverse Subscript when updating
 		// 1, Update columns
 		for (i=1; i<=max_col1s; i++) {
 			ss_pt = ColID_lists[i]->ssFirst;
@@ -742,10 +727,15 @@ found:
 	return pivots_found;
 }
 
-// use progressive inactivation to do pivoting:
-//  1) inactivate some columns and only perform pivoting on the rest of the "active" sub-matrix
-//  2) if singleton row cannot be found in the middle of pivoting, declare more inactive columns
-//  3) given the structure (heavier columns are in the back), declare inactive columns from the back
+/*********************************************************************************************************
+ *      Inactivation pivoting
+ * Use progressive inactivation to do pivoting. Only select pivots from singleton rows of the "residual"
+ * matrix during the pivoting. If no singleton rows can be found, inactivate some columns until singletons
+ * can be found:
+ *  1) inactivate some columns and only perform pivoting on the rest of the "active" sub-matrix
+ *  2) if singleton row cannot be found in the middle of pivoting, declare more inactive columns
+ *  3) given the structure (heavier columns are in the back), declare inactive columns from the back
+ *********************************************************************************************************/
 static int inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivots, ssList *ColPivots)
 {
 #if defined(GNCTRACE)
@@ -939,7 +929,11 @@ static int inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *R
 	return inactivated;
 }
 
-// Given pivot sequence, re-order matrices
+/*********************************************************************************************
+ *      Reshape matrix
+ * Given pivot sequence, re-order matrices: the i-th pivot (pr_i, pc_i) will be moved to the
+ * coordiate (pr_i,pc_i) of the new matrix.
+ *********************************************************************************************/
 static void reshape_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_ELEMENT *B[], ssList *RowPivots, ssList *ColPivots)
 {
 	int i, j, k;

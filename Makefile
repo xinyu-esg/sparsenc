@@ -20,7 +20,7 @@ endif
 
 #CC = gcc
 CFLAGS0 = -Winline -std=c99 -lm
-CFLAGS = -pg -DNDEBUG -I$(INCLUDEDIR) -mssse3 -DINTEL_SSSE3
+CFLAGS = -O3 -DNDEBUG -I$(INCLUDEDIR)  -mssse3 -DINTEL_SSSE3
 #CFLAGS = -O3 -I$(INCLUDEDIR) -mssse3 -DINTEL_SSSE3
 #CFLAGS = -std=c99 -g -lm
 

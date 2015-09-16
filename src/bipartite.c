@@ -1,13 +1,36 @@
+/*----------------------- bipartite.c ----------------------
+ *
+ *  Bipartite graph functions for LDPC precoding.
+ *  We use LDPC code specified in Raptor Codes Standard
+ *  Implementation. Refer to: 
+ *    1, Sec 5.4.2.3 in RFC5053 "Raptor Forward Error 
+ *       Correction Scheme for Object Delivery" by Luby et. al.
+ *    2, Sec 3.2.3 in Foundations and Trends in Comm. and 
+ *       Info. Theory "Raptor Codes" by Shokrollahi et. al. 
+ *  for detailed information.
+ *
+ *----------------------------------------------------------*/
 #include "common.h"
 #include "bipartite.h"
 #include <math.h>
+static int is_prime(int number); 
 static void include_left_node(int l_index, int r_index, BP_graph *graph);
-// The follow functions add check packets to source packets. Check packets are constructed using LDPC
-// precoding. We use LDPC precoder specified in Raptor Codes Standard Implementation
-// refer to: 
-// 1, Sec 5.4.2.3 in RFC5053 "Raptor Forward Error Correction Scheme for Object Delivery" by Luby et. al.
-// 2, Sec 3.2.3 in Foundations and Trends in Comm. and Info. Theory "Raptor Codes" by Shokrollahi et. al. 
-// construct LDPC graph, using LDPC_SYS, S macros
+
+// The number of required LDPC check symbols given the number of source packets.
+int number_of_checks(int snum) 
+{
+	int x = (int) floor( sqrt( 2 * snum ) );
+	while ( x * (x - 1) < 2 * snum )
+		x++;
+
+	int c = (int) ceil( 0.01 * snum ) + x;
+	while ( !is_prime(c++) )
+		;
+
+	return c;
+}
+
+// construct LDPC graph
 void create_bipartite_graph(BP_graph *graph, int nleft, int nright)
 {
 	int LDPC_SYS = nleft;
@@ -93,4 +116,13 @@ void free_bipartite_graph(BP_graph *graph)
 	free(graph);
 }
 
+static int is_prime(int number) 
+{
+    int i;
+    for (i=2; i*i<=number; i++) {
+        if (number % i == 0)
+			return 0;
+    }
+    return 1;
+}
 

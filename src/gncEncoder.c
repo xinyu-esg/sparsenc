@@ -1,6 +1,9 @@
-/*
- * This file contains functions for erasure-correction coding.
- */
+/**************************************************************
+ * 		gncEncoder.c
+ *
+ * Functions for GNC encoding. Coded packets can be generated
+ * from memory buffer or files.
+ **************************************************************/
 #include "common.h"
 #include "gncEncoder.h"
 #include <math.h>
@@ -12,8 +15,6 @@ static int group_packets_rand(struct gnc_context *gc);
 static int group_packets_band(struct gnc_context *gc);
 static void encode_packet(struct gnc_context *gc, int gid, struct coded_packet *pkt);
 static int schedule_generation(struct gnc_context *gc);
-static int is_prime(int number); 
-static int number_of_checks(int snum); 
 /*
  * Create a GNC context containing meta information about the data to be encoded.
  *   buf      - Buffer containing bytes of data to be encoded
@@ -70,7 +71,14 @@ int create_gnc_context(char *buf, long datasize, struct gnc_context **gc, int s_
 		return(-1);
 	}
 
-	// Creating context with to-be-encoded data
+	/*--------- Creating context with to-be-encoded data ---------------
+	 *
+	 * Currently we copy data from user-provided buffer. In the future,
+	 * we can make most of pp[i] directly point to user-provided buffer
+	 * address. Only the last source packet (due to zero-padding) and 
+	 * the cnum parity-check packets need to allocate new memory.
+	 *
+	 *------------------------------------------------------------------*/
 	if (buf != NULL) {
 		int alread = 0;
 		for (int i=0; i<(*gc)->meta.snum+(*gc)->meta.cnum; i++) {
@@ -430,26 +438,3 @@ static int schedule_generation(struct gnc_context *gc)
 	return gid;
 }
 
-static int is_prime(int number) 
-{
-    int i;
-    for (i=2; i*i<=number; i++) {
-        if (number % i == 0)
-			return 0;
-    }
-    return 1;
-}
-
-// Return the number of required LDPC check symbols given the number of source packets.
-static int number_of_checks(int snum) 
-{
-	int x = (int) floor( sqrt( 2 * snum ) );
-	while ( x * (x - 1) < 2 * snum )
-		x++;
-
-	int c = (int) ceil( 0.01 * snum ) + x;
-	while ( !is_prime(c++) )
-		;
-
-	return c;
-}

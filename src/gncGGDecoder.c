@@ -1,3 +1,6 @@
+/*--------------------------gncGGDecoder.c---------------------
+ * Implementation of generation-by-generation decoding.
+ *-------------------------------------------------------------*/
 #include "gncGGDecoder.h"
 
 static void decode_generation(struct decoding_context_GG *dec_ctx, int gid);
@@ -9,8 +12,7 @@ static long update_running_matrix(struct decoding_context_GG *dec_ctx, int gid, 
 static int check_for_new_recoverables(struct decoding_context_GG *dec_ctx);
 static int check_for_new_decodables(struct decoding_context_GG *dec_ctx);
 static void mask_packet(struct decoding_context_GG *dec_ctx, GF_ELEMENT ce, int index, struct coded_packet *enc_pkt);
-//static long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B);
-//static long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B);
+
 extern long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B);
 extern long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B);
 

@@ -1,6 +1,7 @@
+/*
+ * Common utility functions used by many routines in the library.
+ */
 #include "common.h"
-
-
 
 // check if an item is existed in an int array
 int has_item(int array[], int item, int length)

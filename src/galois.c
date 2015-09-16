@@ -1,3 +1,7 @@
+/************************************************************************
+ *			galois.c
+ * Functions of Galois field arithmetic.
+ ************************************************************************/
 #include <stdlib.h>
 #include <string.h>
 #if defined(INTEL_SSSE3)

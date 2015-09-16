@@ -1,3 +1,6 @@
+/*--------------------------gncOADecoder.c----------------------
+ * Implementation of overlap-aware (OA) decoder.
+ *-------------------------------------------------------------*/
 #include "gncOADecoder.h"
 
 /*
