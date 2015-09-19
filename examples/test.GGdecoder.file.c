@@ -1,6 +1,5 @@
 #include <unistd.h>
 #include <fcntl.h>
-#include "common.h"
 #include "gncEncoder.h"
 #include "gncGGDecoder.h"
 
@@ -40,6 +39,10 @@ int main(int argc, char *argv[])
 		printf("Cannot create File Context.\n");
 		return 1;
 	}
+	if (load_file_to_gnc_context(fp, gc) != 0) {
+		printf("Load file to gnc_context failed.\n");
+		return 1;
+	}
 	fclose(fp);
 
 	printf("File size: %ld\n", gc->meta.datasize);
@@ -51,9 +54,6 @@ int main(int argc, char *argv[])
 		struct coded_packet *pkt = generate_gnc_packet(gc);
 		process_packet_GG(dec_ctx, pkt);
 	}
-	printf("overhead: %f computation: %f/symbol\n", 
-					(double) dec_ctx->overhead/dec_ctx->gc->meta.snum,
-					(double) dec_ctx->operations/dec_ctx->gc->meta.snum/(dec_ctx->gc->meta.size_p));
 
 	char *copyname = calloc(strlen(argv[1])+strlen(".dec.copy")+1, sizeof(char));
 	strcat(copyname, filename);
@@ -65,6 +65,7 @@ int main(int argc, char *argv[])
 	}
 	recover_data_to_file(wfp, dec_ctx->gc);
 	fclose(wfp);
+	print_code_summary(&dec_ctx->gc->meta, dec_ctx->overhead, dec_ctx->operations);
 	free_gnc_context(gc);
 	free_decoding_context_GG(dec_ctx);
 	return 0;

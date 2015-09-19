@@ -1,8 +1,10 @@
-#ifndef _GNC_ENCODER_H
-#define _GNC_ENCODER_H
-#include "common.h"
-#include "galois.h"
-#include "bipartite.h"
+#ifndef GNC_ENCODER_H
+#define GNC_ENCODER_H
+#include <stdio.h>
+typedef unsigned char GF_ELEMENT;
+struct node;
+struct node_list;
+struct bipartite_graph;
 
 /*
  * Type of GNC code
@@ -56,5 +58,6 @@ int free_gnc_context(struct gnc_context *gc);
 unsigned char *recover_data(struct gnc_context *gc);
 long recover_data_to_file(FILE *fp, struct gnc_context *gc);
 struct coded_packet *generate_gnc_packet(struct gnc_context *gc);
+int generate_gnc_packet_im(struct gnc_context *gc, struct coded_packet *pkt);
 void free_gnc_packet(struct coded_packet *pkt);
-#endif /* _GNC_ENCODER_H */
+#endif /* GNC_ENCODER_H */

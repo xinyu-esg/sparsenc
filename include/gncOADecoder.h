@@ -1,5 +1,3 @@
-#include "common.h"
-#include "galois.h"
 #include "gncEncoder.h"
 /*
  * OA (overlap aware) DECODING CONTEXT is used at each destination node

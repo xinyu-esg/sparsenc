@@ -5,6 +5,8 @@
  * from memory buffer or files.
  **************************************************************/
 #include "common.h"
+#include "galois.h"
+#include "bipartite.h"
 #include "gncEncoder.h"
 #include <math.h>
 #include <sys/stat.h>
@@ -97,17 +99,6 @@ int create_gnc_context(char *buf, long datasize, struct gnc_context **gc, int s_
 int create_gnc_context_from_file(FILE *fp, struct gnc_context **gc, int s_b, int s_g, int s_p, int type)
 {
 	static char fname[] = "create_gnc_context_from_file";
-	// Allocate file_context
-	if ( (*gc = calloc(1, sizeof(struct gnc_context))) == NULL ) {
-		fprintf(stderr, "%s: calloc file_context\n", fname);
-		return(-1);
-	}
-	
-	(*gc)->meta.size_b = s_b;
-	(*gc)->meta.size_g = s_g;
-	(*gc)->meta.size_p = s_p;
-	(*gc)->meta.type   = type;
-
 	// Get file size
 	/* Seek to file end */
 	if (fseek(fp, 0, SEEK_END) == -1) 
@@ -116,46 +107,32 @@ int create_gnc_context_from_file(FILE *fp, struct gnc_context **gc, int s_b, int
 	/* Seek back to file start */
 	if (fseek(fp, 0, SEEK_SET) == -1) 
 		fprintf(stderr, "%s: fseek SEEK_SET\n", fname);
-    /* determine packet and generation numbers */
-	int num_src = ALIGN(datasize, (*gc)->meta.size_p);
-	int num_chk = number_of_checks(num_src);
-	(*gc)->meta.datasize = datasize;
-	(*gc)->meta.snum  = num_src;							  // Number of source packets
-	(*gc)->meta.cnum  = num_chk;							  // Number of check packets
-	(*gc)->meta.gnum  = ALIGN( (num_src+num_chk), (*gc)->meta.size_b); // Number of disjoint generations grouped from packets
-	/*
-	 * Verify code parameter
-	 */
-	if (verify_code_parameter(&((*gc)->meta)) != 0) {
-		fprintf(stderr, "%s: code parameter is invalid.\n", fname);
-		return(-1);
-	}
-	/*
-	 * Create generations, bipartite graph
-	 */
-	if (create_context_from_meta(*gc) != 0) {
-		fprintf(stderr, "%s: create_context_from_meta failed\n", fname);
-		return(-1);
-	}
 
-	// Allocating pointers to data
-	if (((*gc)->pp = calloc((*gc)->meta.snum+(*gc)->meta.cnum, sizeof(GF_ELEMENT*))) == NULL) {
-		fprintf(stderr, "%s: calloc (*gc)->pp\n", fname);
-		return(-1);
-	}
+	/* Create gnc_context without actual data */
+	create_gnc_context(NULL, datasize, gc, s_b, s_g, s_p, type);
+	return(0);
+}
 
-	// Creating context with data read from FILE *fp
+/*
+ * Load file data into gnc_context created for the file. It's the
+ * caller's responsibility to ensure that the pair of FILE* and 
+ * gnc_context matches.
+ */
+int load_file_to_gnc_context(FILE *fp, struct gnc_context *gc)
+{
+	static char fname[] = "load_file_to_gnc_context";
 	int alread = 0;
-	for (int i=0; i<(*gc)->meta.snum+(*gc)->meta.cnum; i++) {
-		(*gc)->pp[i] = calloc((*gc)->meta.size_p, sizeof(GF_ELEMENT));
-        int toread = (alread+(*gc)->meta.size_p) <= (*gc)->meta.datasize ? (*gc)->meta.size_p : (*gc)->meta.datasize-alread;
-		if (fread((*gc)->pp[i], sizeof(GF_ELEMENT), toread, fp) != toread)
-			fprintf(stderr, "%s: fread (*gc)->pp[%d]\n", fname, i);
+	for (int i=0; i<gc->meta.snum+gc->meta.cnum; i++) {
+		gc->pp[i] = calloc(gc->meta.size_p, sizeof(GF_ELEMENT));
+        int toread = (alread+gc->meta.size_p) <= gc->meta.datasize ? gc->meta.size_p : gc->meta.datasize-alread;
+		if (fread(gc->pp[i], sizeof(GF_ELEMENT), toread, fp) != toread) {
+			fprintf(stderr, "%s: fread gc->pp[%d]\n", fname, i);
+			return (-1);
+		}
         alread += toread;
     }
-	perform_precoding(*gc);
-
-	return(0);
+	perform_precoding(gc);
+	return (0);
 }
 
 static int verify_code_parameter(struct gnc_metainfo *meta)
@@ -386,6 +363,7 @@ static int group_packets_band(struct gnc_context *gc)
 	return coverage;
 }
 
+/* Generate a GNC coded packet. Memory is allocated in the function. */
 struct coded_packet *generate_gnc_packet(struct gnc_context *gc)
 {
 	struct coded_packet *pkt = malloc(sizeof(struct coded_packet));
@@ -404,6 +382,21 @@ struct coded_packet *generate_gnc_packet(struct gnc_context *gc)
 	int gid = schedule_generation(gc);
 	encode_packet(gc, gid, pkt);
 	return pkt;
+}
+
+/*
+ * Generate a GNC coded packet in a given memory area.
+ * It is the caller's responsibity to allocate memory properly.
+ */
+int generate_gnc_packet_im(struct gnc_context *gc, struct coded_packet *pkt)
+{
+	if (pkt == NULL || pkt->coes == NULL || pkt->syms == NULL)
+		return -1;
+	memset(pkt->coes, 0, gc->meta.size_g*sizeof(GF_ELEMENT));
+	memset(pkt->syms, 0, gc->meta.size_p*sizeof(GF_ELEMENT));
+	int gid = schedule_generation(gc);
+	encode_packet(gc, gid, pkt);
+	return (0);
 }
 
 void free_gnc_packet(struct coded_packet *pkt)

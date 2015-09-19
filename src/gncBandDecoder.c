@@ -2,6 +2,9 @@
  * Implementation of regular band decoder. It employs pivoting
  * to jointly decode band GNC code and its precode.
  *------------------------------------------------------------*/
+#include "common.h"
+#include "galois.h"
+#include "bipartite.h"
 #include "gncBandDecoder.h"
 static int partially_diag_decoding_matrix(struct decoding_context_BD *dec_ctx);
 static int apply_parity_check_matrix(struct decoding_context_BD *dec_ctx);

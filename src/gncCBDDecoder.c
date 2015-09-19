@@ -9,6 +9,9 @@
  * cannot be performed due to the limited random access and row/col 
  * manipulation capability of using compact row vectors.
  ********************************************************************/
+#include "common.h"
+#include "galois.h"
+#include "bipartite.h"
 #include "gncCBDDecoder.h"
 static int process_vector_CBD(struct decoding_context_CBD *dec_ctx, GF_ELEMENT *vector, GF_ELEMENT *message);
 static int apply_parity_check_matrix(struct decoding_context_CBD *dec_ctx);

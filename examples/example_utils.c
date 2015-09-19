@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <string.h>
 #include "gncEncoder.h"
 
 void print_code_summary(struct gnc_metainfo *meta, int overhead, long long operations)

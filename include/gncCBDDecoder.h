@@ -1,5 +1,3 @@
-#include "common.h"
-#include "galois.h"
 #include "gncEncoder.h"
 
 /* Row vector of a matrix */

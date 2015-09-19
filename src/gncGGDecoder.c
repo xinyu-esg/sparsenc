@@ -1,6 +1,9 @@
 /*--------------------------gncGGDecoder.c---------------------
  * Implementation of generation-by-generation decoding.
  *-------------------------------------------------------------*/
+#include "common.h"
+#include "galois.h"
+#include "bipartite.h"
 #include "gncGGDecoder.h"
 
 static void decode_generation(struct decoding_context_GG *dec_ctx, int gid);

@@ -1,7 +1,5 @@
 #ifndef _CCFD_DECODER_H
 #define _CCFD_DECODER_H
-#include "common.h"
-#include "galois.h"
 #include "gncEncoder.h"
 
 #define FB_THOLD	1

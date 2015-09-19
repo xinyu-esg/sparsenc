@@ -5,8 +5,10 @@
 ######################################################
 
 TOP = .
+SRCDIR := src
 OBJDIR := src
 INCLUDEDIR = include
+INC_PARMS = $(INCLUDEDIR:%=-I%)
 
 UNAME := $(shell uname)
 ifeq ($(UNAME), Darwin)
@@ -20,15 +22,15 @@ endif
 
 #CC = gcc
 CFLAGS0 = -Winline -std=c99 -lm
-CFLAGS = -O3 -DNDEBUG -I$(INCLUDEDIR)  -mssse3 -DINTEL_SSSE3
+CFLAGS1 = -O3 -DNDEBUG $(INC_PARMS)  -mssse3 -DINTEL_SSSE3
+#CFLAGS2 = -lm
 #CFLAGS = -O3 -I$(INCLUDEDIR) -mssse3 -DINTEL_SSSE3
 #CFLAGS = -std=c99 -g -lm
 
-vpath %.h include
+vpath %.h src include
 vpath %.c src examples
 
 DEFS   := common.h bipartite.h gncEncoder.h galois.h
-#GNCENC := $(addprefix, $(OBJDIR)/,common.o bipartite.o gncEncoder.o galois.o gaussian.o)
 GNCENC  := $(OBJDIR)/common.o $(OBJDIR)/bipartite.o $(OBJDIR)/gncEncoder.o $(OBJDIR)/galois.o $(OBJDIR)/gaussian.o
 GGDEC   := $(OBJDIR)/gncGGDecoder.o 
 OADEC   := $(OBJDIR)/gncOADecoder.o $(OBJDIR)/pivoting.o
@@ -38,36 +40,39 @@ DECDEFS := gncGGDecoder.h gncOADecoder.h gncBandDecoder.h gncCBDDecoder.h
 
 .PHONY: all
 all: band.OA.example band.GG.example band.BD.example band.CBD.example rand.GG.example rand.OA.example
+
+libgnc.so: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC)
+	$(CC) -shared -o libgnc.so $^
 	
 #GGband.example
-band.GG.example: $(GNCENC) $(GGDEC) test.GGdecoder.c example_utils.c
+band.GG.example: libgnc.so test.GGdecoder.c example_utils.c
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.GGdecoder.c
-	$(CC) -o $@ $(CFLAGS0) $(CFLAGS) $^
+	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #GGrand.example
-rand.GG.example: $(GNCENC) $(GGDEC) test.GGdecoder.c example_utils.c
+rand.GG.example: libgnc.so test.GGdecoder.c example_utils.c
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ RAND_GNC_CODE;/' examples/test.GGdecoder.c
-	$(CC) -o $@ $(CFLAGS0) $(CFLAGS) $^
+	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #OAband.example
-band.OA.example: $(GNCENC) $(OADEC) test.OAdecoder.c example_utils.c
+band.OA.example: libgnc.so test.OAdecoder.c example_utils.c
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.OAdecoder.c
-	$(CC) -o $@ $(CFLAGS0) $(CFLAGS) $^
+	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #OArand.example
-rand.OA.example: $(GNCENC) $(OADEC) test.OAdecoder.c example_utils.c
+rand.OA.example: libgnc.so test.OAdecoder.c example_utils.c
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ RAND_GNC_CODE;/' examples/test.OAdecoder.c
-	$(CC) -o $@ $(CFLAGS0) $(CFLAGS) $^
+	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #BDband.example
-band.BD.example: $(GNCENC) $(BDDEC) test.bandDecoder.c example_utils.c
+band.BD.example: libgnc.so test.bandDecoder.c example_utils.c
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.bandDecoder.c
-	$(CC) -o $@ $(CFLAGS0) $(CFLAGS) $^
+	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #CBDband.example
-band.CBD.example: $(GNCENC) $(CBDDEC) test.CBDDecoder.c example_utils.c
+band.CBD.example: libgnc.so test.CBDDecoder.c example_utils.c
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.CBDDecoder.c
-	$(CC) -o $@ $(CFLAGS0) $(CFLAGS) $^
+	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 
 $(OBJDIR)/%.o: $(OBJDIR)/%.c $(DEFS) $(GGDEFS)
-	$(CC) -c -o $@ $< $(CFLAGS0) $(CFLAGS)
+	$(CC) -c -fpic -o $@ $< $(CFLAGS0) $(CFLAGS1)
 
 .PHONY: clean
 
 clean:
-	rm -f *.o $(OBJDIR)/*.o *.example
+	rm -f *.o $(OBJDIR)/*.o *.example libgnc.so

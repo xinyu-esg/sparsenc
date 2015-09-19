@@ -1,6 +1,9 @@
 #include <unistd.h>
 #include <fcntl.h>
-#include "common.h"
+#include <time.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include "gncEncoder.h"
 #include "gncBandDecoder.h"
 extern void print_code_summary(struct gnc_metainfo *meta, int overhead, long operations);
