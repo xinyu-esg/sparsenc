@@ -44,7 +44,7 @@ extern long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A
  * Create context for overlap-aware (OA) decoding
  *  aoh - allowed overhead >=0
  */
-void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasize, int s_b, int s_g, int s_p, int type, int aoh)
+void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasize, struct gnc_parameter gp, int aoh)
 {
 	static char fname[] = "create_decoding_context_OA";
 	int i, j, k;
@@ -53,7 +53,7 @@ void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasi
 	// Since this is decoding, we construct GNC context without data
 	// gc->pp will be filled by decoded packets
 	struct gnc_context *gc;
-	if (create_gnc_context(NULL, datasize, &gc, s_b, s_g, s_p, type) != 0) 
+	if (create_gnc_context(NULL, datasize, &gc, gp) != 0) 
 		fprintf(stderr, "%s: create decoding context failed", fname);
 
 	dec_ctx->gc = gc;

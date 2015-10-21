@@ -17,13 +17,15 @@ static int is_prime(int number);
 static void include_left_node(int l_index, int r_index, BP_graph *graph);
 
 // The number of required LDPC check symbols given the number of source packets.
-int number_of_checks(int snum) 
+int number_of_checks(int snum, double r) 
 {
+	if (r == 0)
+		return (0);
 	int x = (int) floor( sqrt( 2 * snum ) );
 	while ( x * (x - 1) < 2 * snum )
 		x++;
 
-	int c = (int) ceil( 0.01 * snum ) + x;
+	int c = (int) ceil( r * snum ) + x; 	// In Raptor code r=0.01
 	while ( !is_prime(c++) )
 		;
 

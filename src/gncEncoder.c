@@ -30,7 +30,7 @@ static int schedule_generation(struct gnc_context *gc);
  *   0  - Create successfully
  *   -1 - Create failed
  */
-int create_gnc_context(char *buf, long datasize, struct gnc_context **gc, int s_b, int s_g, int s_p, int type)
+int create_gnc_context(char *buf, long datasize, struct gnc_context **gc, struct gnc_parameter gp)
 {
 	static char fname[] = "create_gnc_context";
 	// Allocate file_context
@@ -38,25 +38,28 @@ int create_gnc_context(char *buf, long datasize, struct gnc_context **gc, int s_
 		fprintf(stderr, "%s: calloc file_context\n", fname);
 		return(-1);
 	}
-	
-	(*gc)->meta.size_b = s_b;
-	(*gc)->meta.size_g = s_g;
-	(*gc)->meta.size_p = s_p;
-	(*gc)->meta.type   = type;
+	(*gc)->meta.pcrate   = gp.pcrate;	
+	(*gc)->meta.size_b   = gp.size_b;
+	(*gc)->meta.size_g   = gp.size_g;
+	(*gc)->meta.size_p   = gp.size_p;
+	(*gc)->meta.type     = gp.type;
 
 	// Determine packet and generation numbers
 	int num_src = ALIGN(datasize, (*gc)->meta.size_p);
-	int num_chk = number_of_checks(num_src);
+	int num_chk = number_of_checks(num_src, (*gc)->meta.pcrate);
 	(*gc)->meta.datasize = datasize;
 	(*gc)->meta.snum  = num_src;							  // Number of source packets
 	(*gc)->meta.cnum  = num_chk;							  // Number of check packets
-	(*gc)->meta.gnum  = ALIGN( (num_src+num_chk), (*gc)->meta.size_b); // Number of disjoint generations grouped from packets
+	if ((*gc)->meta.type == BAND_GNC_CODE) 
+		(*gc)->meta.gnum  = ALIGN((num_src+num_chk-(*gc)->meta.size_g), (*gc)->meta.size_b) + 1; 
+	else
+		(*gc)->meta.gnum  = ALIGN( (num_src+num_chk), (*gc)->meta.size_b); 
 	
 	/*
-	 * Verify code parameter
+	 * Verify code gpmeter
 	 */
 	if (verify_code_parameter(&((*gc)->meta)) != 0) {
-		fprintf(stderr, "%s: code parameter is invalid.\n", fname);
+		fprintf(stderr, "%s: code gpmeter is invalid.\n", fname);
 		return(-1);
 	}
 	/*
@@ -91,12 +94,14 @@ int create_gnc_context(char *buf, long datasize, struct gnc_context **gc, int s_
     	}
 		perform_precoding(*gc);
 	}
+	// Construct Galois field for encoding and decoding
+	constructField(GF_POWER);
 
 	return(0);
 }
 
 
-int create_gnc_context_from_file(FILE *fp, struct gnc_context **gc, int s_b, int s_g, int s_p, int type)
+int create_gnc_context_from_file(FILE *fp, struct gnc_context **gc, struct gnc_parameter gp)
 {
 	static char fname[] = "create_gnc_context_from_file";
 	// Get file size
@@ -109,7 +114,7 @@ int create_gnc_context_from_file(FILE *fp, struct gnc_context **gc, int s_b, int
 		fprintf(stderr, "%s: fseek SEEK_SET\n", fname);
 
 	/* Create gnc_context without actual data */
-	create_gnc_context(NULL, datasize, gc, s_b, s_g, s_p, type);
+	create_gnc_context(NULL, datasize, gc, gp);
 	return(0);
 }
 
@@ -138,11 +143,11 @@ int load_file_to_gnc_context(FILE *fp, struct gnc_context *gc)
 static int verify_code_parameter(struct gnc_metainfo *meta)
 {
 	if (meta->size_b > meta->size_g) {
-		fprintf(stderr, "code parameter error: size_b > size_g\n");
+		fprintf(stderr, "code gpmeter error: size_b > size_g\n");
 		return(-1);
 	}
 	if (meta->size_b*meta->size_p > meta->datasize) {
-		fprintf(stderr, "code parameter error: size_b X size_p > datasize\n");
+		fprintf(stderr, "code gpmeter error: size_b X size_p > datasize\n");
 		return(-1);
 	}
 	return(0);
@@ -211,7 +216,8 @@ int free_gnc_context(struct gnc_context *gc)
 		gc->gene[i] = NULL;
 	}
 	free(gc->gene);
-	free_bipartite_graph(gc->graph);
+	if (gc->graph != NULL)
+		free_bipartite_graph(gc->graph);
 	free(gc);
 	return(0);
 }
@@ -264,8 +270,6 @@ long recover_data_to_file(FILE *fp, struct gnc_context *gc)
 static void perform_precoding(struct gnc_context *gc)
 {
 	static char fname[] = "perform_precoding";
-	// Construct Galois field for encoding and decoding
-	constructField(GF_POWER);
 
 	int i, j;
 	for (i=0; i<gc->meta.cnum; i++) {
@@ -347,8 +351,12 @@ static int group_packets_band(struct gnc_context *gc)
 	for (i=0; i<num_g; i++) {
 		gc->gene[i]->gid = i;
 		leading_pivot = i * gc->meta.size_b;
-		if (leading_pivot > num_p - gc->meta.size_g)
+		if (leading_pivot > num_p - gc->meta.size_g) {
+#if defined(GNCTRACE)
+			printf("Band lead of gid: %d is modified\n", i);
+#endif
 			leading_pivot = num_p - gc->meta.size_g;
+		}
 		for (j=0; j<gc->meta.size_g; j++) {
 			index = leading_pivot + j;
 			selected[index] += 1;
@@ -429,5 +437,37 @@ static int schedule_generation(struct gnc_context *gc)
 {
 	int gid = rand() % (gc->meta.gnum);
 	return gid;
+}
+
+/*
+ * Print code summary
+ * If called by decoders, it prints overhead and operations as well.
+ */
+void print_code_summary(struct gnc_metainfo *meta, int overhead, long long operations)
+{
+	char typestr[20];
+	switch(meta->type) {
+		case RAND_GNC_CODE:
+			strcpy(typestr, "RAND");
+			break;
+		case BAND_GNC_CODE:
+			strcpy(typestr, "BAND");
+			break;
+		default:
+			strcpy(typestr, "UNKNOWN");
+	}
+	printf("datasize: %d ", meta->datasize);
+	printf("precode: %.3f ", meta->pcrate);
+	printf("size_b: %d ", meta->size_b);
+	printf("size_g: %d ", meta->size_g);
+	printf("size_p: %d ", meta->size_p);
+	printf("type: %s ", typestr);
+	printf("snum: %d ", meta->snum);
+	printf("cnum: %d ", meta->cnum);
+	printf("gnum: %d ", meta->gnum);
+	if (operations != 0) {
+		printf("overhead: %.3f ", (double) overhead/meta->snum);
+		printf("computation: %f\n", (double) operations/meta->snum/meta->size_p);
+	}
 }
 

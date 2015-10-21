@@ -28,7 +28,7 @@ struct decoding_context_CBD
 	long long operations;		// record the number of computations used
 };
 
-void create_decoding_context_CBD(struct decoding_context_CBD *dec_ctx, long datasize, int s_b, int s_g, int s_p, int type);
+void create_decoding_context_CBD(struct decoding_context_CBD *dec_ctx, long datasize, struct gnc_parameter gp);
 void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct coded_packet *pkt);
 void free_decoding_context_CBD(struct decoding_context_CBD *dec_ctx);
 

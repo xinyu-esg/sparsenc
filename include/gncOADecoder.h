@@ -42,7 +42,7 @@ struct running_matrix
 	GF_ELEMENT **message;							//[CLASS_SIZE][EXT_N];
 };
 
-void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasize, int s_b, int s_g, int s_p, int type, int aoh);
+void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasize, struct gnc_parameter gp, int aoh);
 void process_packet_OA(struct decoding_context_OA *dec_ctx, struct coded_packet *pkt);
 void free_decoding_context_OA(struct decoding_context_OA *dec_ctx);
 

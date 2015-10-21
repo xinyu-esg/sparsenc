@@ -53,7 +53,7 @@ struct running_matrix {
 	GF_ELEMENT **message;
 };
 
-void create_decoding_context_GG(struct decoding_context_GG *dec_ctx, long datasize, int s_b, int s_g, int s_p, int type);
+void create_decoding_context_GG(struct decoding_context_GG *dec_ctx, long datasize, struct gnc_parameter gp);
 void free_decoding_context_GG(struct decoding_context_GG *dec_ctx);
 void process_packet_GG(struct decoding_context_GG *dec_ctx, struct coded_packet *pkt);
 #endif /* _CCFD_DECODER_H */

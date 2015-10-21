@@ -26,7 +26,7 @@ struct decoding_context_BD
 	long long operations;							// record the number of computations used
 };
 
-void create_decoding_context_BD(struct decoding_context_BD *dec_ctx, long datasize, int s_b, int s_g, int s_p, int type);
+void create_decoding_context_BD(struct decoding_context_BD *dec_ctx, long datasize, struct gnc_parameter gp);
 void process_packet_BD(struct decoding_context_BD *dec_ctx, struct coded_packet *pkt);
 void free_decoding_context_BD(struct decoding_context_BD *dec_ctx);
 

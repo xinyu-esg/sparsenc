@@ -18,7 +18,7 @@ static int apply_parity_check_matrix(struct decoding_context_CBD *dec_ctx);
 static void finish_recovering_CBD(struct decoding_context_CBD *dec_ctx);
 
 // create decoding context for band decoder
-void create_decoding_context_CBD(struct decoding_context_CBD *dec_ctx, long datasize, int s_b, int s_g, int s_p, int type)
+void create_decoding_context_CBD(struct decoding_context_CBD *dec_ctx, long datasize, struct gnc_parameter gp)
 {
 	static char fname[] = "create_decoding_context_CBD";
 	int i, j, k;
@@ -26,12 +26,12 @@ void create_decoding_context_CBD(struct decoding_context_CBD *dec_ctx, long data
 	// GNC code context
 	// Since this is decoding, we construct GNC context without data
 	// gc->pp will be filled by decoded packets
-	if (type != BAND_GNC_CODE) {
+	if (gp.type != BAND_GNC_CODE) {
 		fprintf(stderr, "Band decoder only applies to band GNC code.\n");
 		return;
 	}
 	struct gnc_context *gc;
-	if (create_gnc_context(NULL, datasize, &gc, s_b, s_g, s_p, type) != 0) 
+	if (create_gnc_context(NULL, datasize, &gc, gp) != 0) 
 		fprintf(stderr, "%s: create decoding context failed", fname);
 
 	dec_ctx->gc = gc;

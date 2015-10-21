@@ -45,27 +45,27 @@ libgnc.so: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC)
 	$(CC) -shared -o libgnc.so $^
 	
 #GGband.example
-band.GG.example: libgnc.so test.GGdecoder.c example_utils.c
+band.GG.example: libgnc.so test.GGdecoder.c
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.GGdecoder.c
 	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #GGrand.example
-rand.GG.example: libgnc.so test.GGdecoder.c example_utils.c
+rand.GG.example: libgnc.so test.GGdecoder.c
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ RAND_GNC_CODE;/' examples/test.GGdecoder.c
 	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #OAband.example
-band.OA.example: libgnc.so test.OAdecoder.c example_utils.c
+band.OA.example: libgnc.so test.OAdecoder.c 
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.OAdecoder.c
 	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #OArand.example
-rand.OA.example: libgnc.so test.OAdecoder.c example_utils.c
+rand.OA.example: libgnc.so test.OAdecoder.c 
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ RAND_GNC_CODE;/' examples/test.OAdecoder.c
 	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #BDband.example
-band.BD.example: libgnc.so test.bandDecoder.c example_utils.c
+band.BD.example: libgnc.so test.bandDecoder.c 
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.bandDecoder.c
 	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #CBDband.example
-band.CBD.example: libgnc.so test.CBDDecoder.c example_utils.c
+band.CBD.example: libgnc.so test.CBDDecoder.c 
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.CBDDecoder.c
 	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 

@@ -15,7 +15,7 @@ typedef struct bipartite_graph {
 	NBR_nodes **r_nbrs_of_l;							// right side neighbours of left					
 } BP_graph;
 
-int number_of_checks(int snum); 
+int number_of_checks(int snum, double r); 
 void create_bipartite_graph(BP_graph *graph, int nleft, int nright);
 void free_bipartite_graph(BP_graph *graph);
 #endif /* BIPARTITE_H */
