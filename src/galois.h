@@ -9,7 +9,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 #define GF_POWER	8			/* Order of Galois field: 2^8, don't change it */
+#ifndef GALOIS
+#define GALOIS
 typedef unsigned char GF_ELEMENT;
+#endif
 // Galois field arithmetic routines
 int constructField(int npower);
 uint8_t galois_add(uint8_t a, uint8_t b);

@@ -13,12 +13,17 @@ Usage
 
 Limitation
 ============
-An important componenet missing in libgnc is re-encoding. As a network code, GNC code allows intermediate nodes to re-encode packets such that the network throughput can be maximized. Re-encoding requires a buffer to save received GNC packets, and a scheduling algorithm to determine from which received packets to re-encode a new packet. The implementation is left as a future work. 
 
 Reference
 ============
 [1] Ahlswede, Rudolf; N. Cai, Shuo-Yen Robert Li, and Raymond Wai-Ho Yeung. "Network Information Flow". IEEE Transactions on Information Theory, IT-46 46 (4): 1204–1216, 2000.
 
-[2] S. Li, R. Yeung, and N. Cai, "Linear Network Coding", in IEEE Transactions on Information Theory, Vol 49, No. 2, pp. 371–381, 2003
+[2] S. Li, R. Yeung, and N. Cai, "Linear Network Coding", in IEEE Transactions on Information Theory, Vol 49, No. 2, pp. 371–381, 2003.
 
 [3] Ye Li, "Efficient Network Coding for Different Network Topologies", Queen's University PhD Thesis, Oct., 2014. Available: https://qspace.library.queensu.ca/bitstream/1974/12602/1/Li_Ye_201410_PhD.pdf
+
+[4] Ye Li, W.-Y. Chan, and S. D. Blostein, "Network Coding with Unequal Size Overlapping Generations", in Proceedings of International Symposium on Network Coding (NetCod), pp. 161-166, Cambridge, MA, June, 2012.
+
+[5] Ye Li, S. D. Blostein, and W.-Y. Chan, "Large File Distribution Using Efficient Generation-based Network Coding", in Proc. IEEE Globecom Workshop on Cloud Computing Systems, Networks, and Applications, Atlanta, GA, 2013.
+
+[6] Ye Li, W.-Y. Chan, and S. D. Blostein, "Systematic Network Coding for Transmission Over Two-Hop Lossy Links", in Proc. 27th Biennial Symposium on Communications (QBSC 2014), Kingston, ON, 2014.

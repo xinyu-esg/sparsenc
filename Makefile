@@ -32,6 +32,7 @@ vpath %.c src examples
 
 DEFS   := common.h bipartite.h gncEncoder.h galois.h
 GNCENC  := $(OBJDIR)/common.o $(OBJDIR)/bipartite.o $(OBJDIR)/gncEncoder.o $(OBJDIR)/galois.o $(OBJDIR)/gaussian.o
+RECODER := $(OBJDIR)/gncRecoder.o 
 GGDEC   := $(OBJDIR)/gncGGDecoder.o 
 OADEC   := $(OBJDIR)/gncOADecoder.o $(OBJDIR)/pivoting.o
 BDDEC   := $(OBJDIR)/gncBandDecoder.o $(OBJDIR)/pivoting.o
@@ -41,7 +42,7 @@ DECDEFS := gncGGDecoder.h gncOADecoder.h gncBandDecoder.h gncCBDDecoder.h
 .PHONY: all
 all: band.OA.example band.GG.example band.BD.example band.CBD.example rand.GG.example rand.OA.example
 
-libgnc.so: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC)
+libgnc.so: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC) $(RECODER)
 	$(CC) -shared -o libgnc.so $^
 	
 #GGband.example
@@ -68,11 +69,22 @@ band.BD.example: libgnc.so test.bandDecoder.c
 band.CBD.example: libgnc.so test.CBDDecoder.c 
 	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.CBDDecoder.c
 	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+#Recoder with band code and CBD decoder
+recoder.CBD.example: libgnc.so test.2hopRecoder.CBD.c
+	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.2hopRecoder.CBD.c
+	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 
 $(OBJDIR)/%.o: $(OBJDIR)/%.c $(DEFS) $(GGDEFS)
 	$(CC) -c -fpic -o $@ $< $(CFLAGS0) $(CFLAGS1)
 
 .PHONY: clean
-
 clean:
 	rm -f *.o $(OBJDIR)/*.o *.example libgnc.so
+
+.PHONY: install
+install:
+	cp libgnc.so /usr/lib/
+
+.PHONY: uninstall
+uninstall:
+	rm -f /usr/lib/libgnc.so

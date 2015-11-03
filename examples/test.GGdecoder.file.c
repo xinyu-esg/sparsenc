@@ -34,7 +34,6 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	// Construct a GNC code (32, 40, 1024)
 	if (create_gnc_context_from_file(fp, &gc, size_b, size_g, size_p, gnc_type) != 0) {
 		printf("Cannot create File Context.\n");
 		return 1;

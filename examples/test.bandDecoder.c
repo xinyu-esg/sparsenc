@@ -29,7 +29,6 @@ int main(int argc, char *argv[])
 	close(rnd);
 	struct gnc_context *gc;
 
-	// Construct a GNC code (32, 40, 1024)
 	if (create_gnc_context(buf, datasize, &gc, gp) != 0) {
 		fprintf(stderr, "Cannot create File Context.\n");
 		return 1;

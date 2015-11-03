@@ -371,22 +371,35 @@ static int group_packets_band(struct gnc_context *gc)
 	return coverage;
 }
 
+/*
+ * Allocate an empty GNC coded packet
+ *  gid = -1
+ *  coes: zeros
+ *  syms: zeros
+ */
+struct coded_packet *alloc_empty_packet(int size_g, int size_p)
+{
+	struct coded_packet *pkt = calloc(1, sizeof(struct coded_packet));
+	if (pkt == NULL)
+		return NULL;
+	pkt->coes = calloc(size_g, sizeof(GF_ELEMENT));
+	if (pkt->coes == NULL) 
+		goto AllocErr;
+	pkt->syms = calloc(size_p, sizeof(GF_ELEMENT));
+	if (pkt->syms == NULL) 
+		goto AllocErr;
+
+	return pkt;
+
+AllocErr:
+	free_gnc_packet(pkt);
+	return NULL;
+}
+
 /* Generate a GNC coded packet. Memory is allocated in the function. */
 struct coded_packet *generate_gnc_packet(struct gnc_context *gc)
 {
-	struct coded_packet *pkt = malloc(sizeof(struct coded_packet));
-	if (pkt == NULL)
-		return NULL;
-	pkt->coes = calloc(gc->meta.size_g, sizeof(GF_ELEMENT));
-	if (pkt->coes == NULL) {
-		free(pkt);
-		return NULL;
-	}
-	pkt->syms = calloc(gc->meta.size_p, sizeof(GF_ELEMENT));
-	if (pkt->syms == NULL) {
-		free(pkt);
-		return NULL;
-	}
+	struct coded_packet *pkt = alloc_empty_packet(gc->meta.size_g, gc->meta.size_p);
 	int gid = schedule_generation(gc);
 	encode_packet(gc, gid, pkt);
 	return pkt;

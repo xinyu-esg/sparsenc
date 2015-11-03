@@ -1,7 +1,10 @@
 #ifndef GNC_ENCODER_H
 #define GNC_ENCODER_H
 #include <stdio.h>
+#ifndef GALOIS
+#define GALOIS
 typedef unsigned char GF_ELEMENT;
+#endif
 struct node;
 struct node_list;
 struct bipartite_graph;
@@ -66,6 +69,7 @@ int load_file_to_gnc_context(FILE *fp, struct gnc_context *gc);
 int free_gnc_context(struct gnc_context *gc);
 unsigned char *recover_data(struct gnc_context *gc);
 long recover_data_to_file(FILE *fp, struct gnc_context *gc);
+struct coded_packet *alloc_empty_packet(int size_g, int size_p);
 struct coded_packet *generate_gnc_packet(struct gnc_context *gc);
 int generate_gnc_packet_im(struct gnc_context *gc, struct coded_packet *pkt);
 void free_gnc_packet(struct coded_packet *pkt);
