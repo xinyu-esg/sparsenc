@@ -119,23 +119,13 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 	row_pivots->ssFirst = row_pivots->ssLast = NULL;
 	col_pivots->ssFirst = col_pivots->ssLast = NULL;
 	
-	// Make a local copy of A and B
-	GF_ELEMENT **ces_matrix = calloc(nrow, sizeof(GF_ELEMENT*));
-	GF_ELEMENT **msg_matrix = calloc(nrow, sizeof(GF_ELEMENT*));
-	for (i=0; i<nrow; i++) {
-		ces_matrix[i] = calloc(ncolA, sizeof(GF_ELEMENT));
-		memcpy(ces_matrix[i], A[i], ncolA * sizeof(GF_ELEMENT));
-		msg_matrix[i] = calloc(ncolB, sizeof(GF_ELEMENT));
-		memcpy(msg_matrix[i], B[i], ncolB * sizeof(GF_ELEMENT));
-	}
-
 #if defined(GNCTRACE)
 	double pivoting_time=0.0;
 	time_t start_pivoting, stop_pivoting;
 	time(&start_pivoting);
 	printf("Inactivation pivoting strategy is used. IA_INIT: %d, IA_STEP: %d.\n", IA_INIT, IA_STEP);
 #endif
-	int ias = inactivation_pivoting(nrow, ncolA, ces_matrix, row_pivots, col_pivots);
+	int ias = inactivation_pivoting(nrow, ncolA, A, row_pivots, col_pivots);
 	*inactives = ias;
 #if defined(GNCTRACE)
 	printf("A total of %d/%d columns are inactivated.\n", ias, ncolA);
@@ -161,7 +151,7 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 	time(&start_reorder);
 #endif
 	/* reorder rows and columns of ces_matrix and msg_matrix after pivoting*/
-	reshape_matrix(nrow, ncolA, ncolB, ces_matrix, msg_matrix, row_pivots, col_pivots);
+	reshape_matrix(nrow, ncolA, ncolB, A, B, row_pivots, col_pivots);
 	free_subscriptList(row_pivots);
 	free_subscriptList(col_pivots);
 #if defined(GNCTRACE)
@@ -177,20 +167,20 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 	for (i=0; i<ncolA-ias; i++) {
 		for (j=i+1; j<nrow; j++) {
 #if defined(GNCTRACE)
-			if (ces_matrix[i][i] == 0)
+			if (A[i][i] == 0)
 				printf("The diagonal element after re-ordering is nonzero.\n");
 #endif
 			// process the item on (j, i)
-			if (ces_matrix[j][i] != 0) {
-				quotient = galois_divide(ces_matrix[j][i], ces_matrix[i][i], GF_POWER);
+			if (A[j][i] != 0) {
+				quotient = galois_divide(A[j][i], A[i][i], GF_POWER);
 				ops1 += 1;
 				// XOR the corresponding part in the inactive part
-				galois_multiply_add_region(&(ces_matrix[j][ncolA-ias]), &(ces_matrix[i][ncolA-ias]), quotient, ias, GF_POWER);
+				galois_multiply_add_region(&(A[j][ncolA-ias]), &(A[i][ncolA-ias]), quotient, ias, GF_POWER);
 				ops1 += ias;	// This part of matrix in processing is lower triangular in part, so operations only needed in the back
 				// simultaneously do the same thing on right matrix B
-				galois_multiply_add_region(msg_matrix[j], msg_matrix[i], quotient, ncolB, GF_POWER);
+				galois_multiply_add_region(B[j], B[i], quotient, ncolB, GF_POWER);
 				ops1 += ncolB;				
-				ces_matrix[j][i] = 0;			// eliminate the item
+				A[j][i] = 0;			// eliminate the item
 			}
 		}
 	}
@@ -198,46 +188,24 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 	
 	/* Perform forward substitution on the ias x ias dense inactivated matrix. */ 
 	GF_ELEMENT **ces_submatrix = calloc(ias+nrow-ncolA, sizeof(GF_ELEMENT*));
-	GF_ELEMENT **msg_submatrix = calloc(ias+nrow-ncolA, sizeof(GF_ELEMENT*));
 	for (i=0; i<ias+nrow-ncolA; i++){
 		ces_submatrix[i] = calloc(ias, sizeof(GF_ELEMENT));
-		memcpy(ces_submatrix[i], &(ces_matrix[ncolA-ias+i][ncolA-ias]), ias*sizeof(GF_ELEMENT));
-		msg_submatrix[i] = calloc(ncolB, sizeof(GF_ELEMENT));
-		memcpy(msg_submatrix[i], msg_matrix[ncolA-ias+i], ncolB*sizeof(GF_ELEMENT));
+		memcpy(ces_submatrix[i], &(A[ncolA-ias+i][ncolA-ias]), ias*sizeof(GF_ELEMENT));
 	}
 
 #if defined(GNCTRACE)
 	printf("Perform forward substitution on the bottom-right part of GDM (size: %d x %d)...\n", ias, ias);
 #endif
-	long long ops = forward_substitute(ias+nrow-ncolA, ias, ncolB, ces_submatrix, msg_submatrix);
+	long long ops = forward_substitute(ias+nrow-ncolA, ias, ncolB, ces_submatrix, &B[ncolA-ias]);
 	operations += ops;
-
-	// save the processed matrices back to A and B
-	for (i=0; i<ncolA-ias; i++) {
-		memcpy(A[i], ces_matrix[i], ncolA*sizeof(GF_ELEMENT));
-		memcpy(B[i], msg_matrix[i], ncolB*sizeof(GF_ELEMENT));
-	}
-
-	for (i=ncolA-ias; i<ncolA; i++) {
+	// Save the processed inactivated part back to A
+	for (i=ncolA-ias; i<ncolA; i++) 
 		memcpy(&(A[i][ncolA-ias]), ces_submatrix[i-(ncolA-ias)], ias*sizeof(GF_ELEMENT));
-		memcpy(B[i], msg_submatrix[i-(ncolA-ias)], ncolB*sizeof(GF_ELEMENT));
-	}
 
-	// free ces_matrix and msg_matrix
-	for (i=0; i<nrow; i++) {
-		free(ces_matrix[i]);
-		free(msg_matrix[i]);
-	}
-	free(ces_matrix);
-	free(msg_matrix);
-
-	//free ces_submatrix and msg_submatrix
-	for (i=0; i<ias+nrow-ncolA; i++){
+	//free ces_submatrix
+	for (i=0; i<ias+nrow-ncolA; i++)
 		free(ces_submatrix[i]);
-		free(msg_submatrix[i]);
-	}
 	free(ces_submatrix);
-	free(msg_submatrix);
 
 	return operations;
 }
@@ -266,20 +234,10 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 	time(&start_pivoting);
 #endif
 	
-	// Make a local copy of A and B
-	GF_ELEMENT **ces_matrix = calloc(nrow, sizeof(GF_ELEMENT*));
-	GF_ELEMENT **msg_matrix = calloc(nrow, sizeof(GF_ELEMENT*));
-	for (i=0; i<nrow; i++) {
-		ces_matrix[i] = calloc(ncolA, sizeof(GF_ELEMENT));
-		memcpy(ces_matrix[i], A[i], ncolA * sizeof(GF_ELEMENT));
-		msg_matrix[i] = calloc(ncolB, sizeof(GF_ELEMENT));
-		memcpy(msg_matrix[i], B[i], ncolB * sizeof(GF_ELEMENT));
-	}
-
 #if defined(GNCTRACE)
 	printf("Inactivation pivoting strategy is used. IA_INIT: %d, IA_STEP: %d.\n", IA_INIT, IA_STEP);
 #endif
-	int ias = inactivation_pivoting(nrow, ncolA, ces_matrix, row_pivots, col_pivots);
+	int ias = inactivation_pivoting(nrow, ncolA, A, row_pivots, col_pivots);
 	*inactives = ias;
 #if defined(GNCTRACE)
 	printf("A total of %d/%d columns are inactivated.\n", ias, ncolA);
@@ -305,7 +263,7 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 	time(&start_reorder);
 #endif
 	/* reorder rows and columns of ces_matrix and msg_matrix after pivoting*/
-	reshape_matrix(nrow, ncolA, ncolB, ces_matrix, msg_matrix, row_pivots, col_pivots);
+	reshape_matrix(nrow, ncolA, ncolB, A, B, row_pivots, col_pivots);
 	free_subscriptList(row_pivots);
 	free_subscriptList(col_pivots);
 #if defined(GNCTRACE)
@@ -316,16 +274,15 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 
 	int missing_pivots = 0;
 	for (i=0; i<nrow; i++) {
-		if (ces_matrix[i][i] == 0) {
+		if (A[i][i] == 0) 
 			missing_pivots += 1;
-		}
 	}
 	printf("There are %d pivots missing\n", missing_pivots);
 	/* Check the density of the lower half of the active part */
 	long long nonzeros = 0;
 	for (i=ncolA-ias; i<ncolA; i++) {
 		for (j=0; j<ncolA-ias; j++)
-			if (ces_matrix[i][j] != 0)
+			if (A[i][j] != 0)
 				nonzeros++;
 	}
 	printf("Fraction of nonzeros in the lower half of the active part: %f\n", (double) nonzeros/(ncolA-ias)/ias);
@@ -337,20 +294,20 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 	for (i=0; i<ncolA-ias; i++) {
 		for (j=i+1; j<nrow; j++) {
 #if defined(GNCTRACE)
-			if (ces_matrix[i][i] == 0)
+			if (A[i][i] == 0)
 				printf("The diagonal element after re-ordering is nonzero.\n");
 #endif
 			// process the item on (j, i)
-			if (ces_matrix[j][i] != 0) {
-				quotient = galois_divide(ces_matrix[j][i], ces_matrix[i][i], GF_POWER);
+			if (A[j][i] != 0) {
+				quotient = galois_divide(A[j][i], A[i][i], GF_POWER);
 				ops1 += 1;
 				// XOR the corresponding part in the inactive part
-				galois_multiply_add_region(&(ces_matrix[j][ncolA-ias]), &(ces_matrix[i][ncolA-ias]), quotient, ias, GF_POWER);
+				galois_multiply_add_region(&(A[j][ncolA-ias]), &(A[i][ncolA-ias]), quotient, ias, GF_POWER);
 				ops1 += ias;	// This part of matrix in processing is lower triangular in part, so operations only needed in the back
 				// simultaneously do the same thing on right matrix B
-				galois_multiply_add_region(msg_matrix[j], msg_matrix[i], quotient, ncolB, GF_POWER);
+				galois_multiply_add_region(B[j], B[i], quotient, ncolB, GF_POWER);
 				ops1 += ncolB;				
-				ces_matrix[j][i] = 0;			// eliminate the item
+				A[j][i] = 0;			// eliminate the item
 			}
 		}
 	}
@@ -361,12 +318,9 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 	printf("Perform another time of pivoting after partly diagonalizing T\n");
 #endif
 	GF_ELEMENT **ces_submatrix = calloc(ias+nrow-ncolA, sizeof(GF_ELEMENT*));
-	GF_ELEMENT **msg_submatrix = calloc(ias+nrow-ncolA, sizeof(GF_ELEMENT*));
 	for (i=0; i<ias+nrow-ncolA; i++){
 		ces_submatrix[i] = calloc(ias, sizeof(GF_ELEMENT));
-		memcpy(ces_submatrix[i], &(ces_matrix[ncolA-ias+i][ncolA-ias]), ias*sizeof(GF_ELEMENT));
-		msg_submatrix[i] = calloc(ncolB, sizeof(GF_ELEMENT));
-		memcpy(msg_submatrix[i], msg_matrix[ncolA-ias+i], ncolB*sizeof(GF_ELEMENT));
+		memcpy(ces_submatrix[i], &(A[ncolA-ias+i][ncolA-ias]), ias*sizeof(GF_ELEMENT));
 	}
 
 	ssList *row_pivots_2nd = malloc(sizeof(ssList));
@@ -398,62 +352,36 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 	free(ctoo);
 
 	// re-order the ((ias+OHS) x ias) matrix
-	reshape_matrix(ias+nrow-ncolA, ias, ncolB, ces_submatrix, msg_submatrix, row_pivots_2nd, col_pivots_2nd);
+	reshape_matrix(ias+nrow-ncolA, ias, ncolB, ces_submatrix, &B[ncolA-ias], row_pivots_2nd, col_pivots_2nd);
 	
 	// re-order the columns above it accordingly
+	// Copy the pointers of A[i][ncolA-ias], i=0, ..., nrow-ias to an array of pointers
 	GF_ELEMENT **BI_matrix = calloc(nrow-ias, sizeof(GF_ELEMENT*));
 	for (i=0; i<nrow-ias; i++) {
-		BI_matrix[i] = calloc(ias, sizeof(GF_ELEMENT));
-		memcpy(BI_matrix[i], &(ces_matrix[i][ncolA-ias]), ias*sizeof(GF_ELEMENT));
+		BI_matrix[i] = &(A[i][ncolA-ias]);
 	}
 
 	permute_matrix_columns(nrow-ias, ias, BI_matrix, col_pivots_2nd);
 	free_subscriptList(row_pivots_2nd);
 	free_subscriptList(col_pivots_2nd);
-	// copy re-ordered submatrix B_I back
-	for (i=0; i<nrow-ias; i++) 
-		memcpy(&(ces_matrix[i][ncolA-ias]), BI_matrix[i], ias*sizeof(GF_ELEMENT));
+	free(BI_matrix);
 	// second pivoting is done
 
 	// 3, perform forward substitution on the re-ordered matrix
 #if defined(GNCTRACE)
 	printf("Perform forward substitution on the bottom-right part of GDM (size: %d x %d)...\n", ias, ias);
 #endif
-	long long ops = forward_substitute(ias+nrow-ncolA, ias, ncolB, ces_submatrix, msg_submatrix);
+	long long ops = forward_substitute(ias+nrow-ncolA, ias, ncolB, ces_submatrix, &B[ncolA-ias]);
 	operations += ops;
 
-	// save the processed matrices back to A and B
-	for (i=0; i<ncolA-ias; i++) {
-		memcpy(A[i], ces_matrix[i], ncolA*sizeof(GF_ELEMENT));
-		memcpy(B[i], msg_matrix[i], ncolB*sizeof(GF_ELEMENT));
-	}
-
-	for (i=ncolA-ias; i<ncolA; i++) {
+	for (i=ncolA-ias; i<ncolA; i++) 
 		memcpy(&(A[i][ncolA-ias]), ces_submatrix[i-(ncolA-ias)], ias*sizeof(GF_ELEMENT));
-		memcpy(B[i], msg_submatrix[i-(ncolA-ias)], ncolB*sizeof(GF_ELEMENT));
-	}
-
-	// free ces_matrix and msg_matrix
-	for (i=0; i<nrow; i++) {
-		free(ces_matrix[i]);
-		free(msg_matrix[i]);
-	}
-	free(ces_matrix);
-	free(msg_matrix);
 
 	//free ces_submatrix and msg_submatrix
-	for (i=0; i<ias+nrow-ncolA; i++){
+	for (i=0; i<ias+nrow-ncolA; i++)
 		free(ces_submatrix[i]);
-		free(msg_submatrix[i]);
-	}
 	free(ces_submatrix);
-	free(msg_submatrix);
 
-	// free BI_matrix
-	for (i=0; i<nrow-ias; i++) {
-		free(BI_matrix[i]);
-	}
-	free(BI_matrix);
 
 	return operations;
 }
@@ -465,7 +393,7 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 * A special kind of Markowitz pivoting in which pivots are selected from 3 
 * candidates who have the smallest nonzeros.
 ******************************************************************************/
-static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivots, ssList *ColPivots)
+static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT **A, ssList *RowPivots, ssList *ColPivots)
 {	
 	// Nonzeros of each rows and cols
 	int *row_counts = (int *) calloc(nrow, sizeof(int));
@@ -736,7 +664,7 @@ found:
  *  2) if singleton row cannot be found in the middle of pivoting, declare more inactive columns
  *  3) given the structure (heavier columns are in the back), declare inactive columns from the back
  *********************************************************************************************************/
-static int inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *RowPivots, ssList *ColPivots)
+static int inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT **A, ssList *RowPivots, ssList *ColPivots)
 {
 #if defined(GNCTRACE)
 	printf("Pivoting matrix of size %d x %d via inactivation.\n", nrow, ncolA);
@@ -934,7 +862,7 @@ static int inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT *A[], ssList *R
  * Given pivot sequence, re-order matrices: the i-th pivot (pr_i, pc_i) will be moved to the
  * coordiate (pr_i,pc_i) of the new matrix.
  *********************************************************************************************/
-static void reshape_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_ELEMENT *B[], ssList *RowPivots, ssList *ColPivots)
+static void reshape_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, ssList *RowPivots, ssList *ColPivots)
 {
 	int i, j, k;
 	int row_id, col_id;
@@ -948,18 +876,18 @@ static void reshape_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_E
 		col_id = sub_col->index;
 
 		// swap rows first
+		// Since rows are in block memory, we only need to swap pointers 
+		// of the start element of each row.
 		if (row_id != k) {
-			for (j=0; j<ncolA; j++) {
-				temp = A[k][j];
-				A[k][j] = A[row_id][j];
-				A[row_id][j] = temp;
-			}
+			GF_ELEMENT *temp_p;
+			// Swap A
+			temp_p    = A[k];
+			A[k]      = A[row_id];
+			A[row_id] = temp_p;
 			// For row operations, B needs to be swapped as well
-			for (j=0; j<ncolB; j++) {
-				temp = B[k][j];
-				B[k][j] = B[row_id][j];
-				B[row_id][j] = temp;
-			}
+			temp_p    = B[k];
+			B[k]      = B[row_id];
+			B[row_id] = temp_p;
 
 			// due to the swap of rows, update RowPivots to track positions of the rest pivots
 			ss_pt = sub_row->next;
@@ -994,7 +922,7 @@ static void reshape_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_E
 }
 
 // Re-order columns of the matrix
-static void permute_matrix_columns(int nrow, int ncolA, GF_ELEMENT *A[], ssList *ColPivots)
+static void permute_matrix_columns(int nrow, int ncolA, GF_ELEMENT **A, ssList *ColPivots)
 {
 	int i, j, k;
 	int col_id;

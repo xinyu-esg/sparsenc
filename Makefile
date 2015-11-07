@@ -47,31 +47,43 @@ libgnc.so: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC) $(RECODER)
 	
 #GGband.example
 band.GG.example: libgnc.so test.GGdecoder.c
-	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.GGdecoder.c
+	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.GGdecoder.c
 	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #GGrand.example
 rand.GG.example: libgnc.so test.GGdecoder.c
-	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ RAND_GNC_CODE;/' examples/test.GGdecoder.c
+	$(SED) -i 's/[^ ]*GNC_CODE/RAND_GNC_CODE/' examples/test.GGdecoder.c
 	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #OAband.example
 band.OA.example: libgnc.so test.OAdecoder.c 
-	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.OAdecoder.c
+	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.OAdecoder.c
 	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+#OAband statically linked, not using libgnc.so
+band.OA.static: $(GNCENC) $(OADEC) examples/test.OAdecoder.c
+	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.OAdecoder.c
+	$(CC) -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #OArand.example
 rand.OA.example: libgnc.so test.OAdecoder.c 
-	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ RAND_GNC_CODE;/' examples/test.OAdecoder.c
+	$(SED) -i 's/[^ ]*GNC_CODE/RAND_GNC_CODE/' examples/test.OAdecoder.c
+	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+#OAwind.example
+wind.OA.example: libgnc.so test.OAdecoder.c 
+	$(SED) -i 's/[^ ]*GNC_CODE/WINDWRAP_GNC_CODE/' examples/test.OAdecoder.c
 	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #BDband.example
 band.BD.example: libgnc.so test.bandDecoder.c 
-	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.bandDecoder.c
+	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.bandDecoder.c
 	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+#BDband statically linked, not using libgnc.so
+band.BD.static: $(GNCENC) $(BDDEC) examples/test.bandDecoder.c
+	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.bandDecoder.c
+	$(CC) -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #CBDband.example
 band.CBD.example: libgnc.so test.CBDDecoder.c 
-	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.CBDDecoder.c
+	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.CBDDecoder.c
 	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #Recoder with band code and CBD decoder
 recoder.CBD.example: libgnc.so test.2hopRecoder.CBD.c
-	$(SED) -i 's/gnc_type\s=.*/gnc_type\ =\ BAND_GNC_CODE;/' examples/test.2hopRecoder.CBD.c
+	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.2hopRecoder.CBD.c
 	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 
 $(OBJDIR)/%.o: $(OBJDIR)/%.c $(DEFS) $(GGDEFS)
@@ -79,7 +91,7 @@ $(OBJDIR)/%.o: $(OBJDIR)/%.c $(DEFS) $(GGDEFS)
 
 .PHONY: clean
 clean:
-	rm -f *.o $(OBJDIR)/*.o *.example libgnc.so
+	rm -f *.o $(OBJDIR)/*.o *.example *.static libgnc.so
 
 .PHONY: install
 install:

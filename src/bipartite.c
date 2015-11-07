@@ -26,8 +26,8 @@ int number_of_checks(int snum, double r)
 		x++;
 
 	int c = (int) ceil( r * snum ) + x; 	// In Raptor code r=0.01
-	while ( !is_prime(c++) )
-		;
+	while ( !is_prime(c) )
+		c++;
 
 	return c;
 }

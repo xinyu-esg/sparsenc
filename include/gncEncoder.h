@@ -13,9 +13,11 @@ struct bipartite_graph;
  * Type of GNC code
  * 	RAND - Generations are pesudo-randomly grouped
  * 	BAND - Generations are overlapped consecutively
+ * 	WNND - Windowed, generations are overlapped consecutively and wrap around
  */
-#define RAND_GNC_CODE	0
-#define	BAND_GNC_CODE	1
+#define RAND_GNC_CODE	    0
+#define	BAND_GNC_CODE	    1
+#define WINDWRAP_GNC_CODE   2
 
 struct source_packet {
 	int			id;

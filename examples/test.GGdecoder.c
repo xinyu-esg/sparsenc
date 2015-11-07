@@ -6,7 +6,6 @@
 #include <string.h>
 #include "gncEncoder.h"
 #include "gncGGDecoder.h"
-extern void print_code_summary(struct gnc_metainfo *meta, int overhead, long operations);
 
 char usage[] = "usage: ./test.GGdecoder datasize size_b size_g size_p";
 int main(int argc, char *argv[])
@@ -21,7 +20,7 @@ int main(int argc, char *argv[])
 	gp.size_b   = atoi(argv[3]);
 	gp.size_g   = atoi(argv[4]);
 	gp.size_p   = atoi(argv[5]);
-	gp.type     = BAND_GNC_CODE;
+	gp.type 	= RAND_GNC_CODE;
 
 	srand( (int) time(0) );
 	char *buf = malloc(datasize);

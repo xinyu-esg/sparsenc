@@ -13,7 +13,7 @@
 
 // perform forward substitution on a matrix to transform it to a upper triangular structure
 //static long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT A[][ncolA], GF_ELEMENT B[][ncolB])
-long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_ELEMENT *B[])
+long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B)
 {
 	//printf("entering foward_substitute()...\n");
 	long operations = 0;
@@ -49,11 +49,11 @@ long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF
 					A[pivot][m] = tmp2;
 				}
 				// swap B accordingly
-				for (m=0; m<ncolB; m++) {
-					tmp2 = B[i][m];
-					B[i][m] = B[pivot][m];
-					B[pivot][m] = tmp2;
-				}
+				// rows of B are in block memory, so only exchanging pointers
+				GF_ELEMENT *temp_p;
+				temp_p = B[i];
+				B[i] = B[pivot];
+				B[pivot] = temp_p;
 			}
 		} 
 		// Eliminate nonzero elements beow diagonal

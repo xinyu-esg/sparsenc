@@ -1,6 +1,7 @@
 /*
  * Common utility functions used by many routines in the library.
  */
+#include <stdint.h>
 #include "common.h"
 
 // check if an item is existed in an int array
@@ -88,3 +89,48 @@ void free_list(struct node_list *list)
 	clear_list(list);
 	free(list);
 }
+
+
+/*
+ * Swap two continuous memory blocks
+ */
+/*
+void swap_memory(uint8_t *a1, uint8_t *a2, int bytes)
+{
+	int i;
+#if	defined(INTEL_SSSE3)
+  	uint8_t *sptr, *dptr, *top;
+	sptr = a1;
+	dptr = a2;
+	top  = a1 + bytes;
+
+	__m128i va, vb, r, t1;
+    while (sptr < top) 
+	{
+		if (sptr + 16 > top) {
+			// remaining data doesn't fit into __m128i, do not use SSE
+			for (i=0; i<top-sptr; i++) {
+				uint8_t temp = *(dptr+i);
+				*(dptr+i) = *(sptr+i);
+				*(sptr+i) = temp;
+			}
+			break;
+		}
+		va = _mm_loadu_si128 ((__m128i *)(sptr));
+		vb = _mm_loadu_si128 ((__m128i *)(dptr));
+		_mm_storeu_si128 ((__m128i *)(dptr), va);
+		_mm_storeu_si128 ((__m128i *)(sptr), vb);
+		dptr += 16;
+		sptr += 16;
+    }
+	return;
+#else
+    for (i = 0; i < bytes; i++) {
+		uint8_t temp = a2[i];
+		a2[i] = a1[i];
+		a1[i] = temp;
+	}
+	return;
+#endif
+}
+*/

@@ -15,6 +15,7 @@ static int verify_code_parameter(struct gnc_metainfo *meta);
 static void perform_precoding(struct gnc_context *gc);
 static int group_packets_rand(struct gnc_context *gc);
 static int group_packets_band(struct gnc_context *gc);
+static int group_packets_windwrap(struct gnc_context *gc);
 static void encode_packet(struct gnc_context *gc, int gid, struct coded_packet *pkt);
 static int schedule_generation(struct gnc_context *gc);
 /*
@@ -185,6 +186,8 @@ static int create_context_from_meta(struct gnc_context *gc)
 		coverage = group_packets_rand(gc);
 	else if (gc->meta.type == BAND_GNC_CODE)
 		coverage = group_packets_band(gc);
+	else if (gc->meta.type == WINDWRAP_GNC_CODE)
+		coverage = group_packets_windwrap(gc);
 
 #if defined(GNCTRACE)
 	printf("Data Size: %ld\t Source Packets: %d\t Check Packets: %d\t Generations: %d\t Coverage: %d\n",gc->meta.datasize, gc->meta.snum, gc->meta.cnum,	gc->meta.gnum, coverage);
@@ -372,6 +375,36 @@ static int group_packets_band(struct gnc_context *gc)
 }
 
 /*
+ * Group packets to generations that overlap consecutively. Wrap around if needed.
+ */
+static int group_packets_windwrap(struct gnc_context *gc)
+{
+	int num_p = gc->meta.snum + gc->meta.cnum;
+	int num_g = gc->meta.gnum;
+	
+	int *selected = calloc(num_p, sizeof(int));
+
+	int i, j;
+	int index;
+	int leading_pivot = 0;
+	for (i=0; i<num_g; i++) {
+		gc->gene[i]->gid = i;
+		leading_pivot = i * gc->meta.size_b;
+		for (j=0; j<gc->meta.size_g; j++) {
+			index = (leading_pivot + j) % num_p;
+			selected[index] += 1;
+			gc->gene[i]->pktid[j] = index;
+		}	
+	}
+	int coverage = 0;
+	for (i=0; i<num_p; i++)
+		coverage += selected[i];
+
+	free(selected);
+	return coverage;
+}
+
+/*
  * Allocate an empty GNC coded packet
  *  gid = -1
  *  coes: zeros
@@ -465,6 +498,9 @@ void print_code_summary(struct gnc_metainfo *meta, int overhead, long long opera
 			break;
 		case BAND_GNC_CODE:
 			strcpy(typestr, "BAND");
+			break;
+		case WINDWRAP_GNC_CODE:
+			strcpy(typestr, "WINDWRAP");
 			break;
 		default:
 			strcpy(typestr, "UNKNOWN");

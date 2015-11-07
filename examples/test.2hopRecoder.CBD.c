@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
 		struct coded_packet *pkt = generate_gnc_packet(gc);
 		buffer_packet(rc, pkt);
 		
-		struct coded_packet *rpkt = generate_recoded_packet(rc, TRIV_SCHED);
+		struct coded_packet *rpkt = generate_recoded_packet(rc, RAND_SCHED);
 		if (rpkt == NULL)
 			continue;
 		/* Measure decoding time */
