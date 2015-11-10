@@ -25,13 +25,13 @@
 
 // node of singly linked list
 struct node {
-	int data;								
-	struct node *next;					
+    int data;								
+    struct node *next;					
 };
 
 struct node_list {
-	struct node *first;
-	struct node *last;
+    struct node *first;
+    struct node *last;
 };
 
 /* common.c */

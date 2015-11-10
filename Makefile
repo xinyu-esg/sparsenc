@@ -81,9 +81,20 @@ band.BD.static: $(GNCENC) $(BDDEC) examples/test.bandDecoder.c
 band.CBD.example: libgnc.so test.CBDDecoder.c 
 	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.CBDDecoder.c
 	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
-#Recoder with band code and CBD decoder
-recoder.CBD.example: libgnc.so test.2hopRecoder.CBD.c
+#Recoder with band code and CBD decoder, TRIV_SCHED
+recoder.CBD.trivSched: libgnc.so test.2hopRecoder.CBD.c
 	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.2hopRecoder.CBD.c
+	$(SED) -i 's/[^ ]*_SCHED/TRIV_SCHED/' examples/test.2hopRecoder.CBD.c
+	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+#Recoder with band code and CBD decoder, RAND_SCHED
+recoder.CBD.randSched: libgnc.so test.2hopRecoder.CBD.c
+	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.2hopRecoder.CBD.c
+	$(SED) -i 's/[^ ]*_SCHED/RAND_SCHED/' examples/test.2hopRecoder.CBD.c
+	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+#Recoder with band code and CBD decoder, MLPI_SCHED
+recoder.CBD.mlpiSched: libgnc.so test.2hopRecoder.CBD.c
+	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.2hopRecoder.CBD.c
+	$(SED) -i 's/[^ ]*_SCHED/MLPI_SCHED/' examples/test.2hopRecoder.CBD.c
 	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 
 $(OBJDIR)/%.o: $(OBJDIR)/%.c $(DEFS) $(GGDEFS)
@@ -91,7 +102,7 @@ $(OBJDIR)/%.o: $(OBJDIR)/%.c $(DEFS) $(GGDEFS)
 
 .PHONY: clean
 clean:
-	rm -f *.o $(OBJDIR)/*.o *.example *.static libgnc.so
+	rm -f *.o $(OBJDIR)/*.o *.example *.static recoder.CBD.randSched recoder.CBD.trivSched recoder.CBD.mlpiSched libgnc.so
 
 .PHONY: install
 install:
