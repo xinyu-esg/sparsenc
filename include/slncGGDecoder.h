@@ -1,6 +1,6 @@
 #ifndef _CCFD_DECODER_H
 #define _CCFD_DECODER_H
-#include "gncEncoder.h"
+#include "slncEncoder.h"
 
 #define FB_THOLD	1
 typedef struct node      ID;
@@ -13,7 +13,7 @@ typedef unsigned long FLAGS;					/* bit flags */
 #define _FLAG_OFF(x, n) (((x) & _BIT_MASK(n)) == 0)
 
 struct decoding_context_GG {
-    struct gnc_context	*gc;						// The file information
+    struct slnc_context	*sc;						// The file information
     /********************************
      * Used in decoding LDPC pre-code
      ********************************/
@@ -53,7 +53,7 @@ struct running_matrix {
     GF_ELEMENT **message;
 };
 
-void create_decoding_context_GG(struct decoding_context_GG *dec_ctx, long datasize, struct gnc_parameter gp);
+void create_decoding_context_GG(struct decoding_context_GG *dec_ctx, long datasize, struct slnc_parameter sp);
 void free_decoding_context_GG(struct decoding_context_GG *dec_ctx);
 void process_packet_GG(struct decoding_context_GG *dec_ctx, struct coded_packet *pkt);
 #endif /* _CCFD_DECODER_H */

@@ -1,4 +1,4 @@
-#include "gncEncoder.h"
+#include "slncEncoder.h"
 
 /* Row vector of a matrix */
 struct row_vector
@@ -12,7 +12,7 @@ struct row_vector
 struct decoding_context_CBD
 {
     // GNC context
-    struct gnc_context *gc;
+    struct slnc_context *sc;
 
     int finished;				// an indicator tracking the finish of decoding
     int DoF;					// total true DoF that the receiver has received
@@ -28,7 +28,7 @@ struct decoding_context_CBD
     long long operations;		// record the number of computations used
 };
 
-void create_decoding_context_CBD(struct decoding_context_CBD *dec_ctx, long datasize, struct gnc_parameter gp);
+void create_decoding_context_CBD(struct decoding_context_CBD *dec_ctx, long datasize, struct slnc_parameter sp);
 void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct coded_packet *pkt);
 void free_decoding_context_CBD(struct decoding_context_CBD *dec_ctx);
 

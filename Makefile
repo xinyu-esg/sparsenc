@@ -1,5 +1,5 @@
 ######################################################
-# Makefile for libgnc
+# Makefile for libslnc
 # Ye Li
 # leeyee.seu@gmail.com
 ######################################################
@@ -30,84 +30,84 @@ CFLAGS1 = -O3 -DNDEBUG $(INC_PARMS)  -mssse3 -DINTEL_SSSE3
 vpath %.h src include
 vpath %.c src examples
 
-DEFS   := common.h bipartite.h gncEncoder.h galois.h
-GNCENC  := $(OBJDIR)/common.o $(OBJDIR)/bipartite.o $(OBJDIR)/gncEncoder.o $(OBJDIR)/galois.o $(OBJDIR)/gaussian.o
-RECODER := $(OBJDIR)/gncRecoder.o 
-GGDEC   := $(OBJDIR)/gncGGDecoder.o 
-OADEC   := $(OBJDIR)/gncOADecoder.o $(OBJDIR)/pivoting.o
-BDDEC   := $(OBJDIR)/gncBandDecoder.o $(OBJDIR)/pivoting.o
-CBDDEC  := $(OBJDIR)/gncCBDDecoder.o
-DECDEFS := gncGGDecoder.h gncOADecoder.h gncBandDecoder.h gncCBDDecoder.h
+DEFS   := common.h bipartite.h slncEncoder.h galois.h
+GNCENC  := $(OBJDIR)/common.o $(OBJDIR)/bipartite.o $(OBJDIR)/slncEncoder.o $(OBJDIR)/galois.o $(OBJDIR)/gaussian.o
+RECODER := $(OBJDIR)/slncRecoder.o 
+GGDEC   := $(OBJDIR)/slncGGDecoder.o 
+OADEC   := $(OBJDIR)/slncOADecoder.o $(OBJDIR)/pivoting.o
+BDDEC   := $(OBJDIR)/slncBandDecoder.o $(OBJDIR)/pivoting.o
+CBDDEC  := $(OBJDIR)/slncCBDDecoder.o
+DECDEFS := slncGGDecoder.h slncOADecoder.h slncBandDecoder.h slncCBDDecoder.h
 
 .PHONY: all
 all: band.OA.example band.GG.example band.BD.example band.CBD.example rand.GG.example rand.OA.example
 
-libgnc.so: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC) $(RECODER)
-	$(CC) -shared -o libgnc.so $^
+libslnc.so: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC) $(RECODER)
+	$(CC) -shared -o libslnc.so $^
 	
 #GGband.example
-band.GG.example: libgnc.so test.GGdecoder.c
+band.GG.example: libslnc.so test.GGdecoder.c
 	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.GGdecoder.c
-	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+	$(CC) -L. -lslnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #GGrand.example
-rand.GG.example: libgnc.so test.GGdecoder.c
+rand.GG.example: libslnc.so test.GGdecoder.c
 	$(SED) -i 's/[^ ]*GNC_CODE/RAND_GNC_CODE/' examples/test.GGdecoder.c
-	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+	$(CC) -L. -lslnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #OAband.example
-band.OA.example: libgnc.so test.OAdecoder.c 
+band.OA.example: libslnc.so test.OAdecoder.c 
 	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.OAdecoder.c
-	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
-#OAband statically linked, not using libgnc.so
+	$(CC) -L. -lslnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+#OAband statically linked, not using libslnc.so
 band.OA.static: $(GNCENC) $(OADEC) examples/test.OAdecoder.c
 	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.OAdecoder.c
 	$(CC) -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #OArand.example
-rand.OA.example: libgnc.so test.OAdecoder.c 
+rand.OA.example: libslnc.so test.OAdecoder.c 
 	$(SED) -i 's/[^ ]*GNC_CODE/RAND_GNC_CODE/' examples/test.OAdecoder.c
-	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+	$(CC) -L. -lslnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #OAwind.example
-wind.OA.example: libgnc.so test.OAdecoder.c 
+wind.OA.example: libslnc.so test.OAdecoder.c 
 	$(SED) -i 's/[^ ]*GNC_CODE/WINDWRAP_GNC_CODE/' examples/test.OAdecoder.c
-	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+	$(CC) -L. -lslnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #BDband.example
-band.BD.example: libgnc.so test.bandDecoder.c 
+band.BD.example: libslnc.so test.bandDecoder.c 
 	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.bandDecoder.c
-	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
-#BDband statically linked, not using libgnc.so
+	$(CC) -L. -lslnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+#BDband statically linked, not using libslnc.so
 band.BD.static: $(GNCENC) $(BDDEC) examples/test.bandDecoder.c
 	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.bandDecoder.c
 	$(CC) -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #CBDband.example
-band.CBD.example: libgnc.so test.CBDDecoder.c 
+band.CBD.example: libslnc.so test.CBDDecoder.c 
 	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.CBDDecoder.c
-	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+	$(CC) -L. -lslnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #Recoder with band code and CBD decoder, TRIV_SCHED
-recoder.CBD.trivSched: libgnc.so test.2hopRecoder.CBD.c
+recoder.CBD.trivSched: libslnc.so test.2hopRecoder.CBD.c
 	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.2hopRecoder.CBD.c
 	$(SED) -i 's/[^ ]*_SCHED/TRIV_SCHED/' examples/test.2hopRecoder.CBD.c
-	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+	$(CC) -L. -lslnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #Recoder with band code and CBD decoder, RAND_SCHED
-recoder.CBD.randSched: libgnc.so test.2hopRecoder.CBD.c
+recoder.CBD.randSched: libslnc.so test.2hopRecoder.CBD.c
 	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.2hopRecoder.CBD.c
 	$(SED) -i 's/[^ ]*_SCHED/RAND_SCHED/' examples/test.2hopRecoder.CBD.c
-	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+	$(CC) -L. -lslnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #Recoder with band code and CBD decoder, MLPI_SCHED
-recoder.CBD.mlpiSched: libgnc.so test.2hopRecoder.CBD.c
+recoder.CBD.mlpiSched: libslnc.so test.2hopRecoder.CBD.c
 	$(SED) -i 's/[^ ]*GNC_CODE/BAND_GNC_CODE/' examples/test.2hopRecoder.CBD.c
 	$(SED) -i 's/[^ ]*_SCHED/MLPI_SCHED/' examples/test.2hopRecoder.CBD.c
-	$(CC) -L. -lgnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+	$(CC) -L. -lslnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 
 $(OBJDIR)/%.o: $(OBJDIR)/%.c $(DEFS) $(GGDEFS)
 	$(CC) -c -fpic -o $@ $< $(CFLAGS0) $(CFLAGS1)
 
 .PHONY: clean
 clean:
-	rm -f *.o $(OBJDIR)/*.o *.example *.static recoder.CBD.randSched recoder.CBD.trivSched recoder.CBD.mlpiSched libgnc.so
+	rm -f *.o $(OBJDIR)/*.o *.example *.static recoder.CBD.randSched recoder.CBD.trivSched recoder.CBD.mlpiSched libslnc.so
 
 .PHONY: install
 install:
-	cp libgnc.so /usr/lib/
+	cp libslnc.so /usr/lib/
 
 .PHONY: uninstall
 uninstall:
-	rm -f /usr/lib/libgnc.so
+	rm -f /usr/lib/libslnc.so

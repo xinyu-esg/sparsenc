@@ -1,9 +1,9 @@
 #include "galois.h"
-#include "gncRecoder.h"
+#include "slncRecoder.h"
 
-static int schedule_recode_generation(struct gnc_buffer *buf, int sched_t);
+static int schedule_recode_generation(struct slnc_buffer *buf, int sched_t);
 
-int create_recoding_context(struct gnc_recoding_context *rc, struct gnc_metainfo meta, int bufsize)
+int create_recoding_context(struct slnc_recoding_context *rc, struct slnc_metainfo meta, int bufsize)
 {
     static char fname[] = "create_recoding_context";
     int i;
@@ -54,7 +54,7 @@ Error:
  *                   |
  *                pn = 1
  */
-void buffer_packet(struct gnc_recoding_context *rc, struct coded_packet *pkt)
+void buffer_packet(struct slnc_recoding_context *rc, struct coded_packet *pkt)
 {
     int gid = pkt->gid;
     if (rc->buf.nc[gid] == 0) {
@@ -64,7 +64,7 @@ void buffer_packet(struct gnc_recoding_context *rc, struct coded_packet *pkt)
         rc->buf.nemp++;
     } else if (rc->buf.nc[gid] == rc->buf.size) {
         /* Buffer of the generation is full, FIFO */
-        free_gnc_packet(rc->buf.gbuf[gid][rc->buf.pn[gid]]);    /*discard packet previously stored in the position*/
+        free_slnc_packet(rc->buf.gbuf[gid][rc->buf.pn[gid]]);    /*discard packet previously stored in the position*/
         rc->buf.gbuf[gid][rc->buf.pn[gid]] = pkt;
     } else {
         /* Buffer is neither empty nor full */
@@ -75,7 +75,7 @@ void buffer_packet(struct gnc_recoding_context *rc, struct coded_packet *pkt)
     return;
 }
 
-struct coded_packet *generate_recoded_packet(struct gnc_recoding_context *rc, int sched_t)
+struct coded_packet *generate_recoded_packet(struct slnc_recoding_context *rc, int sched_t)
 {
     int gid = schedule_recode_generation(&rc->buf, sched_t);
     if (gid == -1) 
@@ -95,7 +95,7 @@ struct coded_packet *generate_recoded_packet(struct gnc_recoding_context *rc, in
     return pkt;
 }
 
-static int schedule_recode_generation(struct gnc_buffer *buf, int sched_t)
+static int schedule_recode_generation(struct slnc_buffer *buf, int sched_t)
 {
     int gid;
     if (sched_t == TRIV_SCHED) {
@@ -132,13 +132,13 @@ static int schedule_recode_generation(struct gnc_buffer *buf, int sched_t)
     }
 }
 
-void free_recoding_buffer(struct gnc_recoding_context *rc)
+void free_recoding_buffer(struct slnc_recoding_context *rc)
 {
     for (int i=0; i<rc->meta.gnum; i++) {
         if (rc->buf.gbuf != NULL && rc->buf.gbuf[i] != NULL) {
             /* Free bufferred packets, if any */
             for (int j=0; j<rc->buf.size; j++)
-                free_gnc_packet(rc->buf.gbuf[i][j]);	
+                free_slnc_packet(rc->buf.gbuf[i][j]);	
             /* Free the pointer array */
             free(rc->buf.gbuf[i]);
         }

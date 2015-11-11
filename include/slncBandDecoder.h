@@ -1,11 +1,11 @@
-#include "gncEncoder.h"
+#include "slncEncoder.h"
 /*
  * BD (band GNC code) DECODING CONTEXT
  */
 struct decoding_context_BD
 {
     // GNC context
-    struct gnc_context *gc;
+    struct slnc_context *sc;
 
     int finished;				// an indicator tracking the finish of decoding
     int DoF;					// total true DoF that the receiver has received
@@ -26,7 +26,7 @@ struct decoding_context_BD
     long long operations;							// record the number of computations used
 };
 
-void create_decoding_context_BD(struct decoding_context_BD *dec_ctx, long datasize, struct gnc_parameter gp);
+void create_decoding_context_BD(struct decoding_context_BD *dec_ctx, long datasize, struct slnc_parameter sp);
 void process_packet_BD(struct decoding_context_BD *dec_ctx, struct coded_packet *pkt);
 void free_decoding_context_BD(struct decoding_context_BD *dec_ctx);
 

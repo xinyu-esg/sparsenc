@@ -1,4 +1,4 @@
-#include "gncEncoder.h"
+#include "slncEncoder.h"
 
 #define TRIV_SCHED    0      // trivial scheduling
 #define RAND_SCHED    1      // random scheduling a generation to generate a recoded packet
@@ -24,7 +24,7 @@
  *            .            
  *            .            
  */
-struct gnc_buffer {
+struct slnc_buffer {
     int                    gnum;     // Number of generations
     int                    size;     // Number of bufferred packets of each generation
     int                    nemp;     // Number of non-empty buffers (i.e., have at least one packet
@@ -35,12 +35,12 @@ struct gnc_buffer {
     int                   *nsched;   // Number of scheduled times of each generation (not used in RAND_SCHED)
 };
 
-struct gnc_recoding_context {
-    struct gnc_metainfo  meta;
-    struct gnc_buffer    buf;
+struct slnc_recoding_context {
+    struct slnc_metainfo  meta;
+    struct slnc_buffer    buf;
 };
 
-int create_recoding_context(struct gnc_recoding_context *rc, struct gnc_metainfo meta, int bufsize);
-void buffer_packet(struct gnc_recoding_context *rc, struct coded_packet *pkt);
-struct coded_packet *generate_recoded_packet(struct gnc_recoding_context *rc, int sched_t);
-void free_recoding_buffer(struct gnc_recoding_context *rc);
+int create_recoding_context(struct slnc_recoding_context *rc, struct slnc_metainfo meta, int bufsize);
+void buffer_packet(struct slnc_recoding_context *rc, struct coded_packet *pkt);
+struct coded_packet *generate_recoded_packet(struct slnc_recoding_context *rc, int sched_t);
+void free_recoding_buffer(struct slnc_recoding_context *rc);

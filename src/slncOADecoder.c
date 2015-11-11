@@ -1,10 +1,10 @@
-/*--------------------------gncOADecoder.c----------------------
+/*--------------------------slncOADecoder.c----------------------
  * Implementation of overlap-aware (OA) decoder.
  *-------------------------------------------------------------*/
 #include "common.h"
 #include "galois.h"
 #include "bipartite.h"
-#include "gncOADecoder.h"
+#include "slncOADecoder.h"
 
 /*
  * Transform coefficient matrix of each generation to row echelon form (REF).
@@ -47,19 +47,19 @@ extern long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A
  * Create context for overlap-aware (OA) decoding
  *  aoh - allowed overhead >=0
  */
-void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasize, struct gnc_parameter gp, int aoh)
+void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasize, struct slnc_parameter sp, int aoh)
 {
     static char fname[] = "create_decoding_context_OA";
     int i, j, k;
 
     // GNC code context
     // Since this is decoding, we construct GNC context without data
-    // gc->pp will be filled by decoded packets
-    struct gnc_context *gc;
-    if (create_gnc_context(NULL, datasize, &gc, gp) != 0) 
+    // sc->pp will be filled by decoded packets
+    struct slnc_context *sc;
+    if (create_slnc_context(NULL, datasize, &sc, sp) != 0) 
         fprintf(stderr, "%s: create decoding context failed", fname);
 
-    dec_ctx->gc = gc;
+    dec_ctx->sc = sc;
 
     dec_ctx->aoh		= aoh;
     dec_ctx->finished   = 0;
@@ -67,15 +67,15 @@ void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasi
     dec_ctx->local_DoF  = 0;
     dec_ctx->global_DoF = 0;
 
-    int gensize = dec_ctx->gc->meta.size_g;
-    int pktsize = dec_ctx->gc->meta.size_p;
-    int numpp   = dec_ctx->gc->meta.snum + dec_ctx->gc->meta.cnum;
+    int gensize = dec_ctx->sc->meta.size_g;
+    int pktsize = dec_ctx->sc->meta.size_p;
+    int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
 
     // Allocate matrices for per-generation decoding
-    dec_ctx->Matrices = calloc(dec_ctx->gc->meta.gnum, sizeof(struct running_matrix*));
+    dec_ctx->Matrices = calloc(dec_ctx->sc->meta.gnum, sizeof(struct running_matrix*));
     if (dec_ctx->Matrices == NULL)
         fprintf(stderr, "%s: calloc dec_ctx->Matrices\n", fname);
-    for (i=0; i<dec_ctx->gc->meta.gnum; i++) { 
+    for (i=0; i<dec_ctx->sc->meta.gnum; i++) { 
         dec_ctx->Matrices[i] = calloc(1, sizeof(struct running_matrix));
         if (dec_ctx->Matrices[i] == NULL)
             fprintf(stderr, "%s: malloc dec_ctx->Matrices[%d]\n", fname, i);
@@ -117,9 +117,9 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct coded_packet 
     int i, j, k;
     GF_ELEMENT quotient;
 
-    int gensize = dec_ctx->gc->meta.size_g;
-    int pktsize = dec_ctx->gc->meta.size_p;
-    int numpp   = dec_ctx->gc->meta.snum + dec_ctx->gc->meta.cnum;
+    int gensize = dec_ctx->sc->meta.size_g;
+    int pktsize = dec_ctx->sc->meta.size_p;
+    int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
 
     // start processing
     int gid = pkt->gid;
@@ -155,7 +155,7 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct coded_packet 
             dec_ctx->local_DoF += 1;
         }
 
-        if ((dec_ctx->local_DoF >= dec_ctx->gc->meta.snum) && (dec_ctx->overhead >= (dec_ctx->gc->meta.snum+dec_ctx->aoh))) {
+        if ((dec_ctx->local_DoF >= dec_ctx->sc->meta.snum) && (dec_ctx->overhead >= (dec_ctx->sc->meta.snum+dec_ctx->aoh))) {
             dec_ctx->OA_ready = 1;
             // When OA ready, convert LDMs to upper triangular form
             long ops = running_matrix_to_REF(dec_ctx);
@@ -178,7 +178,7 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct coded_packet 
         GF_ELEMENT *re_ordered = calloc(numpp, sizeof(GF_ELEMENT));	
         for (i=0; i<gensize; i++) {
             /* obtain current index position of pktid */
-            int curr_pos = dec_ctx->otoc_mapping[dec_ctx->gc->gene[gid]->pktid[i]];
+            int curr_pos = dec_ctx->otoc_mapping[dec_ctx->sc->gene[gid]->pktid[i]];
             re_ordered[curr_pos] = pkt->coes[i];
         }
 
@@ -226,7 +226,7 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct coded_packet 
         free(re_ordered);
     }
 
-    free_gnc_packet(pkt);
+    free_slnc_packet(pkt);
     pkt = NULL;
 }
 
@@ -234,15 +234,15 @@ void free_decoding_context_OA(struct decoding_context_OA *dec_ctx)
 {
     int i, j, k;
     if (dec_ctx->Matrices != NULL) {
-        for (i=0; i<dec_ctx->gc->meta.gnum; i++){
+        for (i=0; i<dec_ctx->sc->meta.gnum; i++){
             // Free each decoding matrix
-            free_running_matrix(dec_ctx->Matrices[i], dec_ctx->gc->meta.size_g);
+            free_running_matrix(dec_ctx->Matrices[i], dec_ctx->sc->meta.size_g);
             dec_ctx->Matrices[i] = NULL;
         }
         free(dec_ctx->Matrices);
         dec_ctx->Matrices = NULL;
     }
-    for (j=0; j<dec_ctx->gc->meta.snum+dec_ctx->gc->meta.cnum+dec_ctx->aoh; j++) {
+    for (j=0; j<dec_ctx->sc->meta.snum+dec_ctx->sc->meta.cnum+dec_ctx->aoh; j++) {
         free(dec_ctx->JMBcoefficient[j]);
         free(dec_ctx->JMBmessage[j]);
     }
@@ -250,7 +250,7 @@ void free_decoding_context_OA(struct decoding_context_OA *dec_ctx)
     free(dec_ctx->JMBmessage);
     free(dec_ctx->otoc_mapping);
     free(dec_ctx->ctoo_mapping);
-    free_gnc_context(dec_ctx->gc);
+    free_slnc_context(dec_ctx->sc);
     free(dec_ctx);
     dec_ctx = NULL;
 }
@@ -277,9 +277,9 @@ static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
     int pos;
     int pktid;
 
-    int gensize = dec_ctx->gc->meta.size_g;
-    int pktsize = dec_ctx->gc->meta.size_p;
-    int numpp   = dec_ctx->gc->meta.snum + dec_ctx->gc->meta.cnum;
+    int gensize = dec_ctx->sc->meta.size_g;
+    int pktsize = dec_ctx->sc->meta.size_p;
+    int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
 
     // Recover inactivated packets
 #if defined(GNCTRACE)
@@ -302,9 +302,9 @@ static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
         // get original pktid at column (numpp-ias+i0
         pktid = dec_ctx->ctoo_mapping[numpp-ias+i];	
         // Construct decoded packets
-        if ( (dec_ctx->gc->pp[pktid] = calloc(pktsize, sizeof(GF_ELEMENT))) == NULL )
-            fprintf(stderr, "%s: calloc gc->pp[%d]\n", fname, pktid);
-        memcpy(dec_ctx->gc->pp[pktid], dec_ctx->JMBmessage[numpp-ias+i], sizeof(GF_ELEMENT)*pktsize);
+        if ( (dec_ctx->sc->pp[pktid] = calloc(pktsize, sizeof(GF_ELEMENT))) == NULL )
+            fprintf(stderr, "%s: calloc sc->pp[%d]\n", fname, pktid);
+        memcpy(dec_ctx->sc->pp[pktid], dec_ctx->JMBmessage[numpp-ias+i], sizeof(GF_ELEMENT)*pktsize);
     }
     /* free ces_submatrix */
     for (i=0; i<ias; i++) 
@@ -327,7 +327,7 @@ static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
             if (dec_ctx->JMBcoefficient[i][j] != 0) {
                 quotient = dec_ctx->JMBcoefficient[i][j];
                 pktid = dec_ctx->ctoo_mapping[j];			
-                galois_multiply_add_region(dec_ctx->JMBmessage[i], dec_ctx->gc->pp[pktid], quotient, pktsize, GF_POWER);
+                galois_multiply_add_region(dec_ctx->JMBmessage[i], dec_ctx->sc->pp[pktid], quotient, pktsize, GF_POWER);
                 dec_ctx->JMBcoefficient[i][j] = 0;
                 dec_ctx->operations += pktsize;
             }
@@ -343,11 +343,11 @@ static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
 
         // Save the decoded packet
         pktid = dec_ctx->ctoo_mapping[i];
-        if ( dec_ctx->gc->pp[pktid] != NULL )
+        if ( dec_ctx->sc->pp[pktid] != NULL )
             fprintf(stderr, "%s：warning: packet %d is already recovered.\n", fname, pktid);
-        if ( (dec_ctx->gc->pp[pktid] = calloc(pktsize, sizeof(GF_ELEMENT))) == NULL )
-            fprintf(stderr, "%s: calloc gc->pp[%d]\n", fname, pktid);
-        memcpy(dec_ctx->gc->pp[pktid], dec_ctx->JMBmessage[i], sizeof(GF_ELEMENT)*pktsize);
+        if ( (dec_ctx->sc->pp[pktid] = calloc(pktsize, sizeof(GF_ELEMENT))) == NULL )
+            fprintf(stderr, "%s: calloc sc->pp[%d]\n", fname, pktid);
+        memcpy(dec_ctx->sc->pp[pktid], dec_ctx->JMBmessage[i], sizeof(GF_ELEMENT)*pktsize);
     }
 
     dec_ctx->finished = 1;
@@ -361,12 +361,12 @@ static long running_matrix_to_REF(struct decoding_context_OA *dec_ctx)
     int i, j, k, l;
     GF_ELEMENT quotient;
 
-    int gensize = dec_ctx->gc->meta.size_g;
-    int pktsize = dec_ctx->gc->meta.size_p;
-    int numpp   = dec_ctx->gc->meta.snum + dec_ctx->gc->meta.cnum;
+    int gensize = dec_ctx->sc->meta.size_g;
+    int pktsize = dec_ctx->sc->meta.size_p;
+    int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
 
 
-    for (i=0; i<dec_ctx->gc->meta.gnum; i++) {
+    for (i=0; i<dec_ctx->sc->meta.gnum; i++) {
         struct running_matrix *matrix = dec_ctx->Matrices[i];
 
         // Partially diagonalize the LDM
@@ -410,9 +410,9 @@ static void construct_GDM(struct decoding_context_OA *dec_ctx)
     int i, j, k;
     struct running_matrix *matrix;
 
-    int gensize = dec_ctx->gc->meta.size_g;
-    int pktsize = dec_ctx->gc->meta.size_p;
-    int numpp   = dec_ctx->gc->meta.snum + dec_ctx->gc->meta.cnum;
+    int gensize = dec_ctx->sc->meta.size_g;
+    int pktsize = dec_ctx->sc->meta.size_p;
+    int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
 
     //Allocate GDM to decoding_context, apply precoding matrix
     dec_ctx->JMBcoefficient = calloc(numpp+dec_ctx->aoh, sizeof(GF_ELEMENT*));
@@ -434,14 +434,14 @@ static void construct_GDM(struct decoding_context_OA *dec_ctx)
         dec_ctx->ctoo_mapping[j]   = j;				// current to original mapping
     }
     // Apply precoding matrix
-    for (i=0; i<dec_ctx->gc->meta.cnum; i++) {
-        dec_ctx->JMBcoefficient[dec_ctx->gc->meta.snum+dec_ctx->aoh+i][dec_ctx->gc->meta.snum+i] = 1;
+    for (i=0; i<dec_ctx->sc->meta.cnum; i++) {
+        dec_ctx->JMBcoefficient[dec_ctx->sc->meta.snum+dec_ctx->aoh+i][dec_ctx->sc->meta.snum+i] = 1;
 
-        NBR_node *variable_node = dec_ctx->gc->graph->l_nbrs_of_r[i]->first; 		//ldpc_graph->nbrs_of_right[i];
+        NBR_node *variable_node = dec_ctx->sc->graph->l_nbrs_of_r[i]->first; 		//ldpc_graph->nbrs_of_right[i];
         while (variable_node != NULL) {
             // 标记与该check packet连结的所有source packet node
             int src_pktid = variable_node->data;						//variable_node->nb_index;
-            dec_ctx->JMBcoefficient[dec_ctx->gc->meta.snum+dec_ctx->aoh+i][src_pktid] = 1;
+            dec_ctx->JMBcoefficient[dec_ctx->sc->meta.snum+dec_ctx->aoh+i][src_pktid] = 1;
             //dec_ctx->JMBcoefficient[NUM_SRC+OHS+i][src_pktid] = variable_node->nb_ce;
             variable_node = variable_node->next;
         }
@@ -451,7 +451,7 @@ static void construct_GDM(struct decoding_context_OA *dec_ctx)
     // Step 1, translate LEVs to GEV and move them to GDM
     GF_ELEMENT *global_ces = calloc(numpp, sizeof(GF_ELEMENT));
     int p_copy = 0;								// 拷贝到JMBcofficient的行指针
-    for (i=0; i<dec_ctx->gc->meta.gnum; i++) {
+    for (i=0; i<dec_ctx->sc->meta.gnum; i++) {
         matrix = dec_ctx->Matrices[i];
         for (j=0; j<gensize; j++) {
             if (matrix->coefficient[j][j] == 0)
@@ -460,7 +460,7 @@ static void construct_GDM(struct decoding_context_OA *dec_ctx)
                 memset(global_ces, 0, numpp*sizeof(GF_ELEMENT));	/* Reset before reuse */
                 for (k=0; k<gensize; k++) {
                     //global_ces[matrix->indices[k]] = matrix->coefficient[j][k];
-                    global_ces[dec_ctx->gc->gene[i]->pktid[k]] = matrix->coefficient[j][k];
+                    global_ces[dec_ctx->sc->gene[i]->pktid[k]] = matrix->coefficient[j][k];
                 }
                 memcpy(dec_ctx->JMBcoefficient[p_copy], global_ces, numpp*sizeof(GF_ELEMENT));
                 memcpy(dec_ctx->JMBmessage[p_copy], matrix->message[j], pktsize*sizeof(GF_ELEMENT));
@@ -473,8 +473,8 @@ static void construct_GDM(struct decoding_context_OA *dec_ctx)
     printf("%d local DoFs are available, copied %d to GDM.\n", dec_ctx->local_DoF, p_copy);
 #endif
     // Free up local matrices
-    for (i=0; i<dec_ctx->gc->meta.gnum; i++) {
-        free_running_matrix(dec_ctx->Matrices[i], dec_ctx->gc->meta.size_g);
+    for (i=0; i<dec_ctx->sc->meta.gnum; i++) {
+        free_running_matrix(dec_ctx->Matrices[i], dec_ctx->sc->meta.size_g);
         dec_ctx->Matrices[i] == NULL;
     }
     free(dec_ctx->Matrices);

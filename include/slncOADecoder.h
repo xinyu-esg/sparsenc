@@ -1,4 +1,4 @@
-#include "gncEncoder.h"
+#include "slncEncoder.h"
 /*
  * OA (overlap aware) DECODING CONTEXT is used at each destination node
  * to record the status of the decoder. It is the core
@@ -7,7 +7,7 @@
 struct decoding_context_OA
 {
     // GNC context
-    struct gnc_context *gc;
+    struct slnc_context *sc;
 
     int aoh;										// Allowed number of overhead packets (OHS)
     int finished;									// an indicator tracking the finish of decoding
@@ -39,7 +39,7 @@ struct running_matrix
     GF_ELEMENT **message;							//[CLASS_SIZE][EXT_N];
 };
 
-void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasize, struct gnc_parameter gp, int aoh);
+void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasize, struct slnc_parameter sp, int aoh);
 void process_packet_OA(struct decoding_context_OA *dec_ctx, struct coded_packet *pkt);
 void free_decoding_context_OA(struct decoding_context_OA *dec_ctx);
 

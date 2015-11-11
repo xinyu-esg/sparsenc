@@ -24,7 +24,7 @@ struct source_packet {
     GF_ELEMENT	*syms;					// SIZE_P source message symbols
 };
 
-struct gnc_parameter {
+struct slnc_parameter {
     double pcrate;
     int	   size_b;
     int    size_g;
@@ -32,8 +32,8 @@ struct gnc_parameter {
     int    type;
 };
 
-// Metainfo of the data to be gnc-coded
-struct gnc_metainfo {
+// Metainfo of the data to be slnc-coded
+struct slnc_metainfo {
     long	datasize;					// True data size in bytes. GNC may append zero packets for alignment.
     double  pcrate;						// precode rate
     int     size_b;
@@ -46,9 +46,9 @@ struct gnc_metainfo {
 };
 
 // Encoding context
-struct gnc_context {
-    struct  gnc_metainfo    meta;
-    struct  generation      **gene; 	// array of pointers each points to a generation.	
+struct slnc_context {
+    struct  slnc_metainfo   meta;
+    struct  subgeneration   **gene; 	// array of pointers each points to a generation.	
     struct  bipartite_graph *graph;
     GF_ELEMENT              **pp;		// Pointers to precoded source packets
     //	sp[i][j] - j-th symbol of the i-th source packet
@@ -60,20 +60,20 @@ struct coded_packet {
     GF_ELEMENT	*syms;					// SIZE_P symbols of coded packet
 };
 
-struct generation {
+struct subgeneration {
     int gid;
     int *pktid;							// SIZE_G source packet IDs
 };
 
-int create_gnc_context(char *buf, long datasize, struct gnc_context **gc, struct gnc_parameter gp);
-int create_gnc_context_from_file(FILE *fp, struct gnc_context **gc, struct gnc_parameter gp);
-int load_file_to_gnc_context(FILE *fp, struct gnc_context *gc);
-int free_gnc_context(struct gnc_context *gc);
-unsigned char *recover_data(struct gnc_context *gc);
-long recover_data_to_file(FILE *fp, struct gnc_context *gc);
+int create_slnc_context(char *buf, long datasize, struct slnc_context **sc, struct slnc_parameter sp);
+int create_slnc_context_from_file(FILE *fp, struct slnc_context **sc, struct slnc_parameter sp);
+int load_file_to_slnc_context(FILE *fp, struct slnc_context *sc);
+int free_slnc_context(struct slnc_context *sc);
+unsigned char *recover_data(struct slnc_context *sc);
+long recover_data_to_file(FILE *fp, struct slnc_context *sc);
 struct coded_packet *alloc_empty_packet(int size_g, int size_p);
-struct coded_packet *generate_gnc_packet(struct gnc_context *gc);
-int generate_gnc_packet_im(struct gnc_context *gc, struct coded_packet *pkt);
-void free_gnc_packet(struct coded_packet *pkt);
-void print_code_summary(struct gnc_metainfo *meta, int overhead, long long operations);
+struct coded_packet *generate_slnc_packet(struct slnc_context *sc);
+int generate_slnc_packet_im(struct slnc_context *sc, struct coded_packet *pkt);
+void free_slnc_packet(struct coded_packet *pkt);
+void print_code_summary(struct slnc_metainfo *meta, int overhead, long long operations);
 #endif /* GNC_ENCODER_H */
