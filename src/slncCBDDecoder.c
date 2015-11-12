@@ -3,7 +3,7 @@
  *
  * The decoder only applies to band GNC code. 
  *
- * Unlike regular band decoder (slncBandDecoder.c), CBD decoder is 
+ * Unlike regular band decoder (slncBDDecoder.c), CBD decoder is 
  * compact in coefficient matrix storage. Only coefficients in the band
  * (which are nonzeros) are stored. A price to pay is that pivoting 
  * cannot be performed due to the limited random access and row/col 
@@ -13,25 +13,25 @@
 #include "galois.h"
 #include "bipartite.h"
 #include "slncCBDDecoder.h"
-static int process_vector_CBD(struct decoding_context_CBD *dec_ctx, GF_ELEMENT *vector, GF_ELEMENT *message);
-static int apply_parity_check_matrix(struct decoding_context_CBD *dec_ctx);
-static void finish_recovering_CBD(struct decoding_context_CBD *dec_ctx);
+static int process_vector_CBD(struct slnc_dec_context_CBD *dec_ctx, GF_ELEMENT *vector, GF_ELEMENT *message);
+static int apply_parity_check_matrix(struct slnc_dec_context_CBD *dec_ctx);
+static void finish_recovering_CBD(struct slnc_dec_context_CBD *dec_ctx);
 
 // create decoding context for band decoder
-void create_decoding_context_CBD(struct decoding_context_CBD *dec_ctx, long datasize, struct slnc_parameter sp)
+void slnc_create_dec_context_CBD(struct slnc_dec_context_CBD *dec_ctx, long datasize, struct slnc_parameter sp)
 {
-    static char fname[] = "create_decoding_context_CBD";
+    static char fname[] = "slnc_create_dec_context_CBD";
     int i, j, k;
 
     // GNC code context
     // Since this is decoding, we construct GNC context without data
     // sc->pp will be filled by decoded packets
-    if (sp.type != BAND_GNC_CODE) {
+    if (sp.type != BAND_SLNC) {
         fprintf(stderr, "Band decoder only applies to band GNC code.\n");
         return;
     }
     struct slnc_context *sc;
-    if (create_slnc_context(NULL, datasize, &sc, sp) != 0) 
+    if (slnc_create_enc_context(NULL, datasize, &sc, sp) != 0) 
         fprintf(stderr, "%s: create decoding context failed", fname);
 
     dec_ctx->sc = sc;
@@ -64,9 +64,9 @@ void create_decoding_context_CBD(struct decoding_context_CBD *dec_ctx, long data
  * Note: throughout the packet collecting process, the decoding matrix 
  * is maintained an upper triangular form.
  */
-void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct coded_packet *pkt)
+void slnc_process_packet_CBD(struct slnc_dec_context_CBD *dec_ctx, struct slnc_packet *pkt)
 {
-    static char fname[] = "process_packet_CBD";
+    static char fname[] = "slnc_process_packet_CBD";
     dec_ctx->overhead += 1;
     int i, j, k;
     GF_ELEMENT quotient;
@@ -88,7 +88,7 @@ void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct coded_packe
     int pivot = process_vector_CBD(dec_ctx, ces, pkt->syms);
     free(ces);
     ces = NULL;
-    free_slnc_packet(pkt);
+    slnc_free_packet(pkt);
     pkt = NULL;
     // If the number of received DoF is equal to NUM_SRC, apply the parity-check matrix.
     // The messages corresponding to rows of parity-check matrix are all-zero.
@@ -108,7 +108,7 @@ void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct coded_packe
 }
 
 /* Process a full row vector against CBD decoding matrix */
-static int process_vector_CBD(struct decoding_context_CBD *dec_ctx, GF_ELEMENT *vector, GF_ELEMENT *message)
+static int process_vector_CBD(struct slnc_dec_context_CBD *dec_ctx, GF_ELEMENT *vector, GF_ELEMENT *message)
 {
     static char fname[] = "process_vector_CBD";
     int i, j, k;
@@ -166,7 +166,7 @@ static int process_vector_CBD(struct decoding_context_CBD *dec_ctx, GF_ELEMENT *
 }
 
 // Apply the parity-check matrix to the decoding matrix
-static int apply_parity_check_matrix(struct decoding_context_CBD *dec_ctx)
+static int apply_parity_check_matrix(struct slnc_dec_context_CBD *dec_ctx)
 {
     static char fname[] = "apply_parity_check_matrix";
 #if defined(GNCTRACE)
@@ -212,7 +212,7 @@ static int apply_parity_check_matrix(struct decoding_context_CBD *dec_ctx)
 }
 
 
-static void finish_recovering_CBD(struct decoding_context_CBD *dec_ctx)
+static void finish_recovering_CBD(struct slnc_dec_context_CBD *dec_ctx)
 {
     int gensize = dec_ctx->sc->meta.size_g;
     int pktsize = dec_ctx->sc->meta.size_p;
@@ -245,7 +245,7 @@ static void finish_recovering_CBD(struct decoding_context_CBD *dec_ctx)
     dec_ctx->finished = 1;
 }
 
-void free_decoding_context_CBD(struct decoding_context_CBD *dec_ctx)
+void slnc_free_dec_context_CBD(struct slnc_dec_context_CBD *dec_ctx)
 {
     for (int i=dec_ctx->sc->meta.snum+dec_ctx->sc->meta.cnum-1; i>=0; i--) {
         free(dec_ctx->row[i]->elem);
@@ -254,7 +254,7 @@ void free_decoding_context_CBD(struct decoding_context_CBD *dec_ctx)
     }
     free(dec_ctx->row);
     free(dec_ctx->message);
-    free_slnc_context(dec_ctx->sc);
+    slnc_free_enc_context(dec_ctx->sc);
     free(dec_ctx);
     dec_ctx = NULL;
 }

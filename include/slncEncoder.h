@@ -1,5 +1,5 @@
-#ifndef GNC_ENCODER_H
-#define GNC_ENCODER_H
+#ifndef SLNC_ENCODER
+#define SLNC_ENCODER
 #include <stdio.h>
 #ifndef GALOIS
 #define GALOIS
@@ -10,18 +10,18 @@ struct node_list;
 struct bipartite_graph;
 
 /*
- * Type of GNC code
- * 	RAND - Generations are pesudo-randomly grouped
- * 	BAND - Generations are overlapped consecutively
- * 	WNND - Windowed, generations are overlapped consecutively and wrap around
+ * Type of SLNC codes
+ * 	RAND     - Packets are pesudo-randomly grouped
+ * 	BAND     - Packets are grouped to be consecutively overlapped
+ * 	WINDWRAP - Similar as BAND, but has wrap around in encoding vectors
  */
-#define RAND_GNC_CODE	    0
-#define	BAND_GNC_CODE	    1
-#define WINDWRAP_GNC_CODE   2
+#define RAND_SLNC	    0
+#define	BAND_SLNC	    1
+#define WINDWRAP_SLNC  2
 
 struct source_packet {
     int			id;
-    GF_ELEMENT	*syms;					// SIZE_P source message symbols
+    GF_ELEMENT	*syms;			// SIZE_P source message symbols
 };
 
 struct slnc_parameter {
@@ -34,46 +34,51 @@ struct slnc_parameter {
 
 // Metainfo of the data to be slnc-coded
 struct slnc_metainfo {
-    long	datasize;					// True data size in bytes. GNC may append zero packets for alignment.
+    long	datasize;					// True data size in bytes. Encoding may append zero packets for alignment.
     double  pcrate;						// precode rate
     int     size_b;
     int		size_g;
     int		size_p;
-    int     type;						// GNC code type - how generations are grouped
+    int     type;						// Code type
     int		snum;						// Number of source packets splitted from the data.
     int		cnum;						// Number of parity-check packets appended to source packets
-    int		gnum;						// Number of generations
+    int		gnum;						// Number of subgenerations
 };
 
 // Encoding context
 struct slnc_context {
     struct  slnc_metainfo   meta;
-    struct  subgeneration   **gene; 	// array of pointers each points to a generation.	
+    struct  subgeneration   **gene; 	// array of pointers each points to a subgeneration.	
     struct  bipartite_graph *graph;
     GF_ELEMENT              **pp;		// Pointers to precoded source packets
-    //	sp[i][j] - j-th symbol of the i-th source packet
 };
 
-struct coded_packet {
-    int 		gid;					// generation id;
+struct slnc_packet {
+    int 		gid;					// subgeneration id;
     GF_ELEMENT	*coes;					// SIZE_G coding coefficients of coded packet
     GF_ELEMENT	*syms;					// SIZE_P symbols of coded packet
 };
 
+/**
+ * Source packets are grouped into subsets, referred to as 
+ * subgenerations in this library to emphasize the 'sub-' concept
+ * in sparse code. (Subsets are also referred to as batches, classes, 
+ * chunks, segments, or generations in many other network coding literature).
+ **/
 struct subgeneration {
     int gid;
     int *pktid;							// SIZE_G source packet IDs
 };
 
-int create_slnc_context(char *buf, long datasize, struct slnc_context **sc, struct slnc_parameter sp);
-int create_slnc_context_from_file(FILE *fp, struct slnc_context **sc, struct slnc_parameter sp);
-int load_file_to_slnc_context(FILE *fp, struct slnc_context *sc);
-int free_slnc_context(struct slnc_context *sc);
-unsigned char *recover_data(struct slnc_context *sc);
-long recover_data_to_file(FILE *fp, struct slnc_context *sc);
-struct coded_packet *alloc_empty_packet(int size_g, int size_p);
-struct coded_packet *generate_slnc_packet(struct slnc_context *sc);
-int generate_slnc_packet_im(struct slnc_context *sc, struct coded_packet *pkt);
-void free_slnc_packet(struct coded_packet *pkt);
+int slnc_create_enc_context(char *buf, long datasize, struct slnc_context **sc, struct slnc_parameter sp);
+int slnc_create_enc_context_from_file(FILE *fp, struct slnc_context **sc, struct slnc_parameter sp);
+int slnc_load_file_to_context(FILE *fp, struct slnc_context *sc);
+int slnc_free_enc_context(struct slnc_context *sc);
+unsigned char *slnc_recover_data(struct slnc_context *sc);
+long slnc_recover_data_to_file(FILE *fp, struct slnc_context *sc);
+struct slnc_packet *slnc_alloc_empty_packet(int size_g, int size_p);
+struct slnc_packet *slnc_generate_packet(struct slnc_context *sc);
+int slnc_generate_packet_im(struct slnc_context *sc, struct slnc_packet *pkt);
+void slnc_free_packet(struct slnc_packet *pkt);
 void print_code_summary(struct slnc_metainfo *meta, int overhead, long long operations);
 #endif /* GNC_ENCODER_H */

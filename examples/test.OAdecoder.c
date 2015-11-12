@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
     sp.size_b   = atoi(argv[3]);
     sp.size_g   = atoi(argv[4]);
     sp.size_p   = atoi(argv[5]);
-    sp.type     = BAND_GNC_CODE;
+    sp.type     = RAND_SLNC;
 
     srand( (int) time(0) );
     char *buf = malloc(datasize);
@@ -29,30 +29,30 @@ int main(int argc, char *argv[])
     close(rnd);
     struct slnc_context *sc;
 
-    if (create_slnc_context(buf, datasize, &sc, sp) != 0) {
+    if (slnc_create_enc_context(buf, datasize, &sc, sp) != 0) {
         printf("Cannot create File Context.\n");
         return 1;
     }
 
-    struct decoding_context_OA *dec_ctx = malloc(sizeof(struct decoding_context_OA));
-    create_decoding_context_OA(dec_ctx, sc->meta.datasize, sp, 0);
+    struct slnc_dec_context_OA *dec_ctx = malloc(sizeof(struct slnc_dec_context_OA));
+    slnc_create_dec_context_OA(dec_ctx, sc->meta.datasize, sp, 0);
     clock_t start, stop, dtime = 0;
     while (dec_ctx->finished != 1) {
-        struct coded_packet *pkt = generate_slnc_packet(sc);
+        struct slnc_packet *pkt = slnc_generate_packet(sc);
         start = clock();
-        process_packet_OA(dec_ctx, pkt);
+        slnc_process_packet_OA(dec_ctx, pkt);
         stop = clock();
         dtime += stop - start;
     }
     printf("dec-time: %.2f ", ((double) dtime)/CLOCKS_PER_SEC);
 
-    unsigned char *rec_buf = recover_data(dec_ctx->sc);
+    unsigned char *rec_buf = slnc_recover_data(dec_ctx->sc);
     if (memcmp(buf, rec_buf, datasize) != 0) 
         printf("recovered is NOT identical to original.\n");
 
     print_code_summary(&dec_ctx->sc->meta, dec_ctx->overhead, dec_ctx->operations);
 
-    free_slnc_context(sc);
-    free_decoding_context_OA(dec_ctx);
+    slnc_free_enc_context(sc);
+    slnc_free_dec_context_OA(dec_ctx);
     return 0;
 }

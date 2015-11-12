@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
     sp.size_b   = atoi(argv[3]);
     sp.size_g   = atoi(argv[4]);
     sp.size_p   = atoi(argv[5]);
-    sp.type     = BAND_GNC_CODE;
+    sp.type     = BAND_SLNC;
     int bufsize = 2;    // Buffer size of each generation, default is 2
     if (argc == 7)
         bufsize = atoi(argv[6]);
@@ -35,46 +35,46 @@ int main(int argc, char *argv[])
     struct slnc_context *sc;
 
     /* Create GNC encoding context */
-    if (create_slnc_context(buf, datasize, &sc, sp) != 0) {
+    if (slnc_create_enc_context(buf, datasize, &sc, sp) != 0) {
         fprintf(stderr, "Cannot create File Context.\n");
         return 1;
     }
 
     /* Create recoding context */
     struct slnc_recoding_context *rc = malloc(sizeof(struct slnc_recoding_context));
-    if (create_recoding_context(rc, sc->meta, bufsize) != 0) {
+    if (slnc_create_recoding_context(rc, sc->meta, bufsize) != 0) {
         fprintf(stderr, "Cannot create recoding context.\n");
         return 1;
     }
 
     /* Create CBD decoding context */
-    struct decoding_context_CBD *dec_ctx = malloc(sizeof(struct decoding_context_CBD));
-    create_decoding_context_CBD(dec_ctx, sc->meta.datasize, sp);
+    struct slnc_dec_context_CBD *dec_ctx = malloc(sizeof(struct slnc_dec_context_CBD));
+    slnc_create_dec_context_CBD(dec_ctx, sc->meta.datasize, sp);
     clock_t start, stop, dtime = 0;
     while (dec_ctx->finished != 1) {
-        struct coded_packet *pkt = generate_slnc_packet(sc);
-        buffer_packet(rc, pkt);
+        struct slnc_packet *pkt = slnc_generate_packet(sc);
+        slnc_buffer_packet(rc, pkt);
 
-        struct coded_packet *rpkt = generate_recoded_packet(rc, MLPI_SCHED);
+        struct slnc_packet *rpkt = slnc_generate_recoded_packet(rc, RAND_SCHED);
         if (rpkt == NULL)
             continue;
         /* Measure decoding time */
         start = clock();
-        process_packet_CBD(dec_ctx, rpkt);
+        slnc_process_packet_CBD(dec_ctx, rpkt);
         stop = clock();
         dtime += stop - start;
     }
     printf("dec-time: %.2f bufsize: %d ", ((double) dtime)/CLOCKS_PER_SEC, bufsize);
 
-    unsigned char *rec_buf = recover_data(dec_ctx->sc);
+    unsigned char *rec_buf = slnc_recover_data(dec_ctx->sc);
     if (memcmp(buf, rec_buf, datasize) != 0) 
         fprintf(stderr, "recovered is NOT identical to original.\n");
 
     print_code_summary(&dec_ctx->sc->meta, dec_ctx->overhead, dec_ctx->operations);
 
-    free_slnc_context(sc);
-    free_recoding_buffer(rc);
+    slnc_free_enc_context(sc);
+    slnc_free_recoding_buffer(rc);
     free(rc);
-    free_decoding_context_CBD(dec_ctx);
+    slnc_free_dec_context_CBD(dec_ctx);
     return 0;
 }

@@ -11,7 +11,7 @@
  * The REF has the property that if a diagonal element is nonzero, all elements
  * above it are reduced to zero.
  */
-static long running_matrix_to_REF(struct decoding_context_OA *dec_ctx);
+static long running_matrix_to_REF(struct slnc_dec_context_OA *dec_ctx);
 
 /*
  * Construct global decoding matrix (GDM) from REFs of each generation. Two times of
@@ -28,12 +28,12 @@ static long running_matrix_to_REF(struct decoding_context_OA *dec_ctx);
  * | 0 0 0 0 0 x x x |
  * -                -
  */
-static void construct_GDM(struct decoding_context_OA *dec_ctx);
+static void construct_GDM(struct slnc_dec_context_OA *dec_ctx);
 
 /*
  * Fully transform GDM to identity matrix to finish decoding.
  */
-static void diagonalize_GDM(struct decoding_context_OA *dec_ctx);
+static void diagonalize_GDM(struct slnc_dec_context_OA *dec_ctx);
 
 /* Free running matrix */
 static void free_running_matrix(struct running_matrix *mat, int rows);
@@ -43,20 +43,20 @@ extern long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A,
 extern long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int *otoc, int *inactives);
 
 /*
- * create_decoding_context_OA
+ * slnc_create_dec_context_OA
  * Create context for overlap-aware (OA) decoding
  *  aoh - allowed overhead >=0
  */
-void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasize, struct slnc_parameter sp, int aoh)
+void slnc_create_dec_context_OA(struct slnc_dec_context_OA *dec_ctx, long datasize, struct slnc_parameter sp, int aoh)
 {
-    static char fname[] = "create_decoding_context_OA";
+    static char fname[] = "slnc_create_dec_context_OA";
     int i, j, k;
 
     // GNC code context
     // Since this is decoding, we construct GNC context without data
     // sc->pp will be filled by decoded packets
     struct slnc_context *sc;
-    if (create_slnc_context(NULL, datasize, &sc, sp) != 0) 
+    if (slnc_create_enc_context(NULL, datasize, &sc, sp) != 0) 
         fprintf(stderr, "%s: create decoding context failed", fname);
 
     dec_ctx->sc = sc;
@@ -110,7 +110,7 @@ void create_decoding_context_OA(struct decoding_context_OA *dec_ctx, long datasi
     dec_ctx->overhead 	= 0;
 }
 
-void process_packet_OA(struct decoding_context_OA *dec_ctx, struct coded_packet *pkt)
+void slnc_process_packet_OA(struct slnc_dec_context_OA *dec_ctx, struct slnc_packet *pkt)
 {
     dec_ctx->overhead += 1;
 
@@ -226,11 +226,11 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct coded_packet 
         free(re_ordered);
     }
 
-    free_slnc_packet(pkt);
+    slnc_free_packet(pkt);
     pkt = NULL;
 }
 
-void free_decoding_context_OA(struct decoding_context_OA *dec_ctx)
+void slnc_free_dec_context_OA(struct slnc_dec_context_OA *dec_ctx)
 {
     int i, j, k;
     if (dec_ctx->Matrices != NULL) {
@@ -250,7 +250,7 @@ void free_decoding_context_OA(struct decoding_context_OA *dec_ctx)
     free(dec_ctx->JMBmessage);
     free(dec_ctx->otoc_mapping);
     free(dec_ctx->ctoo_mapping);
-    free_slnc_context(dec_ctx->sc);
+    slnc_free_enc_context(dec_ctx->sc);
     free(dec_ctx);
     dec_ctx = NULL;
 }
@@ -270,7 +270,7 @@ static void free_running_matrix(struct running_matrix *mat, int rows)
     }
 }
 
-static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
+static void diagonalize_GDM(struct slnc_dec_context_OA *dec_ctx)
 {
     static char fname[] = "finish_recovering_inactivation";
     int i, j, k;
@@ -355,7 +355,7 @@ static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
 
 // Partially diagonalize all running matrices when the decoder is OA ready
 // diagonalizes them as much as possible
-static long running_matrix_to_REF(struct decoding_context_OA *dec_ctx)
+static long running_matrix_to_REF(struct slnc_dec_context_OA *dec_ctx)
 {
     long long operations = 0;
     int i, j, k, l;
@@ -404,7 +404,7 @@ static long running_matrix_to_REF(struct decoding_context_OA *dec_ctx)
     return operations;
 }
 
-static void construct_GDM(struct decoding_context_OA *dec_ctx)
+static void construct_GDM(struct slnc_dec_context_OA *dec_ctx)
 {
     static char fname[] = "construct_GDM";
     int i, j, k;
@@ -414,7 +414,7 @@ static void construct_GDM(struct decoding_context_OA *dec_ctx)
     int pktsize = dec_ctx->sc->meta.size_p;
     int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
 
-    //Allocate GDM to decoding_context, apply precoding matrix
+    //Allocate GDM to slnc_dec_context, apply precoding matrix
     dec_ctx->JMBcoefficient = calloc(numpp+dec_ctx->aoh, sizeof(GF_ELEMENT*));
     if (dec_ctx->JMBcoefficient == NULL)
         fprintf(stderr, "%s: calloc dec_ctx->JMBcoefficient\n", fname);

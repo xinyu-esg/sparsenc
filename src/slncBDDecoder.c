@@ -1,34 +1,34 @@
-/*-----------------------slncBandDecoder.c----------------------
+/*-----------------------slncBDDecoder.c----------------------
  * Implementation of regular band decoder. It employs pivoting
  * to jointly decode band GNC code and its precode.
  *------------------------------------------------------------*/
 #include "common.h"
 #include "galois.h"
 #include "bipartite.h"
-#include "slncBandDecoder.h"
-static int partially_diag_decoding_matrix(struct decoding_context_BD *dec_ctx);
-static int apply_parity_check_matrix(struct decoding_context_BD *dec_ctx);
-static void finish_recovering_BD(struct decoding_context_BD *dec_ctx);
+#include "slncBDDecoder.h"
+static int partially_diag_decoding_matrix(struct slnc_dec_context_BD *dec_ctx);
+static int apply_parity_check_matrix(struct slnc_dec_context_BD *dec_ctx);
+static void finish_recovering_BD(struct slnc_dec_context_BD *dec_ctx);
 
 extern long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B);
 extern long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B);
 extern long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int *otoc, int *inactives);
 
 // create decoding context for band decoder
-void create_decoding_context_BD(struct decoding_context_BD *dec_ctx, long datasize, struct slnc_parameter sp)
+void slnc_create_dec_context_BD(struct slnc_dec_context_BD *dec_ctx, long datasize, struct slnc_parameter sp)
 {
-    static char fname[] = "create_decoding_context_BD";
+    static char fname[] = "slnc_create_dec_context_BD";
     int i, j, k;
 
     // GNC code context
     // Since this is decoding, we construct GNC context without data
     // sc->pp will be filled by decoded packets
-    if (sp.type != BAND_GNC_CODE) {
+    if (sp.type != BAND_SLNC) {
         fprintf(stderr, "Band decoder only applies to band GNC code.\n");
         return;
     }
     struct slnc_context *sc;
-    if (create_slnc_context(NULL, datasize, &sc, sp) != 0) 
+    if (slnc_create_enc_context(NULL, datasize, &sc, sp) != 0) 
         fprintf(stderr, "%s: create decoding context failed", fname);
 
     dec_ctx->sc = sc;
@@ -62,7 +62,7 @@ void create_decoding_context_BD(struct decoding_context_BD *dec_ctx, long datasi
 }
 
 
-void process_packet_BD(struct decoding_context_BD *dec_ctx, struct coded_packet *pkt)
+void slnc_process_packet_BD(struct slnc_dec_context_BD *dec_ctx, struct slnc_packet *pkt)
 {
 
     dec_ctx->overhead += 1;
@@ -160,7 +160,7 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct coded_packet 
         finish_recovering_BD(dec_ctx);
     }
 
-    free_slnc_packet(pkt);
+    slnc_free_packet(pkt);
     pkt = NULL;
     free(ces);
     ces = NULL;
@@ -170,7 +170,7 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct coded_packet 
  * Partially diagonalize the upper-trianguler decoding matrix, 
  * i.e., remove nonzero elements above nonzero diagonal elements
  */
-static int partially_diag_decoding_matrix(struct decoding_context_BD *dec_ctx)
+static int partially_diag_decoding_matrix(struct slnc_dec_context_BD *dec_ctx)
 {
     int 		i, j, l;
     int 		nonzero_rows = 0;
@@ -223,7 +223,7 @@ static int partially_diag_decoding_matrix(struct decoding_context_BD *dec_ctx)
 }
 
 // Apply the parity-check matrix to the decoding matrix; pivot, re-order and try to jointly decode
-static int apply_parity_check_matrix(struct decoding_context_BD *dec_ctx)
+static int apply_parity_check_matrix(struct slnc_dec_context_BD *dec_ctx)
 {
     int i, j, k;
     int num_of_new_DoF = 0;
@@ -263,7 +263,7 @@ static int apply_parity_check_matrix(struct decoding_context_BD *dec_ctx)
 
 
 // recover decoded packets after NUM_SRC DoF has been received
-static void finish_recovering_BD(struct decoding_context_BD *dec_ctx)
+static void finish_recovering_BD(struct slnc_dec_context_BD *dec_ctx)
 {
     int gensize = dec_ctx->sc->meta.size_g;
     int pktsize = dec_ctx->sc->meta.size_p;
@@ -280,7 +280,7 @@ static void finish_recovering_BD(struct decoding_context_BD *dec_ctx)
     dec_ctx->finished = 1;
 }
 
-void free_decoding_context_BD(struct decoding_context_BD *dec_ctx)
+void slnc_free_dec_context_BD(struct slnc_dec_context_BD *dec_ctx)
 {
     for (int i=dec_ctx->sc->meta.snum+dec_ctx->sc->meta.cnum-1; i>=0; i--) {
         free(dec_ctx->coefficient[i]);
@@ -291,7 +291,7 @@ void free_decoding_context_BD(struct decoding_context_BD *dec_ctx)
     free(dec_ctx->overheads);
     free(dec_ctx->otoc_mapping);
     free(dec_ctx->ctoo_mapping);
-    free_slnc_context(dec_ctx->sc);
+    slnc_free_enc_context(dec_ctx->sc);
     free(dec_ctx);
     dec_ctx = NULL;
 }

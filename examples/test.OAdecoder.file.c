@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
     int size_b     = atoi(argv[2]);
     int size_g     = atoi(argv[3]);
     int size_p     = atoi(argv[4]);
-    int slnc_type   = BAND_GNC_CODE;
+    int slnc_type   = BAND_SLNC;
 
     //char filename[] = "test.file";
     srand( (int) time(0) );
@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    if (create_slnc_context_from_file(fp, &sc, size_b, size_g, size_p, slnc_type) != 0) {
+    if (slnc_create_enc_context_from_file(fp, &sc, size_b, size_g, size_p, slnc_type) != 0) {
         printf("Cannot create File Context.\n");
         return 1;
     }
@@ -44,11 +44,11 @@ int main(int argc, char *argv[])
     printf("File size: %ld\n", sc->meta.datasize);
     printf("Number of packets: %d\n", sc->meta.snum);
 
-    struct decoding_context_OA *dec_ctx = malloc(sizeof(struct decoding_context_OA));
-    create_decoding_context_OA(dec_ctx, sc->meta.datasize, sc->meta.size_b, sc->meta.size_g, sc->meta.size_p, sc->meta.type, 0);
+    struct slnc_dec_context_OA *dec_ctx = malloc(sizeof(struct slnc_dec_context_OA));
+    slnc_create_dec_context_OA(dec_ctx, sc->meta.datasize, sc->meta.size_b, sc->meta.size_g, sc->meta.size_p, sc->meta.type, 0);
     while (!dec_ctx->finished) {
-        struct coded_packet *pkt = generate_slnc_packet(sc);
-        process_packet_OA(dec_ctx, pkt);
+        struct slnc_packet *pkt = slnc_generate_packet(sc);
+        slnc_process_packet_OA(dec_ctx, pkt);
     }
     printf("overhead: %f computation: %f/symbol\n", 
             (double) dec_ctx->overhead/dec_ctx->sc->meta.snum,
@@ -62,9 +62,9 @@ int main(int argc, char *argv[])
         printf("main: fopen %s failed.\n", copyname);
         exit(1);
     }
-    recover_data_to_file(wfp, dec_ctx->sc);
+    slnc_recover_data_to_file(wfp, dec_ctx->sc);
     fclose(wfp);
-    free_slnc_context(sc);
-    free_decoding_context_OA(dec_ctx);
+    slnc_free_enc_context(sc);
+    slnc_free_dec_context_OA(dec_ctx);
     return 0;
 }

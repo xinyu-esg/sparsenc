@@ -16,7 +16,7 @@ static void perform_precoding(struct slnc_context *sc);
 static int group_packets_rand(struct slnc_context *sc);
 static int group_packets_band(struct slnc_context *sc);
 static int group_packets_windwrap(struct slnc_context *sc);
-static void encode_packet(struct slnc_context *sc, int gid, struct coded_packet *pkt);
+static void encode_packet(struct slnc_context *sc, int gid, struct slnc_packet *pkt);
 static int schedule_generation(struct slnc_context *sc);
 /*
  * Create a GNC context containing meta information about the data to be encoded.
@@ -31,9 +31,9 @@ static int schedule_generation(struct slnc_context *sc);
  *   0  - Create successfully
  *   -1 - Create failed
  */
-int create_slnc_context(char *buf, long datasize, struct slnc_context **sc, struct slnc_parameter sp)
+int slnc_create_enc_context(char *buf, long datasize, struct slnc_context **sc, struct slnc_parameter sp)
 {
-    static char fname[] = "create_slnc_context";
+    static char fname[] = "slnc_create_enc_context";
     // Allocate file_context
     if ( (*sc = calloc(1, sizeof(struct slnc_context))) == NULL ) {
         fprintf(stderr, "%s: calloc file_context\n", fname);
@@ -51,7 +51,7 @@ int create_slnc_context(char *buf, long datasize, struct slnc_context **sc, stru
     (*sc)->meta.datasize = datasize;
     (*sc)->meta.snum  = num_src;							  // Number of source packets
     (*sc)->meta.cnum  = num_chk;							  // Number of check packets
-    if ((*sc)->meta.type == BAND_GNC_CODE) 
+    if ((*sc)->meta.type == BAND_SLNC) 
         (*sc)->meta.gnum  = ALIGN((num_src+num_chk-(*sc)->meta.size_g), (*sc)->meta.size_b) + 1; 
     else
         (*sc)->meta.gnum  = ALIGN( (num_src+num_chk), (*sc)->meta.size_b); 
@@ -102,9 +102,9 @@ int create_slnc_context(char *buf, long datasize, struct slnc_context **sc, stru
 }
 
 
-int create_slnc_context_from_file(FILE *fp, struct slnc_context **sc, struct slnc_parameter sp)
+int slnc_create_enc_context_from_file(FILE *fp, struct slnc_context **sc, struct slnc_parameter sp)
 {
-    static char fname[] = "create_slnc_context_from_file";
+    static char fname[] = "slnc_create_enc_context_from_file";
     // Get file size
     /* Seek to file end */
     if (fseek(fp, 0, SEEK_END) == -1) 
@@ -115,7 +115,7 @@ int create_slnc_context_from_file(FILE *fp, struct slnc_context **sc, struct sln
         fprintf(stderr, "%s: fseek SEEK_SET\n", fname);
 
     /* Create slnc_context without actual data */
-    create_slnc_context(NULL, datasize, sc, sp);
+    slnc_create_enc_context(NULL, datasize, sc, sp);
     return(0);
 }
 
@@ -124,9 +124,9 @@ int create_slnc_context_from_file(FILE *fp, struct slnc_context **sc, struct sln
  * caller's responsibility to ensure that the pair of FILE* and 
  * slnc_context matches.
  */
-int load_file_to_slnc_context(FILE *fp, struct slnc_context *sc)
+int slnc_load_file_to_context(FILE *fp, struct slnc_context *sc)
 {
-    static char fname[] = "load_file_to_slnc_context";
+    static char fname[] = "slnc_load_file_to_context";
     int alread = 0;
     for (int i=0; i<sc->meta.snum+sc->meta.cnum; i++) {
         sc->pp[i] = calloc(sc->meta.size_p, sizeof(GF_ELEMENT));
@@ -159,7 +159,7 @@ static int verify_code_parameter(struct slnc_metainfo *meta)
  */
 static int create_context_from_meta(struct slnc_context *sc)
 {
-    static char fname[] = "create_slnc_context_meta";
+    static char fname[] = "slnc_create_enc_context_meta";
     // Inintialize generation structures
     sc->gene  = malloc(sizeof(struct subgeneration *) * sc->meta.gnum);
     if ( sc->gene == NULL ) {
@@ -182,11 +182,11 @@ static int create_context_from_meta(struct slnc_context *sc)
     }
 
     int coverage;
-    if (sc->meta.type == RAND_GNC_CODE) 
+    if (sc->meta.type == RAND_SLNC) 
         coverage = group_packets_rand(sc);
-    else if (sc->meta.type == BAND_GNC_CODE)
+    else if (sc->meta.type == BAND_SLNC)
         coverage = group_packets_band(sc);
-    else if (sc->meta.type == WINDWRAP_GNC_CODE)
+    else if (sc->meta.type == WINDWRAP_SLNC)
         coverage = group_packets_windwrap(sc);
 
 #if defined(GNCTRACE)
@@ -203,7 +203,7 @@ static int create_context_from_meta(struct slnc_context *sc)
     return(0);
 }
 
-int free_slnc_context(struct slnc_context *sc)
+int slnc_free_enc_context(struct slnc_context *sc)
 {
     int i;
     for (i=sc->meta.snum+sc->meta.cnum-1; i>=0; i--) {
@@ -225,9 +225,9 @@ int free_slnc_context(struct slnc_context *sc)
     return(0);
 }
 
-unsigned char *recover_data(struct slnc_context *sc)
+unsigned char *slnc_recover_data(struct slnc_context *sc)
 {
-    static char fname[] = "recover_data";
+    static char fname[] = "slnc_recover_data";
     long datasize = sc->meta.datasize;
     long alwrote = 0;
     long towrite = datasize;
@@ -247,9 +247,9 @@ unsigned char *recover_data(struct slnc_context *sc)
 }
 
 /* recover data to file */
-long recover_data_to_file(FILE *fp, struct slnc_context *sc)
+long slnc_recover_data_to_file(FILE *fp, struct slnc_context *sc)
 {
-    static char fname[] = "recover_data";
+    static char fname[] = "slnc_recover_data";
     long datasize = sc->meta.datasize;
     long alwrote = 0;
     long towrite = datasize;
@@ -410,9 +410,9 @@ static int group_packets_windwrap(struct slnc_context *sc)
  *  coes: zeros
  *  syms: zeros
  */
-struct coded_packet *alloc_empty_packet(int size_g, int size_p)
+struct slnc_packet *slnc_alloc_empty_packet(int size_g, int size_p)
 {
-    struct coded_packet *pkt = calloc(1, sizeof(struct coded_packet));
+    struct slnc_packet *pkt = calloc(1, sizeof(struct slnc_packet));
     if (pkt == NULL)
         return NULL;
     pkt->coes = calloc(size_g, sizeof(GF_ELEMENT));
@@ -425,14 +425,14 @@ struct coded_packet *alloc_empty_packet(int size_g, int size_p)
     return pkt;
 
 AllocErr:
-    free_slnc_packet(pkt);
+    slnc_free_packet(pkt);
     return NULL;
 }
 
 /* Generate a GNC coded packet. Memory is allocated in the function. */
-struct coded_packet *generate_slnc_packet(struct slnc_context *sc)
+struct slnc_packet *slnc_generate_packet(struct slnc_context *sc)
 {
-    struct coded_packet *pkt = alloc_empty_packet(sc->meta.size_g, sc->meta.size_p);
+    struct slnc_packet *pkt = slnc_alloc_empty_packet(sc->meta.size_g, sc->meta.size_p);
     int gid = schedule_generation(sc);
     encode_packet(sc, gid, pkt);
     return pkt;
@@ -442,7 +442,7 @@ struct coded_packet *generate_slnc_packet(struct slnc_context *sc)
  * Generate a GNC coded packet in a given memory area.
  * It is the caller's responsibity to allocate memory properly.
  */
-int generate_slnc_packet_im(struct slnc_context *sc, struct coded_packet *pkt)
+int slnc_generate_packet_im(struct slnc_context *sc, struct slnc_packet *pkt)
 {
     if (pkt == NULL || pkt->coes == NULL || pkt->syms == NULL)
         return -1;
@@ -453,7 +453,7 @@ int generate_slnc_packet_im(struct slnc_context *sc, struct coded_packet *pkt)
     return (0);
 }
 
-void free_slnc_packet(struct coded_packet *pkt)
+void slnc_free_packet(struct slnc_packet *pkt)
 {
     if (pkt == NULL)
         return;
@@ -465,7 +465,7 @@ void free_slnc_packet(struct coded_packet *pkt)
 }
 
 
-static void encode_packet(struct slnc_context *sc, int gid, struct coded_packet *pkt)
+static void encode_packet(struct slnc_context *sc, int gid, struct slnc_packet *pkt)
 {
     pkt->gid = gid;
     int i;
@@ -493,13 +493,13 @@ void print_code_summary(struct slnc_metainfo *meta, int overhead, long long oper
 {
     char typestr[20];
     switch(meta->type) {
-        case RAND_GNC_CODE:
+        case RAND_SLNC:
             strcpy(typestr, "RAND");
             break;
-        case BAND_GNC_CODE:
+        case BAND_SLNC:
             strcpy(typestr, "BAND");
             break;
-        case WINDWRAP_GNC_CODE:
+        case WINDWRAP_SLNC:
             strcpy(typestr, "WINDWRAP");
             break;
         default:

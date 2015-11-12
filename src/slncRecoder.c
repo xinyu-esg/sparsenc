@@ -3,22 +3,22 @@
 
 static int schedule_recode_generation(struct slnc_buffer *buf, int sched_t);
 
-int create_recoding_context(struct slnc_recoding_context *rc, struct slnc_metainfo meta, int bufsize)
+int slnc_create_recoding_context(struct slnc_recoding_context *rc, struct slnc_metainfo meta, int bufsize)
 {
-    static char fname[] = "create_recoding_context";
+    static char fname[] = "slnc_create_recoding_context";
     int i;
     rc->meta = meta;
     //initialize recoding buffer
     rc->buf.gnum = meta.gnum;
     rc->buf.size = bufsize;
     rc->buf.nemp = 0;
-    if ((rc->buf.gbuf = calloc(meta.gnum, sizeof(struct coded_packet **))) == NULL) {
+    if ((rc->buf.gbuf = calloc(meta.gnum, sizeof(struct slnc_packet **))) == NULL) {
         fprintf(stderr, "%s: calloc recoding_context\n", fname);
         goto Error;
     }
     for (i=0; i<meta.gnum; i++) {
         /* Initialize pointers of buffered packets of each generation as NULL */
-        if ((rc->buf.gbuf[i] = calloc(bufsize, sizeof(struct coded_packet *))) == NULL) {
+        if ((rc->buf.gbuf[i] = calloc(bufsize, sizeof(struct slnc_packet *))) == NULL) {
             fprintf(stderr, "%s: calloc buf.gbuf[%d]\n", fname, i);
             goto Error;
         }
@@ -38,13 +38,13 @@ int create_recoding_context(struct slnc_recoding_context *rc, struct slnc_metain
     return (0);
 
 Error:
-    free_recoding_buffer(rc);
+    slnc_free_recoding_buffer(rc);
     return (-1);
 }
 
 /*
  * Buffer structure example (nc=1, pn=1)
- * coded_packet     
+ * slnc_packet     
  *      ^           NULL         NULL
  *      |            |            |
  *      |            |            |
@@ -54,7 +54,7 @@ Error:
  *                   |
  *                pn = 1
  */
-void buffer_packet(struct slnc_recoding_context *rc, struct coded_packet *pkt)
+void slnc_buffer_packet(struct slnc_recoding_context *rc, struct slnc_packet *pkt)
 {
     int gid = pkt->gid;
     if (rc->buf.nc[gid] == 0) {
@@ -64,7 +64,7 @@ void buffer_packet(struct slnc_recoding_context *rc, struct coded_packet *pkt)
         rc->buf.nemp++;
     } else if (rc->buf.nc[gid] == rc->buf.size) {
         /* Buffer of the generation is full, FIFO */
-        free_slnc_packet(rc->buf.gbuf[gid][rc->buf.pn[gid]]);    /*discard packet previously stored in the position*/
+        slnc_free_packet(rc->buf.gbuf[gid][rc->buf.pn[gid]]);    /*discard packet previously stored in the position*/
         rc->buf.gbuf[gid][rc->buf.pn[gid]] = pkt;
     } else {
         /* Buffer is neither empty nor full */
@@ -75,13 +75,13 @@ void buffer_packet(struct slnc_recoding_context *rc, struct coded_packet *pkt)
     return;
 }
 
-struct coded_packet *generate_recoded_packet(struct slnc_recoding_context *rc, int sched_t)
+struct slnc_packet *slnc_generate_recoded_packet(struct slnc_recoding_context *rc, int sched_t)
 {
     int gid = schedule_recode_generation(&rc->buf, sched_t);
     if (gid == -1) 
         return NULL;
 
-    struct coded_packet *pkt = alloc_empty_packet(rc->meta.size_g, rc->meta.size_p);
+    struct slnc_packet *pkt = slnc_alloc_empty_packet(rc->meta.size_g, rc->meta.size_p);
     if (pkt == NULL)
         return NULL;
 
@@ -132,13 +132,13 @@ static int schedule_recode_generation(struct slnc_buffer *buf, int sched_t)
     }
 }
 
-void free_recoding_buffer(struct slnc_recoding_context *rc)
+void slnc_free_recoding_buffer(struct slnc_recoding_context *rc)
 {
     for (int i=0; i<rc->meta.gnum; i++) {
         if (rc->buf.gbuf != NULL && rc->buf.gbuf[i] != NULL) {
             /* Free bufferred packets, if any */
             for (int j=0; j<rc->buf.size; j++)
-                free_slnc_packet(rc->buf.gbuf[i][j]);	
+                slnc_free_packet(rc->buf.gbuf[i][j]);	
             /* Free the pointer array */
             free(rc->buf.gbuf[i]);
         }
