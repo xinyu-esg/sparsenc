@@ -1,5 +1,5 @@
-#ifndef GG_DECODER
-#define GG_DECODER
+#ifndef GG_DECODER_H
+#define GG_DECODER_H
 #include "slncEncoder.h"
 
 #define FB_THOLD	1
@@ -12,7 +12,9 @@ typedef unsigned long FLAGS;					/* bit flags */
 #define _FLAG_ON(x, n)  (((x) & _BIT_MASK(n)) == _BIT_MASK(n))
 #define _FLAG_OFF(x, n) (((x) & _BIT_MASK(n)) == 0)
 
-struct slnc_dec_context_GG {
+struct running_matrix;
+
+struct decoding_context_GG {
     struct slnc_context	*sc;						// The file information
     /********************************
      * Used in decoding LDPC pre-code
@@ -44,16 +46,7 @@ struct slnc_dec_context_GG {
     int overhead;									// record how many packets have been received
 };
 
-// to store matrices in processing (needed by the decoder)
-struct running_matrix {
-    int remaining_rows;								// record how many linearly independent encoding vectors we have
-    int remaining_cols;								// record how many source packets remain unknown
-    FLAGS erased;									// bits indicating erased columns due to back-substitution 
-    GF_ELEMENT **coefficient;
-    GF_ELEMENT **message;
-};
-
-void slnc_create_dec_context_GG(struct slnc_dec_context_GG *dec_ctx, long datasize, struct slnc_parameter sp);
-void slnc_free_dec_context_GG(struct slnc_dec_context_GG *dec_ctx);
-void slnc_process_packet_GG(struct slnc_dec_context_GG *dec_ctx, struct slnc_packet *pkt);
+void create_dec_context_GG(struct decoding_context_GG *dec_ctx, long datasize, struct slnc_parameter sp);
+void free_dec_context_GG(struct decoding_context_GG *dec_ctx);
+void process_packet_GG(struct decoding_context_GG *dec_ctx, struct slnc_packet *pkt);
 #endif /* GG_DECODER */

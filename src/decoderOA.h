@@ -1,12 +1,13 @@
-#ifndef OA_DECODER
-#define OA_DECODER
+#ifndef OA_DECODER_H
+#define OA_DECODER_H
 #include "slncEncoder.h"
+struct running_matrix;
 /*
  * OA (overlap aware) DECODING CONTEXT is used at each destination node
  * to record the status of the decoder. It is the core
  * information needed by the decoder
  */
-struct slnc_dec_context_OA
+struct decoding_context_OA
 {
     // GNC context
     struct slnc_context *sc;
@@ -33,15 +34,7 @@ struct slnc_dec_context_OA
     long long operations;							// record the number of computations used
 };
 
-
-// to store matrices in processing (needed by the decoder)
-struct running_matrix
-{
-    GF_ELEMENT **coefficient;						//[CLASS_SIZE][CLASS_SIZE];		
-    GF_ELEMENT **message;							//[CLASS_SIZE][EXT_N];
-};
-
-void slnc_create_dec_context_OA(struct slnc_dec_context_OA *dec_ctx, long datasize, struct slnc_parameter sp, int aoh);
-void slnc_process_packet_OA(struct slnc_dec_context_OA *dec_ctx, struct slnc_packet *pkt);
-void slnc_free_dec_context_OA(struct slnc_dec_context_OA *dec_ctx);
+void create_dec_context_OA(struct decoding_context_OA *dec_ctx, long datasize, struct slnc_parameter sp, int aoh);
+void process_packet_OA(struct decoding_context_OA *dec_ctx, struct slnc_packet *pkt);
+void free_dec_context_OA(struct decoding_context_OA *dec_ctx);
 #endif

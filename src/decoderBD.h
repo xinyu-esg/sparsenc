@@ -2,7 +2,7 @@
 /*
  * BD (band GNC code) DECODING CONTEXT
  */
-struct slnc_dec_context_BD
+struct decoding_context_BD
 {
     // GNC context
     struct slnc_context *sc;
@@ -26,7 +26,7 @@ struct slnc_dec_context_BD
     long long operations;							// record the number of computations used
 };
 
-void slnc_create_dec_context_BD(struct slnc_dec_context_BD *dec_ctx, long datasize, struct slnc_parameter sp);
-void slnc_process_packet_BD(struct slnc_dec_context_BD *dec_ctx, struct slnc_packet *pkt);
-void slnc_free_dec_context_BD(struct slnc_dec_context_BD *dec_ctx);
+void create_dec_context_BD(struct decoding_context_BD *dec_ctx, long datasize, struct slnc_parameter sp);
+void process_packet_BD(struct decoding_context_BD *dec_ctx, struct slnc_packet *pkt);
+void free_dec_context_BD(struct decoding_context_BD *dec_ctx);
 

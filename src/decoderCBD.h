@@ -1,5 +1,5 @@
-#ifndef CBD_DECODER
-#define CBD_DECODER
+#ifndef CBD_DECODER_H
+#define CBD_DECODER_H
 #include "slncEncoder.h"
 
 /* Row vector of a matrix */
@@ -11,7 +11,7 @@ struct row_vector
 /*
  * Compact BD (band GNC code) DECODING CONTEXT
  */
-struct slnc_dec_context_CBD
+struct decoding_context_CBD
 {
     // GNC context
     struct slnc_context *sc;
@@ -30,7 +30,7 @@ struct slnc_dec_context_CBD
     long long operations;		// record the number of computations used
 };
 
-void slnc_create_dec_context_CBD(struct slnc_dec_context_CBD *dec_ctx, long datasize, struct slnc_parameter sp);
-void slnc_process_packet_CBD(struct slnc_dec_context_CBD *dec_ctx, struct slnc_packet *pkt);
-void slnc_free_dec_context_CBD(struct slnc_dec_context_CBD *dec_ctx);
+void create_dec_context_CBD(struct decoding_context_CBD *dec_ctx, long datasize, struct slnc_parameter sp);
+void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct slnc_packet *pkt);
+void free_dec_context_CBD(struct decoding_context_CBD *dec_ctx);
 #endif

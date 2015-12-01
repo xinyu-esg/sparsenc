@@ -4,23 +4,33 @@
 #include "common.h"
 #include "galois.h"
 #include "bipartite.h"
-#include "slncGGDecoder.h"
+#include "decoderGG.h"
 
-static void decode_generation(struct slnc_dec_context_GG *dec_ctx, int gid);
-static void perform_iterative_decoding(struct slnc_dec_context_GG *dec_ctx);
-static void new_decoded_source_packet(struct slnc_dec_context_GG *dec_ctx, int pkt_id);
-static void new_decoded_check_packet(struct slnc_dec_context_GG *dec_ctx, int pkt_id);
-static void update_generations(struct slnc_dec_context_GG *dec_ctx);
-static long update_running_matrix(struct slnc_dec_context_GG *dec_ctx, int gid, int sid, int index);
-static int check_for_new_recoverables(struct slnc_dec_context_GG *dec_ctx);
-static int check_for_new_decodables(struct slnc_dec_context_GG *dec_ctx);
-static void mask_packet(struct slnc_dec_context_GG *dec_ctx, GF_ELEMENT ce, int index, struct slnc_packet *enc_pkt);
+// to store matrices in processing (needed by the decoder)
+struct running_matrix {
+    int remaining_rows;								// record how many linearly independent encoding vectors we have
+    int remaining_cols;								// record how many source packets remain unknown
+    FLAGS erased;									// bits indicating erased columns due to back-substitution 
+    GF_ELEMENT **coefficient;
+    GF_ELEMENT **message;
+};
+
+
+static void decode_generation(struct decoding_context_GG *dec_ctx, int gid);
+static void perform_iterative_decoding(struct decoding_context_GG *dec_ctx);
+static void new_decoded_source_packet(struct decoding_context_GG *dec_ctx, int pkt_id);
+static void new_decoded_check_packet(struct decoding_context_GG *dec_ctx, int pkt_id);
+static void update_generations(struct decoding_context_GG *dec_ctx);
+static long update_running_matrix(struct decoding_context_GG *dec_ctx, int gid, int sid, int index);
+static int check_for_new_recoverables(struct decoding_context_GG *dec_ctx);
+static int check_for_new_decodables(struct decoding_context_GG *dec_ctx);
+static void mask_packet(struct decoding_context_GG *dec_ctx, GF_ELEMENT ce, int index, struct slnc_packet *enc_pkt);
 
 extern long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B);
 extern long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B);
 
 // setup decoding context:
-void slnc_create_dec_context_GG(struct slnc_dec_context_GG *dec_ctx, long datasize, struct slnc_parameter sp)
+void create_dec_context_GG(struct decoding_context_GG *dec_ctx, long datasize, struct slnc_parameter sp)
 {
     //(char *buf, long datasize, struct slnc_context **sc, int s_b, int s_g, int s_p)
     static char fname[] = "slnc_create_dec_context_GG";
@@ -96,7 +106,7 @@ void slnc_create_dec_context_GG(struct slnc_dec_context_GG *dec_ctx, long datasi
     constructField(GF_POWER);		/*construct Galois field if necessary*/
 }
 
-void slnc_free_dec_context_GG(struct slnc_dec_context_GG *dec_ctx)
+void free_dec_context_GG(struct decoding_context_GG *dec_ctx)
 {
     int i, j, k;
     for (i=0; i<dec_ctx->sc->meta.cnum; i++) {
@@ -125,7 +135,7 @@ void slnc_free_dec_context_GG(struct slnc_dec_context_GG *dec_ctx)
 
 
 // cache a new received packet, extract its information and try decode the class it belongs to
-void slnc_process_packet_GG(struct slnc_dec_context_GG *dec_ctx, struct slnc_packet *pkt)
+void process_packet_GG(struct decoding_context_GG *dec_ctx, struct slnc_packet *pkt)
 {
     dec_ctx->overhead += 1;
 
@@ -185,7 +195,7 @@ void slnc_process_packet_GG(struct slnc_dec_context_GG *dec_ctx, struct slnc_pac
 }
 
 // decode packets of a generation via Gaussion elimination
-static void decode_generation(struct slnc_dec_context_GG *dec_ctx, int gid)
+static void decode_generation(struct decoding_context_GG *dec_ctx, int gid)
 {
     static char fname[] = "decode_generation";
     //printf("entering decoding_class()...\n");
@@ -243,7 +253,7 @@ static void decode_generation(struct slnc_dec_context_GG *dec_ctx, int gid)
 
 // This function performs iterative decoding on the precode and GNC code,
 // based on the most recently decoded packets from a generation by decode_generation()
-static void perform_iterative_decoding(struct slnc_dec_context_GG *dec_ctx)
+static void perform_iterative_decoding(struct decoding_context_GG *dec_ctx)
 {
     static char fname[] = "perform_iterative_decoding";
     // Perform iterative precode decoding
@@ -268,7 +278,7 @@ static void perform_iterative_decoding(struct slnc_dec_context_GG *dec_ctx)
 }
 
 // Precedures to take when a source packet is decoded from a generation
-static void new_decoded_source_packet(struct slnc_dec_context_GG *dec_ctx, int pkt_id)
+static void new_decoded_source_packet(struct decoding_context_GG *dec_ctx, int pkt_id)
 {
     static char fname[] = "new_decoded_source_packet";
     dec_ctx->decoded   += 1;
@@ -301,7 +311,7 @@ static void new_decoded_source_packet(struct slnc_dec_context_GG *dec_ctx, int p
 }
 
 // Procedures to take when a check packet is decoded from a generation
-static void new_decoded_check_packet(struct slnc_dec_context_GG *dec_ctx, int pkt_id)
+static void new_decoded_check_packet(struct decoding_context_GG *dec_ctx, int pkt_id)
 {
     static char fname[] = "new_decoded_check_packet";
     dec_ctx->decoded += 1;
@@ -328,7 +338,7 @@ static void new_decoded_check_packet(struct slnc_dec_context_GG *dec_ctx, int pk
 // This function is part of iterative precode decoding, which
 // checks for new recoverable source/check packet after new packets
 // are decoded from generations and processed accordingly.
-static int check_for_new_recoverables(struct slnc_dec_context_GG *dec_ctx)
+static int check_for_new_recoverables(struct decoding_context_GG *dec_ctx)
 {
     static char fname[] = "check_for_new_recoverables";
     int snum = dec_ctx->sc->meta.snum;
@@ -392,7 +402,7 @@ static int check_for_new_recoverables(struct slnc_dec_context_GG *dec_ctx)
 }
 
 // Update non-decoded generations with recently decoded packets
-static void update_generations(struct slnc_dec_context_GG *dec_ctx)
+static void update_generations(struct decoding_context_GG *dec_ctx)
 {
     static char fname[] = "update_generations";
 
@@ -412,106 +422,106 @@ static void update_generations(struct slnc_dec_context_GG *dec_ctx)
             }
         }
         precent = precent->next;
-        }
-        // Clean up recently decoded packet ID list
-        clear_list(dec_ctx->recent);
     }
+    // Clean up recently decoded packet ID list
+	clear_list(dec_ctx->recent);
+}
 
-    /********************************************************
-     * updating running matrix with a decoded packet
-     *   gid - generation id of the matrix to be updated;
-     *   sid - packet id against which the matrix is updated;
-     *   index - column index the packet belongs to
-     *********************************************************/
-    static long update_running_matrix(struct slnc_dec_context_GG *dec_ctx, int gid, int sid, int index)
-    {
-        static char fname[] = "update_running_matrix";
-        //printf("entering update_running_matrix()...\n");
-        int i, j, k;
-        long operations = 0;
-        struct running_matrix *matrix = dec_ctx->Matrices[gid];
-        int r_rows = matrix->remaining_rows;
-        int r_cols = matrix->remaining_cols;
+/********************************************************
+ * updating running matrix with a decoded packet
+ *   gid - generation id of the matrix to be updated;
+ *   sid - packet id against which the matrix is updated;
+ *   index - column index the packet belongs to
+ *********************************************************/
+static long update_running_matrix(struct decoding_context_GG *dec_ctx, int gid, int sid, int index)
+{
+    static char fname[] = "update_running_matrix";
+    //printf("entering update_running_matrix()...\n");
+    int i, j, k;
+    long operations = 0;
+    struct running_matrix *matrix = dec_ctx->Matrices[gid];
+    int r_rows = matrix->remaining_rows;
+    int r_cols = matrix->remaining_cols;
 
-        // 1, update coefficient matrix: erase one column
-        // index - the column position where the dec_pkt is in this matrix
-        //
-        // Calculate how many packet remains unknown in front of the position index of this class
-        // move the erased column to the last column, move remaining columns behind forward
-        int count = 0;
-        for (i=0; i<index; i++) {
-            if ( _FLAG_OFF(matrix->erased, i) )
-                count += 1;
+    // 1, update coefficient matrix: erase one column
+    // index - the column position where the dec_pkt is in this matrix
+    //
+    // Calculate how many packet remains unknown in front of the position index of this class
+    // move the erased column to the last column, move remaining columns behind forward
+    int count = 0;
+    for (i=0; i<index; i++) {
+        if ( _FLAG_OFF(matrix->erased, i) )
+            count += 1;
+    }
+    // Now the column of index "count" is the column corresponding to the decoded packet of ID "index"
+    for (j=count+1; j<r_cols; j++) {
+        for (k=0; k<r_rows; k++) {
+            GF_ELEMENT tmp = matrix->coefficient[k][j-1];
+            matrix->coefficient[k][j-1] = matrix->coefficient[k][j];
+            matrix->coefficient[k][j] = tmp;
         }
-        // Now the column of index "count" is the column corresponding to the decoded packet of ID "index"
-        for (j=count+1; j<r_cols; j++) {
-            for (k=0; k<r_rows; k++) {
-                GF_ELEMENT tmp = matrix->coefficient[k][j-1];
-                matrix->coefficient[k][j-1] = matrix->coefficient[k][j];
-                matrix->coefficient[k][j] = tmp;
+    }
+    // 2, update the message matrix
+    for (i=0; i<r_rows; i++) {
+        GF_ELEMENT ce = matrix->coefficient[i][r_cols-1];		// the encoding coefficient of the erasuing packet
+        if (ce == 0)
+            continue;										// NOTE: the matrix could high likely be sparse
+        galois_multiply_add_region(&matrix->message[i][0], dec_ctx->sc->pp[sid], ce, dec_ctx->sc->meta.size_p, GF_POWER);
+        operations += dec_ctx->sc->meta.size_p;
+    }
+    _FLAG_SET(matrix->erased, index);		// mark the column as erased
+    matrix->remaining_cols -= 1;
+    return operations;
+}
+
+// Check if there is new decodable generations
+static int check_for_new_decodables(struct decoding_context_GG *dec_ctx)
+{
+    static char fname[] = "check_for_new_decodables";
+    int i, j, k;
+    for (i=0; i<dec_ctx->sc->meta.gnum; i++) {
+        struct running_matrix *matrix = dec_ctx->Matrices[i];
+        if ( matrix->remaining_cols != 0
+                && matrix->remaining_rows >= matrix->remaining_cols ) {
+            int r_rows = matrix->remaining_rows;
+            int r_cols = matrix->remaining_cols;
+            // perform forward substitution
+            int flushing_ops = forward_substitute(r_rows, r_cols, dec_ctx->sc->meta.size_p, matrix->coefficient, matrix->message);
+            dec_ctx->operations += flushing_ops;
+
+            // check if the new packet is full rank, if yes, decode it, if not refresh the coefficient and message matrix anyway
+            int full_rank = 1;
+            int innovatives = 0;
+            for (j=0; j<r_cols; j++) {
+                if (matrix->coefficient[j][j] == 0)
+                    full_rank = 0;
+                else
+                    innovatives += 1;	
             }
-        }
-        // 2, update the message matrix
-        for (i=0; i<r_rows; i++) {
-            GF_ELEMENT ce = matrix->coefficient[i][r_cols-1];		// the encoding coefficient of the erasuing packet
-            if (ce == 0)
-                continue;										// NOTE: the matrix could high likely be sparse
-            galois_multiply_add_region(&matrix->message[i][0], dec_ctx->sc->pp[sid], ce, dec_ctx->sc->meta.size_p, GF_POWER);
-            operations += dec_ctx->sc->meta.size_p;
-        }
-        _FLAG_SET(matrix->erased, index);		// mark the column as erased
-        matrix->remaining_cols -= 1;
-        return operations;
-    }
 
-    // Check if there is new decodable generations
-    static int check_for_new_decodables(struct slnc_dec_context_GG *dec_ctx)
-    {
-        static char fname[] = "check_for_new_decodables";
-        int i, j, k;
-        for (i=0; i<dec_ctx->sc->meta.gnum; i++) {
-            struct running_matrix *matrix = dec_ctx->Matrices[i];
-            if ( matrix->remaining_cols != 0
-                    && matrix->remaining_rows >= matrix->remaining_cols ) {
-                int r_rows = matrix->remaining_rows;
-                int r_cols = matrix->remaining_cols;
-                // perform forward substitution
-                int flushing_ops = forward_substitute(r_rows, r_cols, dec_ctx->sc->meta.size_p, matrix->coefficient, matrix->message);
-                dec_ctx->operations += flushing_ops;
-
-                // check if the new packet is full rank, if yes, decode it, if not refresh the coefficient and message matrix anyway
-                int full_rank = 1;
-                int innovatives = 0;
-                for (j=0; j<r_cols; j++) {
-                    if (matrix->coefficient[j][j] == 0)
-                        full_rank = 0;
-                    else
-                        innovatives += 1;	
-                }
-
-                if (full_rank == 0)
-                    matrix->remaining_rows = innovatives;
-                else {
-                    matrix->remaining_rows = matrix->remaining_cols;
+            if (full_rank == 0)
+                matrix->remaining_rows = innovatives;
+            else {
+                matrix->remaining_rows = matrix->remaining_cols;
 #if defined(GNCTRACE)
-                    printf("%s: generation %d is decodable\n",fname, i);
+                printf("%s: generation %d is decodable\n",fname, i);
 #endif
-                    return i;
-                }
+                return i;
             }
         }
-        return -1;
     }
+    return -1;
+}
 
 
-    // mask the encoded packet with the decoded packet list
-    // ce	 - coefficient we use in masking
-    // index - index of the decoded source packet we want to mask against ENC_pkt
-    static void mask_packet(struct slnc_dec_context_GG *dec_ctx, GF_ELEMENT ce, int index, struct slnc_packet *enc_pkt)
-    {
-        static char fname[] = "mask_packet";
-        galois_multiply_add_region(enc_pkt->syms, dec_ctx->sc->pp[index], ce, dec_ctx->sc->meta.size_p, GF_POWER);
-        dec_ctx->operations += dec_ctx->sc->meta.size_p;
-        return;
-    }
+// mask the encoded packet with the decoded packet list
+// ce	 - coefficient we use in masking
+// index - index of the decoded source packet we want to mask against ENC_pkt
+static void mask_packet(struct decoding_context_GG *dec_ctx, GF_ELEMENT ce, int index, struct slnc_packet *enc_pkt)
+{
+    static char fname[] = "mask_packet";
+    galois_multiply_add_region(enc_pkt->syms, dec_ctx->sc->pp[index], ce, dec_ctx->sc->meta.size_p, GF_POWER);
+    dec_ctx->operations += dec_ctx->sc->meta.size_p;
+    return;
+}
 

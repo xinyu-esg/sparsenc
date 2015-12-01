@@ -1,6 +1,6 @@
 Introduction
 ============
-libslnc provides a set of API calls to encode and decode sparse linear network codes. Linear network coding [1][2] is able to improve network throughput and combat packet loss by algebrically combining packets at intermediate packets. This library provides several computationally efficient network codes to overcome the high complexity issue of random linear network coding. The basic idea is to encode/decode against subsets of source packets called **subgenerations**. 
+libslnc provides a set of API calls to encode and decode _s_**parse _l_**inear _n_**etwork _c_**odes. Linear network coding [1][2] is able to improve network throughput and combat packet loss by algebrically combining packets at intermediate packets. This library provides several computationally efficient network codes to overcome the high complexity issue of random linear network coding. The basic idea is to encode/decode against subsets of source packets called **subgenerations**. So _slnc_ also stands for _s_**ubgeneration-based _l_**inear _n_**etwork _c_odes. 
 
 The library at present supports two catagories of codes: (pseudo-)random and band. Random SLNC code encodes from subgenerations that are randomly overlapped whereas the band code encodes from subgenerations that are overlapped consecutively. The "band" name comes from that its decoding matrix is banded.
 

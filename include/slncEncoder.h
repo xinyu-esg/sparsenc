@@ -71,11 +71,10 @@ struct subgeneration {
 };
 
 int slnc_create_enc_context(char *buf, long datasize, struct slnc_context **sc, struct slnc_parameter sp);
-int slnc_create_enc_context_from_file(FILE *fp, struct slnc_context **sc, struct slnc_parameter sp);
-int slnc_load_file_to_context(FILE *fp, struct slnc_context *sc);
+int slnc_load_file_to_context(FILE *fp, long start, struct slnc_context *sc);
 int slnc_free_enc_context(struct slnc_context *sc);
 unsigned char *slnc_recover_data(struct slnc_context *sc);
-long slnc_recover_data_to_file(FILE *fp, struct slnc_context *sc);
+long slnc_recover_to_file(FILE *fp, struct slnc_context *sc);
 struct slnc_packet *slnc_alloc_empty_packet(int size_g, int size_p);
 struct slnc_packet *slnc_generate_packet(struct slnc_context *sc);
 int slnc_generate_packet_im(struct slnc_context *sc, struct slnc_packet *pkt);

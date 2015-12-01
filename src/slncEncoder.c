@@ -101,32 +101,20 @@ int slnc_create_enc_context(char *buf, long datasize, struct slnc_context **sc, 
     return(0);
 }
 
-
-int slnc_create_enc_context_from_file(FILE *fp, struct slnc_context **sc, struct slnc_parameter sp)
-{
-    static char fname[] = "slnc_create_enc_context_from_file";
-    // Get file size
-    /* Seek to file end */
-    if (fseek(fp, 0, SEEK_END) == -1) 
-        fprintf(stderr, "%s: fseek SEEK_END\n", fname);
-    long datasize = ftell(fp);			/* get file size */
-    /* Seek back to file start */
-    if (fseek(fp, 0, SEEK_SET) == -1) 
-        fprintf(stderr, "%s: fseek SEEK_SET\n", fname);
-
-    /* Create slnc_context without actual data */
-    slnc_create_enc_context(NULL, datasize, sc, sp);
-    return(0);
-}
-
 /*
- * Load file data into slnc_context created for the file. It's the
- * caller's responsibility to ensure that the pair of FILE* and 
- * slnc_context matches.
+ * Load data from file  into a slnc_context.
+ *   start - starting point to read file
+ * It is caller's responsibility to ensure:
+ *   start + sc->meta.datasize <= fileSize
  */
-int slnc_load_file_to_context(FILE *fp, struct slnc_context *sc)
+int slnc_load_file_to_context(FILE *fp, long start, struct slnc_context *sc)
 {
     static char fname[] = "slnc_load_file_to_context";
+    fseek(fp, 0, SEEK_END);
+    if ((ftell(fp) - start) < sc->meta.datasize) {
+        return (-1);
+    }
+    fseek(fp, start, SEEK_SET);  // seek to position start
     int alread = 0;
     for (int i=0; i<sc->meta.snum+sc->meta.cnum; i++) {
         sc->pp[i] = calloc(sc->meta.size_p, sizeof(GF_ELEMENT));
@@ -246,8 +234,11 @@ unsigned char *slnc_recover_data(struct slnc_context *sc)
     return data;
 }
 
-/* recover data to file */
-long slnc_recover_data_to_file(FILE *fp, struct slnc_context *sc)
+/**
+ * Recover data to file.
+ * fp has to be opened in 'a' (append) mode
+ **/
+long slnc_recover_to_file(FILE *fp, struct slnc_context *sc)
 {
     static char fname[] = "slnc_recover_data";
     long datasize = sc->meta.datasize;
