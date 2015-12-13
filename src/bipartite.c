@@ -11,10 +11,9 @@
  *
  *----------------------------------------------------------*/
 #include "common.h"
-#include "bipartite.h"
 #include <math.h>
 static int is_prime(int number); 
-static void include_left_node(int l_index, int r_index, BP_graph *graph);
+static int include_left_node(int l_index, int r_index, BP_graph *graph);
 
 // The number of required LDPC check symbols given the number of source packets.
 int number_of_checks(int snum, double r) 
@@ -33,24 +32,29 @@ int number_of_checks(int snum, double r)
 }
 
 // construct LDPC graph
-void create_bipartite_graph(BP_graph *graph, int nleft, int nright)
+int create_bipartite_graph(BP_graph *graph, int nleft, int nright)
 {
     int LDPC_SYS = nleft;
     int S 		 = nright;
     if (S == 0)
-        return;
+        return 0;
 
     int i, j;
     graph->nleft  = nleft;
     graph->nright = nright;
-    graph->l_nbrs_of_r = malloc(sizeof(NBR_nodes*) * nright);
+    if ((graph->l_nbrs_of_r = calloc(nright, sizeof(NBR_nodes*))) == NULL)
+        goto failure;
     for (i=0; i<nright; i++) {
-        graph->l_nbrs_of_r[i] = malloc(sizeof(NBR_nodes));
+        if ((graph->l_nbrs_of_r[i] = malloc(sizeof(NBR_nodes))) == NULL)
+            goto failure;
         graph->l_nbrs_of_r[i]->first = graph->l_nbrs_of_r[i]->last = NULL;
     }
-    graph->r_nbrs_of_l = malloc(sizeof(NBR_nodes*) * nleft);
+
+    if ((graph->r_nbrs_of_l = calloc(nleft, sizeof(NBR_nodes*))) == NULL)
+        goto failure;
     for (i=0; i<nleft; i++) {
-        graph->r_nbrs_of_l[i] = malloc(sizeof(NBR_nodes));
+        if ((graph->r_nbrs_of_l[i] = malloc(sizeof(NBR_nodes))) == NULL)
+            goto failure;
         graph->r_nbrs_of_l[i]->first = graph->r_nbrs_of_l[i]->last = NULL;
     }
 
@@ -63,13 +67,16 @@ void create_bipartite_graph(BP_graph *graph, int nleft, int nright)
         // assign non-zero positions for the first column in each circulant matrix
         // each check node connects to exactly 3 left nodes
         // 1, P[0][i*S] = 1;
-        include_left_node(i*S, 0, graph);
+        if (include_left_node(i*S, 0, graph) < 0)
+            goto failure;
         //2, P[a-1][i*S] = 1;
         a = (((i+1)+1)%S == 0) ? S : ((i+1)+1)%S;
-        include_left_node(i*S, a-1, graph);
+        if (include_left_node(i*S, a-1, graph) < 0)
+            goto failure;
         //3, P[b-1][i*S] = 1;
         b = ((2*(i+1)+1)%S == 0) ? S : (2*(i+1)+1)%S;
-        include_left_node(i*S, b-1, graph);
+        if (include_left_node(i*S, b-1, graph) < 0)
+            goto failure;
 
         // circulant part
         for (j=1; j<S; j++) {
@@ -79,42 +86,61 @@ void create_bipartite_graph(BP_graph *graph, int nleft, int nright)
             }
             // shift down the non-zero positions of previous columns in the circulant matrix
             //1, P[0+j][i*S+j] = 1;
-            include_left_node(i*S+j, 0+j, graph);
+            if (include_left_node(i*S+j, 0+j, graph) < 0)
+                goto failure;
             //2, P[a-1][i*S+j] = 1;
             a = (((i+1)+1+j)%S == 0) ? S : ((i+1)+1+j)%S;
-            include_left_node(i*S+j, a-1, graph);
+            if (include_left_node(i*S+j, a-1, graph) < 0)
+                goto failure;
             //3, P[b-1][i*S+j] = 1;
             b = ((2*(i+1)+1+j)%S == 0) ? S : (2*(i+1)+1+j)%S;
-            include_left_node(i*S+j, b-1, graph);
+            if (include_left_node(i*S+j, b-1, graph) < 0)
+                goto failure;
         }
     }
+    return 0;
 
+failure:
+    free_bipartite_graph(graph);
+    return -1;
 }
 
 // include left node index in the LDPC graph
-static void include_left_node(int l_index, int r_index, BP_graph *graph)
+static int include_left_node(int l_index, int r_index, BP_graph *graph)
 {
     // Record neighbor of a right-side node
     NBR_node *nb = malloc(sizeof(NBR_node));
+    if (nb == NULL)
+        return -1;
     nb->data = l_index;
     nb->next = NULL;
     append_to_list(graph->l_nbrs_of_r[r_index], nb);
 
-
     // Also neighbour of the left-side node
     NBR_node *check_nb = malloc(sizeof(NBR_node));
+    if (nb == NULL)
+        return -1;
     check_nb->data = r_index;
     check_nb->next = NULL;
     append_to_list(graph->r_nbrs_of_l[l_index], check_nb);
+    return 0;
 }
 
 void free_bipartite_graph(BP_graph *graph)
 {
+    if (graph == NULL)
+        return;
     int i;
-    for (i=0; i<graph->nleft; i++)
-        free_list(graph->r_nbrs_of_l[i]);
-    for (i=0; i<graph->nright; i++) 
-        free_list(graph->l_nbrs_of_r[i]);
+    if (graph->r_nbrs_of_l != NULL) {
+        for (i=0; i<graph->nleft; i++)
+            free_list(graph->r_nbrs_of_l[i]);
+        free(graph->r_nbrs_of_l);
+    }
+    if (graph->l_nbrs_of_r != NULL) {
+        for (i=0; i<graph->nright; i++)
+            free_list(graph->l_nbrs_of_r[i]);
+        free(graph->l_nbrs_of_r);
+    }
     free(graph);
 }
 

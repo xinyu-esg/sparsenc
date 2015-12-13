@@ -86,8 +86,10 @@ void clear_list(struct node_list *list)
 // the list structure in the end.
 void free_list(struct node_list *list)
 {
-    clear_list(list);
-    free(list);
+    if (list != NULL) {
+        clear_list(list);
+        free(list);
+    }
 }
 
 

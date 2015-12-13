@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "slncEncoder.h"
-#include "slncDecoder.h"
+#include "sncEncoder.h"
+#include "sncDecoder.h"
 
 char usage[] = "usage: ./programName code_t dec_t datasize pcrate size_b size_g size_p\n\
                        code_t - RAND, BAND, WINDWRAP\n\
@@ -16,13 +16,13 @@ int main(int argc, char *argv[])
         printf("%s\n", usage);
         exit(1);
     }
-    struct slnc_parameter sp;
+    struct snc_parameter sp;
     if (strcmp(argv[1], "RAND") == 0)
-        sp.type = RAND_SLNC;
+        sp.type = RAND_SNC;
     else if (strcmp(argv[1], "BAND") == 0)
-        sp.type = BAND_SLNC;
+        sp.type = BAND_SNC;
     else if (strcmp(argv[1], "WINDWRAP") == 0)
-        sp.type = WINDWRAP_SLNC;
+        sp.type = WINDWRAP_SNC;
     else {
         printf("%s\n", usage);
         exit(1);
@@ -41,44 +41,44 @@ int main(int argc, char *argv[])
         printf("%s\n", usage);
         exit(1);
     }
-    long datasize = atoi(argv[3]);
+    sp.datasize = atoi(argv[3]);
     sp.pcrate   = atof(argv[4]);
     sp.size_b   = atoi(argv[5]);
     sp.size_g   = atoi(argv[6]);
     sp.size_p   = atoi(argv[7]);
 
     srand( (int) time(0) );
-    char *buf = malloc(datasize);
+    char *buf = malloc(sp.datasize);
     int rnd=open("/dev/urandom", O_RDONLY);
-    read(rnd, buf, datasize);
+    read(rnd, buf, sp.datasize);
     close(rnd);
 
-    struct slnc_context *sc;
-    if (slnc_create_enc_context(buf, datasize, &sc, sp) != 0) {
+    struct snc_context *sc;
+    if ((sc = snc_create_enc_context(buf, sp)) == NULL) {
         fprintf(stderr, "Cannot create File Context.\n");
         return 1;
     }
 
-    slnc_create_dec_context(decoder_type, sc->meta.datasize, sp);
+    struct snc_decoder *decoder = snc_create_decoder(sp, decoder_type);
     clock_t start, stop, dtime = 0;
-    while (slnc_is_dec_finished(decoder_type) != 1) {
-        struct slnc_packet *pkt = slnc_generate_packet(sc);
+    while (snc_decoder_finished(decoder, decoder_type) != 1) {
+        struct snc_packet *pkt = snc_generate_packet(sc);
         /* Measure decoding time */
         start = clock();
-		slnc_process_packet(decoder_type, pkt);
+		snc_process_packet(decoder, decoder_type, pkt);
         stop = clock();
         dtime += stop - start;
     }
     printf("dec-time: %.2f ", ((double) dtime)/CLOCKS_PER_SEC);
 
-    struct slnc_context *dsc = slnc_decoded_context(decoder_type);
-    unsigned char *rec_buf = slnc_recover_data(dsc);
-    if (memcmp(buf, rec_buf, datasize) != 0) 
+    struct snc_context *dsc = snc_get_enc_context(decoder, decoder_type);
+    unsigned char *rec_buf = snc_recover_data(dsc);
+    if (memcmp(buf, rec_buf, sp.datasize) != 0) 
         fprintf(stderr, "recovered is NOT identical to original.\n");
 
-    print_code_summary(&(dsc->meta), slnc_dec_overhead(decoder_type), slnc_dec_operations(decoder_type));
+    print_code_summary(dsc, snc_code_overhead(decoder, decoder_type), snc_decode_cost(decoder, decoder_type));
 
-    slnc_free_enc_context(sc);
-    slnc_free_dec_context(decoder_type);
+    snc_free_enc_context(sc);
+    snc_free_decoder(decoder, decoder_type);
     return 0;
 }

@@ -1,6 +1,6 @@
 #ifndef OA_DECODER_H
 #define OA_DECODER_H
-#include "slncEncoder.h"
+#include "sncEncoder.h"
 struct running_matrix;
 /*
  * OA (overlap aware) DECODING CONTEXT is used at each destination node
@@ -10,7 +10,7 @@ struct running_matrix;
 struct decoding_context_OA
 {
     // GNC context
-    struct slnc_context *sc;
+    struct snc_context *sc;
 
     int aoh;										// Allowed number of overhead packets (OHS)
     int finished;									// an indicator tracking the finish of decoding
@@ -34,7 +34,7 @@ struct decoding_context_OA
     long long operations;							// record the number of computations used
 };
 
-void create_dec_context_OA(struct decoding_context_OA *dec_ctx, long datasize, struct slnc_parameter sp, int aoh);
-void process_packet_OA(struct decoding_context_OA *dec_ctx, struct slnc_packet *pkt);
+void create_dec_context_OA(struct decoding_context_OA *dec_ctx, struct snc_parameter sp, int aoh);
+void process_packet_OA(struct decoding_context_OA *dec_ctx, struct snc_packet *pkt);
 void free_dec_context_OA(struct decoding_context_OA *dec_ctx);
 #endif

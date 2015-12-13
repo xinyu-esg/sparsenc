@@ -4,7 +4,6 @@
  *------------------------------------------------------------*/
 #include "common.h"
 #include "galois.h"
-#include "bipartite.h"
 #include "decoderBD.h"
 static int partially_diag_decoding_matrix(struct decoding_context_BD *dec_ctx);
 static int apply_parity_check_matrix(struct decoding_context_BD *dec_ctx);
@@ -15,20 +14,20 @@ extern long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A,
 extern long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int *otoc, int *inactives);
 
 // create decoding context for band decoder
-void create_dec_context_BD(struct decoding_context_BD *dec_ctx, long datasize, struct slnc_parameter sp)
+void create_dec_context_BD(struct decoding_context_BD *dec_ctx, struct snc_parameter sp)
 {
-    static char fname[] = "slnc_create_dec_context_BD";
+    static char fname[] = "snc_create_dec_context_BD";
     int i, j, k;
 
     // GNC code context
     // Since this is decoding, we construct GNC context without data
     // sc->pp will be filled by decoded packets
-    if (sp.type != BAND_SLNC) {
+    if (sp.type != BAND_SNC) {
         fprintf(stderr, "Band decoder only applies to band GNC code.\n");
         return;
     }
-    struct slnc_context *sc;
-    if (slnc_create_enc_context(NULL, datasize, &sc, sp) != 0) 
+    struct snc_context *sc;
+    if ((sc = snc_create_enc_context(NULL, sp)) == NULL) 
         fprintf(stderr, "%s: create decoding context failed", fname);
 
     dec_ctx->sc = sc;
@@ -62,7 +61,7 @@ void create_dec_context_BD(struct decoding_context_BD *dec_ctx, long datasize, s
 }
 
 
-void process_packet_BD(struct decoding_context_BD *dec_ctx, struct slnc_packet *pkt)
+void process_packet_BD(struct decoding_context_BD *dec_ctx, struct snc_packet *pkt)
 {
 
     dec_ctx->overhead += 1;
@@ -160,7 +159,7 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct slnc_packet *
         finish_recovering_BD(dec_ctx);
     }
 
-    slnc_free_packet(pkt);
+    snc_free_packet(pkt);
     pkt = NULL;
     free(ces);
     ces = NULL;
@@ -291,7 +290,7 @@ void free_dec_context_BD(struct decoding_context_BD *dec_ctx)
     free(dec_ctx->overheads);
     free(dec_ctx->otoc_mapping);
     free(dec_ctx->ctoo_mapping);
-    slnc_free_enc_context(dec_ctx->sc);
+    snc_free_enc_context(dec_ctx->sc);
     free(dec_ctx);
     dec_ctx = NULL;
 }

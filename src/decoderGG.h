@@ -1,6 +1,6 @@
 #ifndef GG_DECODER_H
 #define GG_DECODER_H
-#include "slncEncoder.h"
+#include "sncEncoder.h"
 
 #define FB_THOLD	1
 typedef struct node      ID;
@@ -15,7 +15,7 @@ typedef unsigned long FLAGS;					/* bit flags */
 struct running_matrix;
 
 struct decoding_context_GG {
-    struct slnc_context	*sc;						// The file information
+    struct snc_context	*sc;						// The file information
     /********************************
      * Used in decoding LDPC pre-code
      ********************************/
@@ -46,7 +46,7 @@ struct decoding_context_GG {
     int overhead;									// record how many packets have been received
 };
 
-void create_dec_context_GG(struct decoding_context_GG *dec_ctx, long datasize, struct slnc_parameter sp);
+void create_dec_context_GG(struct decoding_context_GG *dec_ctx, struct snc_parameter sp);
 void free_dec_context_GG(struct decoding_context_GG *dec_ctx);
-void process_packet_GG(struct decoding_context_GG *dec_ctx, struct slnc_packet *pkt);
+void process_packet_GG(struct decoding_context_GG *dec_ctx, struct snc_packet *pkt);
 #endif /* GG_DECODER */

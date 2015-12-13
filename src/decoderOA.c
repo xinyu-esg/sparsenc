@@ -1,9 +1,8 @@
-/*--------------------------slncOADecoder.c----------------------
+/*--------------------------sncOADecoder.c----------------------
  * Implementation of overlap-aware (OA) decoder.
  *-------------------------------------------------------------*/
 #include "common.h"
 #include "galois.h"
-#include "bipartite.h"
 #include "decoderOA.h"
 
 // to store matrices in processing (needed by the decoder)
@@ -50,20 +49,20 @@ extern long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A,
 extern long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int *otoc, int *inactives);
 
 /*
- * slnc_create_dec_context_OA
+ * snc_create_dec_context_OA
  * Create context for overlap-aware (OA) decoding
  *  aoh - allowed overhead >=0
  */
-void create_dec_context_OA(struct decoding_context_OA *dec_ctx, long datasize, struct slnc_parameter sp, int aoh)
+void create_dec_context_OA(struct decoding_context_OA *dec_ctx, struct snc_parameter sp, int aoh)
 {
-    static char fname[] = "slnc_create_dec_context_OA";
+    static char fname[] = "snc_create_dec_context_OA";
     int i, j, k;
 
     // GNC code context
     // Since this is decoding, we construct GNC context without data
     // sc->pp will be filled by decoded packets
-    struct slnc_context *sc;
-    if (slnc_create_enc_context(NULL, datasize, &sc, sp) != 0) 
+    struct snc_context *sc;
+    if ((sc = snc_create_enc_context(NULL, sp)) == NULL) 
         fprintf(stderr, "%s: create decoding context failed", fname);
 
     dec_ctx->sc = sc;
@@ -117,7 +116,7 @@ void create_dec_context_OA(struct decoding_context_OA *dec_ctx, long datasize, s
     dec_ctx->overhead 	= 0;
 }
 
-void process_packet_OA(struct decoding_context_OA *dec_ctx, struct slnc_packet *pkt)
+void process_packet_OA(struct decoding_context_OA *dec_ctx, struct snc_packet *pkt)
 {
     dec_ctx->overhead += 1;
 
@@ -233,7 +232,7 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct slnc_packet *
         free(re_ordered);
     }
 
-    slnc_free_packet(pkt);
+    snc_free_packet(pkt);
     pkt = NULL;
 }
 
@@ -257,7 +256,7 @@ void free_dec_context_OA(struct decoding_context_OA *dec_ctx)
     free(dec_ctx->JMBmessage);
     free(dec_ctx->otoc_mapping);
     free(dec_ctx->ctoo_mapping);
-    slnc_free_enc_context(dec_ctx->sc);
+    snc_free_enc_context(dec_ctx->sc);
     free(dec_ctx);
     dec_ctx = NULL;
 }
@@ -421,7 +420,7 @@ static void construct_GDM(struct decoding_context_OA *dec_ctx)
     int pktsize = dec_ctx->sc->meta.size_p;
     int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
 
-    //Allocate GDM to slnc_dec_context, apply precoding matrix
+    //Allocate GDM to snc_dec_context, apply precoding matrix
     dec_ctx->JMBcoefficient = calloc(numpp+dec_ctx->aoh, sizeof(GF_ELEMENT*));
     if (dec_ctx->JMBcoefficient == NULL)
         fprintf(stderr, "%s: calloc dec_ctx->JMBcoefficient\n", fname);

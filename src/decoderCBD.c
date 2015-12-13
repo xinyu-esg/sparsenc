@@ -11,27 +11,26 @@
  ********************************************************************/
 #include "common.h"
 #include "galois.h"
-#include "bipartite.h"
 #include "decoderCBD.h"
 static int process_vector_CBD(struct decoding_context_CBD *dec_ctx, GF_ELEMENT *vector, GF_ELEMENT *message);
 static int apply_parity_check_matrix(struct decoding_context_CBD *dec_ctx);
 static void finish_recovering_CBD(struct decoding_context_CBD *dec_ctx);
 
 // create decoding context for band decoder
-void create_dec_context_CBD(struct decoding_context_CBD *dec_ctx, long datasize, struct slnc_parameter sp)
+void create_dec_context_CBD(struct decoding_context_CBD *dec_ctx, struct snc_parameter sp)
 {
-    static char fname[] = "slnc_create_dec_context_CBD";
+    static char fname[] = "snc_create_dec_context_CBD";
     int i, j, k;
 
     // GNC code context
     // Since this is decoding, we construct GNC context without data
     // sc->pp will be filled by decoded packets
-    if (sp.type != BAND_SLNC) {
+    if (sp.type != BAND_SNC) {
         fprintf(stderr, "Band decoder only applies to band GNC code.\n");
         return;
     }
-    struct slnc_context *sc;
-    if (slnc_create_enc_context(NULL, datasize, &sc, sp) != 0) 
+    struct snc_context *sc;
+    if ((sc = snc_create_enc_context(NULL, sp)) == NULL) 
         fprintf(stderr, "%s: create decoding context failed", fname);
 
     dec_ctx->sc = sc;
@@ -64,9 +63,9 @@ void create_dec_context_CBD(struct decoding_context_CBD *dec_ctx, long datasize,
  * Note: throughout the packet collecting process, the decoding matrix 
  * is maintained an upper triangular form.
  */
-void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct slnc_packet *pkt)
+void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct snc_packet *pkt)
 {
-    static char fname[] = "slnc_process_packet_CBD";
+    static char fname[] = "snc_process_packet_CBD";
     dec_ctx->overhead += 1;
     int i, j, k;
     GF_ELEMENT quotient;
@@ -88,7 +87,7 @@ void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct slnc_packet
     int pivot = process_vector_CBD(dec_ctx, ces, pkt->syms);
     free(ces);
     ces = NULL;
-    slnc_free_packet(pkt);
+    snc_free_packet(pkt);
     pkt = NULL;
     // If the number of received DoF is equal to NUM_SRC, apply the parity-check matrix.
     // The messages corresponding to rows of parity-check matrix are all-zero.
@@ -254,7 +253,7 @@ void free_dec_context_CBD(struct decoding_context_CBD *dec_ctx)
     }
     free(dec_ctx->row);
     free(dec_ctx->message);
-    slnc_free_enc_context(dec_ctx->sc);
+    snc_free_enc_context(dec_ctx->sc);
     free(dec_ctx);
     dec_ctx = NULL;
 }

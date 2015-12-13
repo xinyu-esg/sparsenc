@@ -1,6 +1,6 @@
 #ifndef CBD_DECODER_H
 #define CBD_DECODER_H
-#include "slncEncoder.h"
+#include "sncEncoder.h"
 
 /* Row vector of a matrix */
 struct row_vector
@@ -14,7 +14,7 @@ struct row_vector
 struct decoding_context_CBD
 {
     // GNC context
-    struct slnc_context *sc;
+    struct snc_context *sc;
 
     int finished;				// an indicator tracking the finish of decoding
     int DoF;					// total true DoF that the receiver has received
@@ -30,7 +30,7 @@ struct decoding_context_CBD
     long long operations;		// record the number of computations used
 };
 
-void create_dec_context_CBD(struct decoding_context_CBD *dec_ctx, long datasize, struct slnc_parameter sp);
-void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct slnc_packet *pkt);
+void create_dec_context_CBD(struct decoding_context_CBD *dec_ctx, struct snc_parameter sp);
+void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct snc_packet *pkt);
 void free_dec_context_CBD(struct decoding_context_CBD *dec_ctx);
 #endif
