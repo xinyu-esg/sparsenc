@@ -1,4 +1,4 @@
-#include "sncEncoder.h"
+#include "snc.h"
 /*
  * BD (band GNC code) DECODING CONTEXT
  */

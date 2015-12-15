@@ -4,8 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "sncEncoder.h"
-#include "sncDecoder.h"
+#include "snc.h"
 
 char usage[] = "usage: ./programName code_t dec_t datasize pcrate size_b size_g size_p\n\
                        code_t - RAND, BAND, WINDWRAP\n\
@@ -61,24 +60,24 @@ int main(int argc, char *argv[])
 
     struct snc_decoder *decoder = snc_create_decoder(sp, decoder_type);
     clock_t start, stop, dtime = 0;
-    while (snc_decoder_finished(decoder, decoder_type) != 1) {
+    while (snc_decoder_finished(decoder) != 1) {
         struct snc_packet *pkt = snc_generate_packet(sc);
         /* Measure decoding time */
         start = clock();
-		snc_process_packet(decoder, decoder_type, pkt);
+		snc_process_packet(decoder, pkt);
         stop = clock();
         dtime += stop - start;
     }
     printf("dec-time: %.2f ", ((double) dtime)/CLOCKS_PER_SEC);
 
-    struct snc_context *dsc = snc_get_enc_context(decoder, decoder_type);
+    struct snc_context *dsc = snc_get_enc_context(decoder);
     unsigned char *rec_buf = snc_recover_data(dsc);
     if (memcmp(buf, rec_buf, sp.datasize) != 0) 
         fprintf(stderr, "recovered is NOT identical to original.\n");
 
-    print_code_summary(dsc, snc_code_overhead(decoder, decoder_type), snc_decode_cost(decoder, decoder_type));
+    print_code_summary(dsc, snc_code_overhead(decoder), snc_decode_cost(decoder));
 
     snc_free_enc_context(sc);
-    snc_free_decoder(decoder, decoder_type);
+    snc_free_decoder(decoder);
     return 0;
 }

@@ -4,11 +4,10 @@
  * Functions for SNC encoding. Coded packets can be generated
  * from memory buffer or files.
  **************************************************************/
+#include <math.h>
 #include "common.h"
 #include "galois.h"
-#include "sncEncoder.h"
-#include <math.h>
-#include <sys/stat.h>
+#include "snc.h"
 
 
 static int create_context_from_meta(struct snc_context *sc);

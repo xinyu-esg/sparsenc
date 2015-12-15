@@ -1,6 +1,6 @@
 #ifndef GG_DECODER_H
 #define GG_DECODER_H
-#include "sncEncoder.h"
+#include "snc.h"
 
 #define FB_THOLD	1
 typedef struct node      ID;

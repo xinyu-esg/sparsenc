@@ -3,7 +3,7 @@
 #include "decoderOA.h"
 #include "decoderBD.h"
 #include "decoderCBD.h"
-#include "sncDecoder.h"
+#include "snc.h"
 
 /* Definition of SNC decoder
  * It includes an allocated decoder context which contains encode
@@ -55,8 +55,8 @@ failure:
     return NULL;
 }
 
-void snc_process_packet(struct snc_decoder *decoder, int d_type, struct snc_packet *pkt) {
-	switch (d_type) {
+void snc_process_packet(struct snc_decoder *decoder,  struct snc_packet *pkt) {
+	switch (decoder->d_type) {
 	case GG_DECODER:
 		process_packet_GG(((struct decoding_context_GG *) decoder->dec_ctx), pkt);
 		break;
@@ -73,8 +73,8 @@ void snc_process_packet(struct snc_decoder *decoder, int d_type, struct snc_pack
 	return;
 }
 
-int snc_decoder_finished(struct snc_decoder *decoder, int d_type) {
-	switch (d_type) {
+int snc_decoder_finished(struct snc_decoder *decoder) {
+	switch (decoder->d_type) {
 	case GG_DECODER:
 		return ((struct decoding_context_GG *) decoder->dec_ctx)->finished;
 	case OA_DECODER:
@@ -87,8 +87,8 @@ int snc_decoder_finished(struct snc_decoder *decoder, int d_type) {
 	return 0;
 }
 
-struct snc_context *snc_get_enc_context(struct snc_decoder *decoder, int d_type) {
-	switch (d_type) {
+struct snc_context *snc_get_enc_context(struct snc_decoder *decoder) {
+	switch (decoder->d_type) {
 	case GG_DECODER:
 		return ((struct decoding_context_GG *) decoder->dec_ctx)->sc;
 	case OA_DECODER:
@@ -101,8 +101,8 @@ struct snc_context *snc_get_enc_context(struct snc_decoder *decoder, int d_type)
 	return 0;
 }
 
-int snc_code_overhead(struct snc_decoder *decoder, int d_type) {
-	switch (d_type) {
+int snc_code_overhead(struct snc_decoder *decoder) {
+	switch (decoder->d_type) {
 	case GG_DECODER:
 		return ((struct decoding_context_GG *) decoder->dec_ctx)->overhead;
 	case OA_DECODER:
@@ -115,8 +115,8 @@ int snc_code_overhead(struct snc_decoder *decoder, int d_type) {
 	return 0;
 }
 
-long long snc_decode_cost(struct snc_decoder *decoder, int d_type) {
-	switch (d_type) {
+long long snc_decode_cost(struct snc_decoder *decoder) {
+	switch (decoder->d_type) {
 	case GG_DECODER:
 		return ((struct decoding_context_GG *) decoder->dec_ctx)->operations;
 	case OA_DECODER:
@@ -129,8 +129,8 @@ long long snc_decode_cost(struct snc_decoder *decoder, int d_type) {
 	return 0;
 }
 
-void snc_free_decoder(struct snc_decoder *decoder, int d_type) {
-	switch (d_type) {
+void snc_free_decoder(struct snc_decoder *decoder) {
+	switch (decoder->d_type) {
 	case GG_DECODER:
         free_dec_context_GG(((struct decoding_context_GG *) decoder->dec_ctx));
 		break;

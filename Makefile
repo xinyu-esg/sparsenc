@@ -30,7 +30,7 @@ CFLAGS1 = -O3 -DNDEBUG $(INC_PARMS)  -mssse3 -DINTEL_SSSE3
 vpath %.h src include
 vpath %.c src examples
 
-DEFS   := common.h sncEncoder.h sncDecoder.h galois.h decoderGG.h decoderOA.h decoderBD.h decoderCBD.h
+DEFS    := snc.h common.h galois.h decoderGG.h decoderOA.h decoderBD.h decoderCBD.h
 GNCENC  := $(OBJDIR)/common.o $(OBJDIR)/bipartite.o $(OBJDIR)/sncEncoder.o $(OBJDIR)/galois.o $(OBJDIR)/gaussian.o
 RECODER := $(OBJDIR)/sncRecoder.o 
 DECODER := $(OBJDIR)/sncDecoder.o
@@ -40,47 +40,41 @@ BDDEC   := $(OBJDIR)/decoderBD.o $(OBJDIR)/pivoting.o
 CBDDEC  := $(OBJDIR)/decoderCBD.o
 
 .PHONY: all
-all: decoder.example 
+all: sncDecoder sncDecoderFile sncRecoder2Hop
 
 libsnc.so: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC) $(RECODER) $(DECODER)
 	$(CC) -shared -o libsnc.so $^
 	
-#deocder.example
-decoder.example: libsnc.so test.decoders.c 
+#Test snc decoder
+sncDecoder: libsnc.so test.decoders.c 
 	$(CC) -L. -lsnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
-#deocde.file.example
-decode.file: libsnc.so test.file.decoders.c 
+#Test decoder for files
+sncDecoderFile: libsnc.so test.file.decoders.c 
 	$(CC) -L. -lsnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
-band.OA.static: $(GNCENC) $(OADEC) examples/test.OAdecoder.c
-	$(SED) -i 's/[^ ]*_SNC/BAND_SNC/' examples/test.OAdecoder.c
-	$(CC) -o $@ $(CFLAGS0) $(CFLAGS1) $^
-#Recoder with band code and CBD decoder, TRIV_SCHED
-recoder.CBD.trivSched: libsnc.so test.2hopRecoder.CBD.c
-	$(SED) -i 's/[^ ]*_SNC/BAND_SNC/' examples/test.2hopRecoder.CBD.c
-	$(SED) -i 's/[^ ]*_SCHED/TRIV_SCHED/' examples/test.2hopRecoder.CBD.c
-	$(CC) -L. -lsnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
-#Recoder with band code and CBD decoder, RAND_SCHED
-recoder.CBD.randSched: libsnc.so test.2hopRecoder.CBD.c
-	$(SED) -i 's/[^ ]*_SNC/BAND_SNC/' examples/test.2hopRecoder.CBD.c
-	$(SED) -i 's/[^ ]*_SCHED/RAND_SCHED/' examples/test.2hopRecoder.CBD.c
-	$(CC) -L. -lsnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
-#Recoder with band code and CBD decoder, MLPI_SCHED
-recoder.CBD.mlpiSched: libsnc.so test.2hopRecoder.CBD.c
-	$(SED) -i 's/[^ ]*_SNC/BAND_SNC/' examples/test.2hopRecoder.CBD.c
-	$(SED) -i 's/[^ ]*_SCHED/MLPI_SCHED/' examples/test.2hopRecoder.CBD.c
+#Test recoder
+sncRecoder2Hop: libsnc.so test.2hopRecoder.c
 	$(CC) -L. -lsnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 
-$(OBJDIR)/%.o: $(OBJDIR)/%.c $(DEFS) $(GGDEFS)
+$(OBJDIR)/%.o: $(OBJDIR)/%.c $(DEFS)
 	$(CC) -c -fpic -o $@ $< $(CFLAGS0) $(CFLAGS1)
 
 .PHONY: clean
 clean:
-	rm -f *.o $(OBJDIR)/*.o *.example *.static decode.file recoder.CBD.randSched recoder.CBD.trivSched recoder.CBD.mlpiSched libsnc.so
+	rm -f *.o $(OBJDIR)/*.o libsnc.so sncDecoder sncDecoderFile sncRecoder2Hop
 
-.PHONY: install
-install:
-	cp libsnc.so /usr/lib/
+install: libsnc.so
+	cp include/snc.h /usr/include/
+	if [[ `uname -i` == "x86_64" ]]; then \
+		cp libsnc.so /usr/lib64/; \
+	else \
+		cp libsnc.so /usr/lib/; \
+	fi
 
 .PHONY: uninstall
 uninstall:
-	rm -f /usr/lib/libsnc.so
+	rm -f /usr/include/snc.h
+	if [[ `uname -i` == "X86_64" ]]; then \
+		rm -f /usr/lib64/libsnc.so; \
+	else \
+		rm -f /usr/lib/libsnc.so; \
+	fi

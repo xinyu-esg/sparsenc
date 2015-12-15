@@ -1,6 +1,6 @@
 #ifndef OA_DECODER_H
 #define OA_DECODER_H
-#include "sncEncoder.h"
+#include "snc.h"
 struct running_matrix;
 /*
  * OA (overlap aware) DECODING CONTEXT is used at each destination node
