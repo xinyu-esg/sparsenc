@@ -8,8 +8,8 @@
 // to store matrices in processing (needed by the decoder)
 struct running_matrix
 {
-    GF_ELEMENT **coefficient;						//[CLASS_SIZE][CLASS_SIZE];		
-    GF_ELEMENT **message;							//[CLASS_SIZE][EXT_N];
+    GF_ELEMENT **coefficient;  //[CLASS_SIZE][CLASS_SIZE];
+    GF_ELEMENT **message;      //[CLASS_SIZE][EXT_N];
 };
 
 /*
@@ -62,14 +62,14 @@ void create_dec_context_OA(struct decoding_context_OA *dec_ctx, struct snc_param
     // Since this is decoding, we construct GNC context without data
     // sc->pp will be filled by decoded packets
     struct snc_context *sc;
-    if ((sc = snc_create_enc_context(NULL, sp)) == NULL) 
+    if ((sc = snc_create_enc_context(NULL, sp)) == NULL)
         fprintf(stderr, "%s: create decoding context failed", fname);
 
     dec_ctx->sc = sc;
 
-    dec_ctx->aoh		= aoh;
+    dec_ctx->aoh        = aoh;
     dec_ctx->finished   = 0;
-    dec_ctx->OA_ready	= 0;
+    dec_ctx->OA_ready   = 0;
     dec_ctx->local_DoF  = 0;
     dec_ctx->global_DoF = 0;
 
@@ -81,13 +81,13 @@ void create_dec_context_OA(struct decoding_context_OA *dec_ctx, struct snc_param
     dec_ctx->Matrices = calloc(dec_ctx->sc->meta.gnum, sizeof(struct running_matrix*));
     if (dec_ctx->Matrices == NULL)
         fprintf(stderr, "%s: calloc dec_ctx->Matrices\n", fname);
-    for (i=0; i<dec_ctx->sc->meta.gnum; i++) { 
+    for (i=0; i<dec_ctx->sc->meta.gnum; i++) {
         dec_ctx->Matrices[i] = calloc(1, sizeof(struct running_matrix));
         if (dec_ctx->Matrices[i] == NULL)
             fprintf(stderr, "%s: malloc dec_ctx->Matrices[%d]\n", fname, i);
         // Allocate coefficient and message matrices in running_matrix
         // coefficeint: size_g x size_g
-        // message:		size_g x size_p
+        // message:     size_g x size_p
         // Dim-1) Pointers to each row
         dec_ctx->Matrices[i]->coefficient = calloc(gensize, sizeof(GF_ELEMENT*));
         if (dec_ctx->Matrices[i]->coefficient == NULL)
@@ -107,13 +107,13 @@ void create_dec_context_OA(struct decoding_context_OA *dec_ctx, struct snc_param
     }
 
     /*
-     * We don't allocate memory for global decoding (ie GDM) here. We only allocate 
+     * We don't allocate memory for global decoding (ie GDM) here. We only allocate
      * when OA ready. This avoids occupying a big amount of memory for a long time.
      */
 
     // performance indices
     dec_ctx->operations = 0;
-    dec_ctx->overhead 	= 0;
+    dec_ctx->overhead   = 0;
 }
 
 void process_packet_OA(struct decoding_context_OA *dec_ctx, struct snc_packet *pkt)
@@ -136,14 +136,21 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct snc_packet *p
      * If decoder is not OA ready, process the packet within the generation.
      */
     if (dec_ctx->OA_ready != 1) {
+        GF_ELEMENT *pkt_coes = calloc(gensize, sizeof(GF_ELEMENT));
+        if (dec_ctx->sc->meta.bnc) {
+            for (i=0; i<gensize; i++)
+                pkt_coes[i] = get_bit_in_array(pkt->coes, i);
+        } else {
+            memcpy(pkt_coes, pkt->coes, gensize*sizeof(GF_ELEMENT));
+        }
         // Translate the encoding vector to the sorted form as in the generation
         struct running_matrix *matrix = dec_ctx->Matrices[gid];
         for (i=0; i<gensize; i++) {
-            if (pkt->coes[i] != 0) {
+            if (pkt_coes[i] != 0) {
                 if (matrix->coefficient[i][i] != 0) {
-                    quotient = galois_divide(pkt->coes[i], matrix->coefficient[i][i], GF_POWER);
+                    quotient = galois_divide(pkt_coes[i], matrix->coefficient[i][i], GF_POWER);
                     dec_ctx->operations += 1;
-                    galois_multiply_add_region(&(pkt->coes[i]), &(matrix->coefficient[i][i]), quotient, gensize-i, GF_POWER);
+                    galois_multiply_add_region(&(pkt_coes[i]), &(matrix->coefficient[i][i]), quotient, gensize-i, GF_POWER);
                     dec_ctx->operations += (gensize - i);
                     galois_multiply_add_region(pkt->syms, matrix->message[i], quotient, pktsize, GF_POWER);
                     dec_ctx->operations += pktsize;
@@ -156,10 +163,11 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct snc_packet *p
         }
         // cache as normal GNC packet
         if (pivotfound == 1) {
-            memcpy(matrix->coefficient[pivot], pkt->coes, gensize*sizeof(GF_ELEMENT));
+            memcpy(matrix->coefficient[pivot], pkt_coes, gensize*sizeof(GF_ELEMENT));
             memcpy(matrix->message[pivot], pkt->syms, pktsize*sizeof(GF_ELEMENT));
             dec_ctx->local_DoF += 1;
         }
+        free(pkt_coes);
 
         if ((dec_ctx->local_DoF >= dec_ctx->sc->meta.snum) && (dec_ctx->overhead >= (dec_ctx->sc->meta.snum+dec_ctx->aoh))) {
             dec_ctx->OA_ready = 1;
@@ -171,21 +179,25 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct snc_packet *p
 
             // If numpp innovative packets are received, recover all
             // source packets from JMBcoeffcient and JMBmessage
-            if (dec_ctx->global_DoF == numpp) 
+            if (dec_ctx->global_DoF == numpp)
                 diagonalize_GDM(dec_ctx);
         }
     } else {
         /*
          * If decoder is OA ready, process the packet against the global matrix directly.
-         * Since the decoder is OA ready, translate the local encoded vector (LEV) 
+         * Since the decoder is OA ready, translate the local encoded vector (LEV)
          * to global encoding vector (GEV). Since the GDM was probably pivoted, need
          * to transform the GEV according to the pivoting order.
          */
-        GF_ELEMENT *re_ordered = calloc(numpp, sizeof(GF_ELEMENT));	
+        GF_ELEMENT *re_ordered = calloc(numpp, sizeof(GF_ELEMENT));
         for (i=0; i<gensize; i++) {
             /* obtain current index position of pktid */
             int curr_pos = dec_ctx->otoc_mapping[dec_ctx->sc->gene[gid]->pktid[i]];
-            re_ordered[curr_pos] = pkt->coes[i];
+            if (dec_ctx->sc->meta.bnc) {
+                re_ordered[curr_pos] = get_bit_in_array(pkt->coes, i);
+            } else {
+                re_ordered[curr_pos] = pkt->coes[i];
+            }
         }
 
         /*
@@ -201,7 +213,7 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct snc_packet *p
                     if ( m < (numpp - dec_ctx->inactives) ) {
                         // Only needs to be multiply-and-add to the inactive part
                         // this saves computation
-                        int maa_start = numpp - dec_ctx->inactives;		
+                        int maa_start = numpp - dec_ctx->inactives;
                         galois_multiply_add_region(re_ordered+maa_start, &(dec_ctx->JMBcoefficient[m][maa_start]), quotient, dec_ctx->inactives, GF_POWER);
                         dec_ctx->operations += dec_ctx->inactives;
                         re_ordered[m] = 0;
@@ -306,14 +318,14 @@ static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
     // Recover decoded overlapping packets
     for (i=0; i<ias; i++) {
         // get original pktid at column (numpp-ias+i0
-        pktid = dec_ctx->ctoo_mapping[numpp-ias+i];	
+        pktid = dec_ctx->ctoo_mapping[numpp-ias+i];
         // Construct decoded packets
         if ( (dec_ctx->sc->pp[pktid] = calloc(pktsize, sizeof(GF_ELEMENT))) == NULL )
             fprintf(stderr, "%s: calloc sc->pp[%d]\n", fname, pktid);
         memcpy(dec_ctx->sc->pp[pktid], dec_ctx->JMBmessage[numpp-ias+i], sizeof(GF_ELEMENT)*pktsize);
     }
     /* free ces_submatrix */
-    for (i=0; i<ias; i++) 
+    for (i=0; i<ias; i++)
         free(ces_submatrix[i]);
     free(ces_submatrix);
 
@@ -324,15 +336,15 @@ static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
 #endif
     GF_ELEMENT quotient;
     for (i=0; i<numpp-ias; i++) {
-        /* 
+        /*
          * Clean up the inactive part of the upper half of GDM by
-         * masking non-zero element aginst already decoded inactive packets 
+         * masking non-zero element aginst already decoded inactive packets
          *
          */
         for (j=numpp-ias; j<numpp; j++) {
             if (dec_ctx->JMBcoefficient[i][j] != 0) {
                 quotient = dec_ctx->JMBcoefficient[i][j];
-                pktid = dec_ctx->ctoo_mapping[j];			
+                pktid = dec_ctx->ctoo_mapping[j];
                 galois_multiply_add_region(dec_ctx->JMBmessage[i], dec_ctx->sc->pp[pktid], quotient, pktsize, GF_POWER);
                 dec_ctx->JMBcoefficient[i][j] = 0;
                 dec_ctx->operations += pktsize;
@@ -403,7 +415,7 @@ static long running_matrix_to_REF(struct decoding_context_OA *dec_ctx)
             }
         }
 #if defined(GNCTRACE)
-        if (consecutive == 1) 
+        if (consecutive == 1)
             printf("Class %d is self-decodable.\n", i);
 #endif
     }
@@ -436,18 +448,18 @@ static void construct_GDM(struct decoding_context_OA *dec_ctx)
     dec_ctx->otoc_mapping = malloc(sizeof(int) * numpp);
     dec_ctx->ctoo_mapping = malloc(sizeof(int) * numpp);
     for (j=0; j<numpp; j++) {
-        dec_ctx->otoc_mapping[j]   = j;				// original to current mapping
-        dec_ctx->ctoo_mapping[j]   = j;				// current to original mapping
+        dec_ctx->otoc_mapping[j]   = j;             // original to current mapping
+        dec_ctx->ctoo_mapping[j]   = j;             // current to original mapping
     }
     // Apply precoding matrix
     for (i=0; i<dec_ctx->sc->meta.cnum; i++) {
         dec_ctx->JMBcoefficient[dec_ctx->sc->meta.snum+dec_ctx->aoh+i][dec_ctx->sc->meta.snum+i] = 1;
 
-        NBR_node *variable_node = dec_ctx->sc->graph->l_nbrs_of_r[i]->first; 		//ldpc_graph->nbrs_of_right[i];
+        NBR_node *variable_node = dec_ctx->sc->graph->l_nbrs_of_r[i]->first;        //ldpc_graph->nbrs_of_right[i];
         while (variable_node != NULL) {
             // 标记与该check packet连结的所有source packet node
-            int src_pktid = variable_node->data;						//variable_node->nb_index;
-            dec_ctx->JMBcoefficient[dec_ctx->sc->meta.snum+dec_ctx->aoh+i][src_pktid] = 1;
+            int src_pktid = variable_node->data;                        //variable_node->nb_index;
+            dec_ctx->JMBcoefficient[dec_ctx->sc->meta.snum+dec_ctx->aoh+i][src_pktid] = variable_node->ce;
             //dec_ctx->JMBcoefficient[NUM_SRC+OHS+i][src_pktid] = variable_node->nb_ce;
             variable_node = variable_node->next;
         }
@@ -456,14 +468,14 @@ static void construct_GDM(struct decoding_context_OA *dec_ctx)
 
     // Step 1, translate LEVs to GEV and move them to GDM
     GF_ELEMENT *global_ces = calloc(numpp, sizeof(GF_ELEMENT));
-    int p_copy = 0;								// 拷贝到JMBcofficient的行指针
+    int p_copy = 0;                             // 拷贝到JMBcofficient的行指针
     for (i=0; i<dec_ctx->sc->meta.gnum; i++) {
         matrix = dec_ctx->Matrices[i];
         for (j=0; j<gensize; j++) {
             if (matrix->coefficient[j][j] == 0)
-                continue;						// there is no local DoF here
+                continue;                       // there is no local DoF here
             else {
-                memset(global_ces, 0, numpp*sizeof(GF_ELEMENT));	/* Reset before reuse */
+                memset(global_ces, 0, numpp*sizeof(GF_ELEMENT));    /* Reset before reuse */
                 for (k=0; k<gensize; k++) {
                     //global_ces[matrix->indices[k]] = matrix->coefficient[j][k];
                     global_ces[dec_ctx->sc->gene[i]->pktid[k]] = matrix->coefficient[j][k];

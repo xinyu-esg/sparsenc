@@ -1,9 +1,9 @@
 /*--------------------------- gaussian.c ----------------------------
  *
- * This file contains forward and backward substitution functions of 
+ * This file contains forward and backward substitution functions of
  * Guassian elimination solving
  *
- * 		A x = B
+ *      A x = B
  *
  * No specific form of A and B is assumed. Operations on A and B are
  * performed simultaneously.
@@ -26,7 +26,7 @@ long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_
 
     int has_a_dimension;
     for (i=0; i<boundary; i++) {
-        has_a_dimension = 1;			// whether this column is all-zero
+        has_a_dimension = 1;            // whether this column is all-zero
 
         if (A[i][i] == 0) {
             has_a_dimension = 0;
@@ -55,11 +55,11 @@ long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_
                 B[i] = B[pivot];
                 B[pivot] = temp_p;
             }
-        } 
+        }
         // Eliminate nonzero elements beow diagonal
         for (j=i+1; j<nrow; j++) {
             if (A[j][i] == 0)
-                continue;	// skip zeros			
+                continue;   // skip zeros
             quotient = galois_divide(A[j][i], A[i][i], GF_POWER);
             operations += 1;
             // eliminate the items under row i at col i
@@ -85,7 +85,7 @@ long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_EL
         // eliminate all items above A[i][i]
         for (j=0; j<i; j++) {
             if (A[j][i] == 0)
-                continue;		// skip zeros			
+                continue;       // skip zeros
             GF_ELEMENT quotient = galois_divide(A[j][i], A[i][i], GF_POWER);
             operations += 1;
             A[j][i] = 0;

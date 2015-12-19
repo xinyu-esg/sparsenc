@@ -37,11 +37,11 @@ int remove_from_list(struct node_list *list, int data)
     while (curr != NULL) {
         if (curr->data == data) {
             // shorten list
-            if (curr == list->first && curr == list->last) { 					// list contains only one node
-                list->first = list->last = NULL; 					
-            } else if (curr == list->first && curr != list->last) {				// head node is to be removed
+            if (curr == list->first && curr == list->last) {            // list contains only one node
+                list->first = list->last = NULL;
+            } else if (curr == list->first && curr != list->last) {     // head node is to be removed
                 list->first = curr->next;
-            } else if (curr != list->first && curr == list->last) {				// tail node is to be removed
+            } else if (curr != list->first && curr == list->last) {     // tail node is to be removed
                 list->last = prev;
                 list->last->next = NULL;
             } else {
@@ -93,6 +93,28 @@ void free_list(struct node_list *list)
 }
 
 
+/**
+ * Get/set the i-th encoding bit from a sequence of GF_ELEMENT pointed
+ * by coes. The indices of bits are as following:
+ *
+ *    [7|6|5|4|3|2|1|0]   [15|14|13|12|11|10|9|8]   ...
+ *
+ * It's caller's responsibility to ensure that ceil(max(i)/8) elements
+ * are allocated in the memory pointed by coes.
+ */
+inline GF_ELEMENT get_bit_in_array(GF_ELEMENT *coes, int i)
+{
+    GF_ELEMENT co = coes[i/8];
+    GF_ELEMENT mask = 0x1 << (i % 8);
+    return ((GF_ELEMENT) ((mask & co) == mask));
+}
+
+inline void set_bit_in_array(GF_ELEMENT *coes, int i)
+{
+    coes[i/8] |= (0x1 << (i % 8));
+    return;
+}
+
 /*
  * Swap two continuous memory blocks
  */
@@ -100,14 +122,14 @@ void free_list(struct node_list *list)
    void swap_memory(uint8_t *a1, uint8_t *a2, int bytes)
    {
    int i;
-#if	defined(INTEL_SSSE3)
+#if defined(INTEL_SSSE3)
 uint8_t *sptr, *dptr, *top;
 sptr = a1;
 dptr = a2;
 top  = a1 + bytes;
 
 __m128i va, vb, r, t1;
-while (sptr < top) 
+while (sptr < top)
 {
 if (sptr + 16 > top) {
 // remaining data doesn't fit into __m128i, do not use SSE

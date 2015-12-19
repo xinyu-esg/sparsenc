@@ -1,7 +1,7 @@
 #include "galois.h"
 #include "snc.h"
 
-/* Schedule a subgeneration to recode a packet according 
+/* Schedule a subgeneration to recode a packet according
  * to the specified scheduling type. */
 static int schedule_recode_generation(struct snc_buffer *buf, int sched_t);
 
@@ -50,11 +50,11 @@ Error:
 
 /*
  * Buffer structure example (nc=1, pn=1)
- * snc_packet     
+ * snc_packet
  *      ^           NULL         NULL
  *      |            |            |
  *      |            |            |
- * gbuf[gid][0] gbuf[gid][1] gbuf[gid][2] ......... gbuf[gid][size-1] 
+ * gbuf[gid][0] gbuf[gid][1] gbuf[gid][2] ......... gbuf[gid][size-1]
  *                   ^
  *                   |
  *                   |
@@ -84,10 +84,10 @@ void snc_buffer_packet(struct snc_buffer *buf, struct snc_packet *pkt)
 struct snc_packet *snc_recode_packet(struct snc_buffer *buf, int sched_t)
 {
     int gid = schedule_recode_generation(buf, sched_t);
-    if (gid == -1) 
+    if (gid == -1)
         return NULL;
 
-    struct snc_packet *pkt = snc_alloc_empty_packet(buf->meta.size_g, buf->meta.size_p);
+    struct snc_packet *pkt = snc_alloc_empty_packet(&buf->meta);
     if (pkt == NULL)
         return NULL;
 
@@ -109,7 +109,7 @@ void snc_free_buffer(struct snc_buffer *buf)
         if (buf->gbuf != NULL && buf->gbuf[i] != NULL) {
             /* Free bufferred packets, if any */
             for (int j=0; j<buf->size; j++)
-                snc_free_packet(buf->gbuf[i][j]);	
+                snc_free_packet(buf->gbuf[i][j]);
             /* Free the pointer array */
             free(buf->gbuf[i]);
         }

@@ -46,10 +46,10 @@ libsnc.so: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC) $(RECODER) $(DECODER)
 	$(CC) -shared -o libsnc.so $^
 	
 #Test snc decoder
-sncDecoder: libsnc.so test.decoders.c 
+sncDecoders: libsnc.so test.decoders.c
 	$(CC) -L. -lsnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #Test decoder for files
-sncDecoderFile: libsnc.so test.file.decoders.c 
+sncDecodersFile: libsnc.so test.file.decoders.c
 	$(CC) -L. -lsnc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #Test recoder
 sncRecoder2Hop: libsnc.so test.2hopRecoder.c
@@ -60,7 +60,7 @@ $(OBJDIR)/%.o: $(OBJDIR)/%.c $(DEFS)
 
 .PHONY: clean
 clean:
-	rm -f *.o $(OBJDIR)/*.o libsnc.so sncDecoder sncDecoderFile sncRecoder2Hop
+	rm -f *.o $(OBJDIR)/*.o libsnc.so sncDecoders sncDecodersFile sncRecoder2Hop
 
 install: libsnc.so
 	cp include/snc.h /usr/include/

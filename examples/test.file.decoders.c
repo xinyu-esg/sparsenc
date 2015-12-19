@@ -46,6 +46,8 @@ int main(int argc, char *argv[])
     sp.size_b   = atoi(argv[5]);
     sp.size_g   = atoi(argv[6]);
     sp.size_p   = atoi(argv[7]);
+    sp.bpc      = 0;
+    sp.bnc      = 0;
     char *filename = argv[8];
     char *copyname = calloc(strlen(argv[8])+strlen(".dec.copy")+1, sizeof(char));
     strcat(copyname, filename);

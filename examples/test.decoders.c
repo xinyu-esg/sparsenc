@@ -6,12 +6,19 @@
 #include <string.h>
 #include "snc.h"
 
-char usage[] = "usage: ./programName code_t dec_t datasize pcrate size_b size_g size_p\n\
-                       code_t - RAND, BAND, WINDWRAP\n\
-                       dec_t  - GG, OA, BD, CBD\n";
+char usage[] = "usage: ./sncDecoder code_t dec_t datasize pcrate size_b size_g size_p bpc bnc \n\
+                       code_t   - RAND, BAND, WINDWRAP\n\
+                       dec_t    - GG, OA, BD, CBD\n\
+                       datasize - Number of bytes\n\
+                       pcrate   - Precode rate (percentage of check packets)\n\
+                       size_b   - Subgeneration distance\n\
+                       size_g   - Subgeneration size\n\
+                       size_p   - Packet size in bytes\n\
+                       bpc      - Use binary precode (0 or 1)\n\
+                       bnc      - Use binary network code (0 or 1)\n";
 int main(int argc, char *argv[])
 {
-    if (argc != 8) {
+    if (argc != 10) {
         printf("%s\n", usage);
         exit(1);
     }
@@ -45,9 +52,11 @@ int main(int argc, char *argv[])
     sp.size_b   = atoi(argv[5]);
     sp.size_g   = atoi(argv[6]);
     sp.size_p   = atoi(argv[7]);
+    sp.bpc      = atoi(argv[8]);
+    sp.bnc      = atoi(argv[9]);
 
     srand( (int) time(0) );
-    char *buf = malloc(sp.datasize);
+    unsigned char *buf = malloc(sp.datasize);
     int rnd=open("/dev/urandom", O_RDONLY);
     read(rnd, buf, sp.datasize);
     close(rnd);

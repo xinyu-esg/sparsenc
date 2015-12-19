@@ -1,5 +1,5 @@
 /************************************************************************
- *			galois.c
+ * galois.c
  * Functions of Galois field arithmetic.
  ************************************************************************/
 #include <stdlib.h>
@@ -31,7 +31,7 @@ int GFConstructed() {
     return constructed;
 }
 
-int constructField(int npower) 
+int constructField(int npower)
 {
     if (constructed)
         return 0;
@@ -41,7 +41,7 @@ int constructField(int npower)
             exit(1);
         }
 #if defined(INTEL_SSSE3)
-        /* 
+        /*
          * Create half tables for SSE multiply_add_region. Currently only support GF(256).
          */
         if (npower == 8) {
@@ -61,7 +61,7 @@ int constructField(int npower)
                     d <<= 1;
                     if (d & (1<<npower)) d ^= pp;
                 } while (c != a);
-            }	
+            }
         }
 #endif
         constructed = 1;
@@ -72,27 +72,27 @@ int constructField(int npower)
 static int galois_create_log_table(int npower)
 {
     int j, b;
-    int nw	 = (1<<GF_POWER);
+    int nw   = (1<<GF_POWER);
     int nwml = (1<<GF_POWER)-1;
     int m = npower;
     int gf_poly;
 
     if (m == 1) {
         gf_poly = primitive_poly_1;
-        nw		=  1 << 1;
-        nwml 	= (1 << 1) - 1;
+        nw      =  1 << 1;
+        nwml    = (1 << 1) - 1;
     } else if (m == 2) {
         gf_poly = primitive_poly_2;
-        nw		=  1 << 2;
-        nwml 	= (1 << 2) - 1;
+        nw      =  1 << 2;
+        nwml    = (1 << 2) - 1;
     } else if (m == 4) {
         gf_poly = primitive_poly_4;
-        nw		=  1 << 4;
-        nwml	= (1 << 4) - 1;
+        nw      =  1 << 4;
+        nwml    = (1 << 4) - 1;
     } else if (m == 8) {
         gf_poly = primitive_poly_8;
-        nw		=  1 << 8;
-        nwml	= (1 << 8) - 1;
+        nw      =  1 << 8;
+        nwml    = (1 << 8) - 1;
     } else {
         fprintf(stderr, "ERROR! We only accept field size 2^[1, 2, 4, 8, 16]\n");
         return 0;
@@ -102,7 +102,7 @@ static int galois_create_log_table(int npower)
     for (j=0; j<nw; j++) {
         galois_log_table[j] = nwml;
         galois_ilog_table[j] = 0;
-    } 
+    }
 
     b = 1;
     for (j=0; j<nwml; j++) {
@@ -113,7 +113,7 @@ static int galois_create_log_table(int npower)
         galois_log_table[b] = j;
         galois_ilog_table[j] = b;
         b = b << 1;
-        if (b & nw) 
+        if (b & nw)
             b = (b ^ gf_poly) & nwml;
     }
 
@@ -152,13 +152,13 @@ static int galois_create_mult_table(int npower)
             int tmp;
             tmp = logx + galois_log_table[y];
             if (tmp >= ((1<<GF_POWER) - 1))
-                tmp -= ((1<<GF_POWER) - 1);				// avoid cross the boundary of log/ilog tables
+                tmp -= ((1<<GF_POWER) - 1);             // avoid cross the boundary of log/ilog tables
             galois_mult_table[j] = galois_ilog_table[tmp];
 
             tmp = logx - galois_log_table[y];
             while (tmp < 0)
                 tmp += ((1<<GF_POWER) - 1);
-            galois_divi_table[j] = galois_ilog_table[tmp]; 
+            galois_divi_table[j] = galois_ilog_table[tmp];
 
             j++;
         }
@@ -220,7 +220,7 @@ void galois_multiply_add_region(uint8_t *dst, uint8_t *src, uint8_t multiplier, 
         return;
     }
     int i;
-#if	defined(INTEL_SSSE3)
+#if defined(INTEL_SSSE3)
     uint8_t *sptr, *dptr, *top;
     sptr = src;
     dptr = dst;
@@ -241,7 +241,7 @@ void galois_multiply_add_region(uint8_t *dst, uint8_t *src, uint8_t multiplier, 
     }
 
     __m128i va, vb, r, t1;
-    while (sptr < top) 
+    while (sptr < top)
     {
         if (sptr + 16 > top) {
             /* remaining data doesn't fit into __m128i, do not use SSE */
@@ -281,7 +281,7 @@ void galois_multiply_add_region(uint8_t *dst, uint8_t *src, uint8_t multiplier, 
         return;
     }
 
-    for (i = 0; i < bytes; i++) 
+    for (i = 0; i < bytes; i++)
         dst[i] ^= galois_mult_table[(src[i]<<npower) | multiplier];
     return;
 #endif
@@ -315,7 +315,7 @@ void galois_multiply_region(uint8_t *src, uint8_t multiplier, int bytes, int npo
     __m128i loset = _mm_set1_epi8(0x0f);
 
     __m128i va, r, t1;
-    while (sptr < top) 
+    while (sptr < top)
     {
         if (sptr + 16 > top) {
             /* remaining data doesn't fit into __m128i, do not use SSE */
@@ -334,7 +334,7 @@ void galois_multiply_region(uint8_t *src, uint8_t multiplier, int bytes, int npo
     }
     return;
 #else
-    for (int i=0; i<bytes; i++) 
+    for (int i=0; i<bytes; i++)
         src[i] = galois_mult_table[((src[i])<<npower) | multiplier];
     return;
 #endif

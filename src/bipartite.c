@@ -2,21 +2,23 @@
  *
  *  Bipartite graph functions for LDPC precoding.
  *  We use LDPC code specified in Raptor Codes Standard
- *  Implementation. Refer to: 
- *    1, Sec 5.4.2.3 in RFC5053 "Raptor Forward Error 
+ *  Implementation. Refer to:
+ *    1, Sec 5.4.2.3 in RFC5053 "Raptor Forward Error
  *       Correction Scheme for Object Delivery" by Luby et. al.
- *    2, Sec 3.2.3 in Foundations and Trends in Comm. and 
- *       Info. Theory "Raptor Codes" by Shokrollahi et. al. 
+ *    2, Sec 3.2.3 in Foundations and Trends in Comm. and
+ *       Info. Theory "Raptor Codes" by Shokrollahi et. al.
  *  for detailed information.
  *
  *----------------------------------------------------------*/
 #include "common.h"
 #include <math.h>
-static int is_prime(int number); 
+static int is_prime(int number);
 static int include_left_node(int l_index, int r_index, BP_graph *graph);
+static int bipartite_rand(void);
+static void bipartite_srand(unsigned int seed);
 
 // The number of required LDPC check symbols given the number of source packets.
-int number_of_checks(int snum, double r) 
+int number_of_checks(int snum, double r)
 {
     if (r == 0)
         return (0);
@@ -24,7 +26,7 @@ int number_of_checks(int snum, double r)
     while ( x * (x - 1) < 2 * snum )
         x++;
 
-    int c = (int) ceil( r * snum ) + x; 	// In Raptor code r=0.01
+    int c = (int) ceil( r * snum ) + x; // In Raptor code r=0.01
     while ( !is_prime(c) )
         c++;
 
@@ -34,8 +36,9 @@ int number_of_checks(int snum, double r)
 // construct LDPC graph
 int create_bipartite_graph(BP_graph *graph, int nleft, int nright)
 {
+    bipartite_srand(7);
     int LDPC_SYS = nleft;
-    int S 		 = nright;
+    int S        = nright;
     if (S == 0)
         return 0;
 
@@ -108,19 +111,28 @@ failure:
 // include left node index in the LDPC graph
 static int include_left_node(int l_index, int r_index, BP_graph *graph)
 {
+    // Coding coefficient associated with the edge
+    GF_ELEMENT ce;
+    if (graph->binaryce == 1) {
+        ce = 1;
+    } else {
+        ce = (GF_ELEMENT) (bipartite_rand() % 255 + 1); // Value range: [1-255]
+    }
     // Record neighbor of a right-side node
-    NBR_node *nb = malloc(sizeof(NBR_node));
+    NBR_node *nb = calloc(1, sizeof(NBR_node));
     if (nb == NULL)
         return -1;
     nb->data = l_index;
+    nb->ce   = ce;
     nb->next = NULL;
     append_to_list(graph->l_nbrs_of_r[r_index], nb);
 
     // Also neighbour of the left-side node
-    NBR_node *check_nb = malloc(sizeof(NBR_node));
+    NBR_node *check_nb = calloc(1, sizeof(NBR_node));
     if (nb == NULL)
         return -1;
     check_nb->data = r_index;
+    check_nb->ce   = ce;
     check_nb->next = NULL;
     append_to_list(graph->r_nbrs_of_l[l_index], check_nb);
     return 0;
@@ -144,7 +156,7 @@ void free_bipartite_graph(BP_graph *graph)
     free(graph);
 }
 
-static int is_prime(int number) 
+static int is_prime(int number)
 {
     int i;
     for (i=2; i*i<=number; i++) {
@@ -154,3 +166,14 @@ static int is_prime(int number)
     return 1;
 }
 
+static unsigned long int next = 1;
+static int bipartite_rand(void) // RAND_MAX assumed to be 32767
+{
+    next = next * 1103515245 + 12345;
+    return (unsigned int)(next/65536) % 32768;
+}
+
+static void bipartite_srand(unsigned int seed)
+{
+    next = seed;
+}

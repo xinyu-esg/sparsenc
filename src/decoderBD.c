@@ -27,13 +27,13 @@ void create_dec_context_BD(struct decoding_context_BD *dec_ctx, struct snc_param
         return;
     }
     struct snc_context *sc;
-    if ((sc = snc_create_enc_context(NULL, sp)) == NULL) 
+    if ((sc = snc_create_enc_context(NULL, sp)) == NULL)
         fprintf(stderr, "%s: create decoding context failed", fname);
 
     dec_ctx->sc = sc;
 
     dec_ctx->finished     = 0;
-    dec_ctx->DoF 		  = 0;
+    dec_ctx->DoF          = 0;
     dec_ctx->de_precode   = 0;
     dec_ctx->inactivated  = 0;
 
@@ -51,8 +51,8 @@ void create_dec_context_BD(struct decoding_context_BD *dec_ctx, struct snc_param
     dec_ctx->otoc_mapping = malloc(sizeof(int) * numpp);
     dec_ctx->ctoo_mapping = malloc(sizeof(int) * numpp);
     for (j=0; j<numpp; j++) {
-        dec_ctx->otoc_mapping[j]   = j;				// original to current mapping
-        dec_ctx->ctoo_mapping[j]   = j;				// current to original mapping
+        dec_ctx->otoc_mapping[j]   = j;             // original to current mapping
+        dec_ctx->ctoo_mapping[j]   = j;             // current to original mapping
     }
 
     dec_ctx->overhead     = 0;
@@ -84,7 +84,11 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct snc_packet *p
          */
         for (i=0; i<gensize; i++) {
             int index = dec_ctx->sc->gene[pkt->gid]->pktid[i];
-            ces[index] = pkt->coes[i];
+            if (dec_ctx->sc->meta.bnc) {
+                ces[index] = get_bit_in_array(pkt->coes, i);
+            } else {
+                ces[index] = pkt->coes[i];
+            }
         }
         for (i=0; i<numpp; i++) {
             if (ces[i] != 0) {
@@ -110,7 +114,11 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct snc_packet *p
         for (i=0; i<gensize; i++) {
             int orig_index = dec_ctx->sc->gene[pkt->gid]->pktid[i];
             int curr_index = dec_ctx->otoc_mapping[orig_index];
-            ces[curr_index] = pkt->coes[i];
+            if (dec_ctx->sc->meta.bnc) {
+                ces[curr_index] = get_bit_in_array(pkt->coes, i);
+            } else {
+                ces[curr_index] = pkt->coes[i];
+            }
         }
         for (i=0; i<numpp; i++) {
             if (ces[i] != 0) {
@@ -143,7 +151,7 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct snc_packet *p
 #if defined(GNCTRACE)
         printf("Start to apply the parity-check matrix...\n");
 #endif
-        int allzeros = partially_diag_decoding_matrix(dec_ctx);	
+        int allzeros = partially_diag_decoding_matrix(dec_ctx);
 #if defined(GNCTRACE)
         printf("%d all-zero rows when partially diagonalizing the decoding matrix.\n", allzeros);
 #endif
@@ -165,24 +173,24 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct snc_packet *p
     ces = NULL;
 }
 
-/* 
- * Partially diagonalize the upper-trianguler decoding matrix, 
+/*
+ * Partially diagonalize the upper-trianguler decoding matrix,
  * i.e., remove nonzero elements above nonzero diagonal elements
  */
 static int partially_diag_decoding_matrix(struct decoding_context_BD *dec_ctx)
 {
-    int 		i, j, l;
-    int 		nonzero_rows = 0;
-    GF_ELEMENT 	quotient;
-    long long 	operations = 0;
+    int         i, j, l;
+    int         nonzero_rows = 0;
+    GF_ELEMENT  quotient;
+    long long   operations = 0;
 
     int gensize = dec_ctx->sc->meta.size_g;
     int pktsize = dec_ctx->sc->meta.size_p;
     int numpp = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
 
-    int	zero_size	= dec_ctx->sc->meta.cnum + 5;  
-    int *zeropivots = (int *) malloc( sizeof(int) * zero_size );	// store indices of columns where the diagonal element is zero
-    int zero_p		= 0;										// indicate how many zero pivots have been identified
+    int zero_size   = dec_ctx->sc->meta.cnum + 5;
+    int *zeropivots = (int *) malloc( sizeof(int) * zero_size );    // store indices of columns where the diagonal element is zero
+    int zero_p      = 0;                                        // indicate how many zero pivots have been identified
 
     for (j=numpp-1; j>=0; j--) {
         if (dec_ctx->coefficient[j][j] == 0) {
@@ -194,14 +202,14 @@ static int partially_diag_decoding_matrix(struct decoding_context_BD *dec_ctx)
             continue;
         } else {
             nonzero_rows += 1;
-            int start_row = j-gensize > 0 ? j-gensize : 0;		// the upper triangular form is also in banded form, so no need to go through all rows
+            int start_row = j-gensize > 0 ? j-gensize : 0;      // the upper triangular form is also in banded form, so no need to go through all rows
             for (i=start_row; i<j; i++) {
                 if (dec_ctx->coefficient[i][j] == 0)
                     continue;
 
                 quotient = galois_divide(dec_ctx->coefficient[i][j], dec_ctx->coefficient[j][j], GF_POWER);
                 operations += 1;
-                dec_ctx->coefficient[i][j] = 0;			// eliminiate the element
+                dec_ctx->coefficient[i][j] = 0;         // eliminiate the element
                 // Important: corresponding operations on behind columns whose diagonal elements are zeros
                 for (int z=0; z<zero_p; z++) {
                     l = zeropivots[z];
@@ -232,18 +240,18 @@ static int apply_parity_check_matrix(struct decoding_context_BD *dec_ctx)
     int numpp = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
 
     // 1, Copy parity-check vectors to the nonzero rows of the decoding matrix
-    int p = 0;						// index pointer to the parity-check vector that is to be copyed
+    int p = 0;                      // index pointer to the parity-check vector that is to be copyed
     for (i=0; i<numpp; i++) {
         if (dec_ctx->coefficient[i][i] == 0) {
             /* Set the coding vector according to parity-check bits */
             NBR_node *varnode = dec_ctx->sc->graph->l_nbrs_of_r[p]->first;
             while (varnode != NULL) {
-                dec_ctx->coefficient[i][varnode->data] = 1;
+                dec_ctx->coefficient[i][varnode->data] = varnode->ce;
                 varnode = varnode->next;
             }
             dec_ctx->coefficient[i][dec_ctx->sc->meta.snum+p] = 1;
             p++;
-            memset(dec_ctx->message[i], 0, sizeof(GF_ELEMENT)*pktsize);			// parity-check vector corresponds to all-zero message
+            memset(dec_ctx->message[i], 0, sizeof(GF_ELEMENT)*pktsize);         // parity-check vector corresponds to all-zero message
         }
     }
 

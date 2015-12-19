@@ -6,12 +6,12 @@ typedef unsigned char GF_ELEMENT;
 #endif
 /*
  * Type of SNC codes
- * 	RAND     - Packets are pesudo-randomly grouped
- * 	BAND     - Packets are grouped to be consecutively overlapped
- * 	WINDWRAP - Similar as BAND, but has wrap around in encoding vectors
+ * RAND     - Packets are pesudo-randomly grouped
+ * BAND     - Packets are grouped to be consecutively overlapped
+ * WINDWRAP - Similar as BAND, but has wrap around in encoding vectors
  */
 #define RAND_SNC        0
-#define	BAND_SNC        1
+#define BAND_SNC        1
 #define WINDWRAP_SNC    2
 
 /*
@@ -21,10 +21,10 @@ typedef unsigned char GF_ELEMENT;
  * BD  - Band decoder with pivoting
  * CBD - Compact band decoder with compact decoding matrix representation
  */
-#define GG_DECODER	0
-#define OA_DECODER	1
-#define BD_DECODER	2
-#define	CBD_DECODER	3
+#define GG_DECODER  0
+#define OA_DECODER  1
+#define BD_DECODER  2
+#define CBD_DECODER 3
 
 /*
  * Type of scheduling algorithms for SNC recoding
@@ -39,39 +39,43 @@ typedef unsigned char GF_ELEMENT;
 struct snc_context;     // Sparse network code encode context
 
 struct snc_packet {
-    int 		gid;    // subgeneration id;
-    GF_ELEMENT	*coes;  // SIZE_G coding coefficients of coded packet
-    GF_ELEMENT	*syms;	// SIZE_P symbols of coded packet
+    int         gid;    // subgeneration id;
+    GF_ELEMENT  *coes;  // SIZE_G coding coefficients of coded packet
+    GF_ELEMENT  *syms;  // SIZE_P symbols of coded packet
 };
 
 struct snc_parameter {
-    long   datasize;
-    double pcrate;
-    int	   size_b;
-    int    size_g;
-    int    size_p;
-    int    type;
+    long    datasize;
+    double  pcrate;
+    int     size_b;
+    int     size_g;
+    int     size_p;
+    int     type;
+    int     bpc;         // binary precode
+    int     bnc;         // binary network coding
 };
 
 // Metainfo of the data to be snc-coded
 struct snc_metainfo {
-    long    datasize;  // Data size in bytes.
-    double  pcrate;	   // precode rate
+    long    datasize;   // Data size in bytes.
+    double  pcrate;     // precode rate
     int     size_b;
     int     size_g;
     int     size_p;
-    int     type;	   // Code type
-    int     snum;	   // Number of source packets splitted from the data.
-    int		cnum;	   // Number of parity-check packets (cnum ~= snum * pcrate)
-    int		gnum;	   // Number of subgenerations
+    int     type;       // Code type
+    int     bpc;        // binary precode
+    int     bnc;        // binary network coding
+    int     snum;       // Number of source packets splitted from the data.
+    int     cnum;       // Number of parity-check packets (cnum ~= snum * pcrate)
+    int     gnum;       // Number of subgenerations
 };
 
 struct snc_decoder;     // Sparse network code decoder
 
-/* 
+/*
  * Buffer for storing GNC packets (for recoding)
  *
- * Buffer size specifies how many packets are saved for 
+ * Buffer size specifies how many packets are saved for
  * each subgeneration. "FIFO" strategy is used when buffer
  * size is reached; the oldest buffered packet will be
  * discarded when a subgeneration buffer is full while a new
@@ -84,9 +88,9 @@ struct snc_decoder;     // Sparse network code decoder
  *          gbuf[1]          ^            ^
  *                           |            |
  *          gbuf[2] --> gbuf[2][0]   gbuf[2][1] ....
- *            .             
- *            .            
- *            .            
+ *            .
+ *            .
+ *            .
  */
 struct snc_buffer {
     struct snc_metainfo    meta;    // Meta info of the code
@@ -95,7 +99,7 @@ struct snc_buffer {
     struct snc_packet   ***gbuf;    // Pointers to subgeneration buffers
     int                   *nc;      // Number of currently buffered packets
     int                   *pn;      // Positions to store next packet of each subgeneration
-    int                   *nsched;  // Number of scheduled times of each subgeneration 
+    int                   *nsched;  // Number of scheduled times of each subgeneration
 };
 
 /*------------------------------- sncEncoder -------------------------------*/
@@ -107,7 +111,7 @@ struct snc_buffer {
  *   On success, a pointer to the allocated encode context is returned;
  *   On error, NULL is returned, and errno is set appropriately.
  **/
-struct snc_context *snc_create_enc_context(char *buf, struct snc_parameter sp);
+struct snc_context *snc_create_enc_context(unsigned char *buf, struct snc_parameter sp);
 
 // Get code metainfo of an encode context
 struct snc_metainfo *snc_get_metainfo(struct snc_context *sc);
@@ -125,7 +129,7 @@ unsigned char *snc_recover_data(struct snc_context *sc);
 long snc_recover_to_file(const char *filepath, struct snc_context *sc);
 
 // Allocate an snc packet with coes and syms being zero
-struct snc_packet *snc_alloc_empty_packet(int size_g, int size_p);
+struct snc_packet *snc_alloc_empty_packet(struct snc_metainfo *meta);
 
 // Generate an snc packet from the encode context
 struct snc_packet *snc_generate_packet(struct snc_context *sc);
@@ -157,7 +161,7 @@ struct snc_context *snc_get_enc_context(struct snc_decoder *decoder);
 void snc_process_packet(struct snc_decoder *decoder, struct snc_packet *pkt);
 
 // Check whether the decoder is finished
-int snc_decoder_finished(struct snc_decoder *decoder); 
+int snc_decoder_finished(struct snc_decoder *decoder);
 
 // Overhead of code
 // Returns the number of received packets of the decoder

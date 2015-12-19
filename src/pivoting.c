@@ -2,10 +2,10 @@
  *
  * pivoting.c
  *
- * This library provides routines to pivot matrices of a linear 
+ * This library provides routines to pivot matrices of a linear
  * system of equations. Solving the system would require much lower
  * computational cost after pivoting. Two pivoting algorithms, namely
- * inactivation and Zlatev pivoting, are implemented. One interface 
+ * inactivation and Zlatev pivoting, are implemented. One interface
  * is exposed to caller.
  *
  ********************************************************************/
@@ -14,15 +14,15 @@
 #include <time.h>
 #include <string.h>
 #include "galois.h"
-#define ZLATEVS			3    // Number of searching rows using Zlatev's strategy 
-#define IA_INIT			0    // Initial number of inactivated columns
-#define IA_STEP			1    // Gradually inactivate more columns
+#define ZLATEVS  3    // Number of searching rows using Zlatev's strategy
+#define IA_INIT  0    // Initial number of inactivated columns
+#define IA_STEP  1    // Gradually inactivate more columns
 /*
- * Pivoting algorithms use double-linked lists to store numbers of 
+ * Pivoting algorithms use double-linked lists to store numbers of
  * nonzeros of rows and columns of a matrix.
  */
-typedef struct subscript				Subscript;
-typedef struct subscripts				ssList;
+typedef struct subscript  Subscript;
+typedef struct subscripts ssList;
 struct subscript
 {
     int index;
@@ -55,7 +55,7 @@ static void reshape_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
  */
 static void permute_matrix_columns(int nrow, int ncolA, GF_ELEMENT **A, ssList *ColPivots);
 
-/* 
+/*
  * Helper functions for pivoting
  * We use double-linked lists when pivoting a matrix.
  */
@@ -71,37 +71,37 @@ extern long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A,
  * pivot_matrix_x()
  * Main interfaces to the library.
  * Input:
- * 	Ax = B
- * 	It is required that 2-D matrices A and B are stored in form of double pointers
- * 	
- * 	A ->A[0] A[0][1] A[0][2] ...
- * 		A[1] ...
- * 		.
- * 		.
- * Parameters:
- * 	nrow  - number of rows of A and B
- * 	ncolA - number of columns of A
- * 	ncolB - number of columns of B
+ *  Ax = B
+ *  It is required that 2-D matrices A and B are stored in form of double pointers
  *
- * Return: 
+ *  A ->A[0] A[0][1] A[0][2] ...
+ *      A[1] ...
+ *      .
+ *      .
+ * Parameters:
+ *  nrow  - number of rows of A and B
+ *  ncolA - number of columns of A
+ *  ncolB - number of columns of B
+ *
+ * Return:
  *  number of Galois field operations consumed
  *
  * Return as arguments:
  *  otoc        - An array containing the current column index of the original index
- *  	          i.e., otoc[i] = "current column index of the original i-th column"
+ *                i.e., otoc[i] = "current column index of the original i-th column"
  *  inactives   - number of inactivated columns
  *
  *  [A] will be transformed into the form of:
- * 		-                 -
- * 		| x 0 0 0 0 x x x |
- * 		| 0 x 0 0 0 x x x |
- * 		| 0 0 x 0 0 x x x |
- * 		| 0 0 0 x 0 x x x |
- * 		| 0 0 0 0 x x x x |
- * 		| 0 0 0 0 0 x x x |
- * 		| 0 0 0 0 0 x x x |
- * 		| 0 0 0 0 0 x x x |
- * 		-                -
+ *      -                 -
+ *      | x 0 0 0 0 x x x |
+ *      | 0 x 0 0 0 x x x |
+ *      | 0 0 x 0 0 x x x |
+ *      | 0 0 0 x 0 x x x |
+ *      | 0 0 0 0 x x x x |
+ *      | 0 0 0 0 0 x x x |
+ *      | 0 0 0 0 0 x x x |
+ *      | 0 0 0 0 0 x x x |
+ *      -                -
  *  and B will be processed accordingly.
  *
  **********************************************************************************/
@@ -139,8 +139,8 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
     int *ctoo = (int *) malloc(sizeof(int)*ncolA);
     Subscript *ss_pt = col_pivots->ssFirst;
     for (i=0; i<ncolA; i++) {
-        otoc[ss_pt->index] = i;	 // Original-to-current mapping	
-        ctoo[i] = ss_pt->index;	
+        otoc[ss_pt->index] = i;  // Original-to-current mapping
+        ctoo[i] = ss_pt->index;
         ss_pt = ss_pt->next;
     }
 
@@ -160,7 +160,7 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
     printf("Time consumed in matrix re-ordering after pivoting T: %.0f seconds.\n", reordering_time);
     pivoting_time += reordering_time;
     //diagonalize active part
-    printf("Convert the left half of T (lower triangular) to diagonal...\n");	
+    printf("Convert the left half of T (lower triangular) to diagonal...\n");
 #endif
     long long ops1=0;
     GF_ELEMENT quotient;
@@ -176,17 +176,17 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
                 ops1 += 1;
                 // XOR the corresponding part in the inactive part
                 galois_multiply_add_region(&(A[j][ncolA-ias]), &(A[i][ncolA-ias]), quotient, ias, GF_POWER);
-                ops1 += ias;	// This part of matrix in processing is lower triangular in part, so operations only needed in the back
+                ops1 += ias;    // This part of matrix in processing is lower triangular in part, so operations only needed in the back
                 // simultaneously do the same thing on right matrix B
                 galois_multiply_add_region(B[j], B[i], quotient, ncolB, GF_POWER);
-                ops1 += ncolB;				
-                A[j][i] = 0;			// eliminate the item
+                ops1 += ncolB;
+                A[j][i] = 0;            // eliminate the item
             }
         }
     }
     operations += ops1;
 
-    /* Perform forward substitution on the ias x ias dense inactivated matrix. */ 
+    /* Perform forward substitution on the ias x ias dense inactivated matrix. */
     GF_ELEMENT **ces_submatrix = calloc(ias+nrow-ncolA, sizeof(GF_ELEMENT*));
     for (i=0; i<ias+nrow-ncolA; i++){
         ces_submatrix[i] = calloc(ias, sizeof(GF_ELEMENT));
@@ -199,7 +199,7 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
     long long ops = forward_substitute(ias+nrow-ncolA, ias, ncolB, ces_submatrix, &B[ncolA-ias]);
     operations += ops;
     // Save the processed inactivated part back to A
-    for (i=ncolA-ias; i<ncolA; i++) 
+    for (i=ncolA-ias; i<ncolA; i++)
         memcpy(&(A[i][ncolA-ias]), ces_submatrix[i-(ncolA-ias)], ias*sizeof(GF_ELEMENT));
 
     //free ces_submatrix
@@ -211,9 +211,9 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 }
 
 /********************************************************************************
- * 
- * Pivot matrix for two rounds. First round uses inactivation pivoting against 
- * the whole matrix. The second round performs on the relatively denser 
+ *
+ * Pivot matrix for two rounds. First round uses inactivation pivoting against
+ * the whole matrix. The second round performs on the relatively denser
  * bottom-right corner corresponding to the inactivated columns. Zlatev pivoting
  * is used for the second round.
  *
@@ -251,8 +251,8 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
     int *ctoo = (int *) malloc(sizeof(int)*ncolA);
     Subscript *ss_pt = col_pivots->ssFirst;
     for (i=0; i<ncolA; i++) {
-        otoc[ss_pt->index] = i;		// 第i个pivot对应的原来第ss_pt->index列
-        ctoo[i] = ss_pt->index;	
+        otoc[ss_pt->index] = i;     // 第i个pivot对应的原来第ss_pt->index列
+        ctoo[i] = ss_pt->index;
         ss_pt = ss_pt->next;
     }
 
@@ -274,7 +274,7 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 
     int missing_pivots = 0;
     for (i=0; i<nrow; i++) {
-        if (A[i][i] == 0) 
+        if (A[i][i] == 0)
             missing_pivots += 1;
     }
     printf("There are %d pivots missing\n", missing_pivots);
@@ -287,7 +287,7 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
     }
     printf("Fraction of nonzeros in the lower half of the active part: %f\n", (double) nonzeros/(ncolA-ias)/ias);
     //diagonalize active part
-    printf("Convert the left half of T (lower triangular) to diagonal...\n");	
+    printf("Convert the left half of T (lower triangular) to diagonal...\n");
 #endif
     long long ops1=0;
     GF_ELEMENT quotient;
@@ -303,17 +303,17 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
                 ops1 += 1;
                 // XOR the corresponding part in the inactive part
                 galois_multiply_add_region(&(A[j][ncolA-ias]), &(A[i][ncolA-ias]), quotient, ias, GF_POWER);
-                ops1 += ias;	// This part of matrix in processing is lower triangular in part, so operations only needed in the back
+                ops1 += ias;    // This part of matrix in processing is lower triangular in part, so operations only needed in the back
                 // simultaneously do the same thing on right matrix B
                 galois_multiply_add_region(B[j], B[i], quotient, ncolB, GF_POWER);
-                ops1 += ncolB;				
-                A[j][i] = 0;			// eliminate the item
+                ops1 += ncolB;
+                A[j][i] = 0;            // eliminate the item
             }
         }
     }
     operations += ops1;
 
-    /* Second time pivoting on the iasxias dense inactivated matrix. */ 
+    /* Second time pivoting on the iasxias dense inactivated matrix. */
 #if defined(GNCTRACE)
     printf("Perform another time of pivoting after partly diagonalizing T\n");
 #endif
@@ -374,7 +374,7 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
     long long ops = forward_substitute(ias+nrow-ncolA, ias, ncolB, ces_submatrix, &B[ncolA-ias]);
     operations += ops;
 
-    for (i=ncolA-ias; i<ncolA; i++) 
+    for (i=ncolA-ias; i<ncolA; i++)
         memcpy(&(A[i][ncolA-ias]), ces_submatrix[i-(ncolA-ias)], ias*sizeof(GF_ELEMENT));
 
     //free ces_submatrix and msg_submatrix
@@ -390,18 +390,18 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
 /*****************************************************************************
  *     Zlatev pivoting
  *
- * A special kind of Markowitz pivoting in which pivots are selected from 3 
+ * A special kind of Markowitz pivoting in which pivots are selected from 3
  * candidates who have the smallest nonzeros.
  ******************************************************************************/
 static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT **A, ssList *RowPivots, ssList *ColPivots)
-{	
+{
     // Nonzeros of each rows and cols
     int *row_counts = (int *) calloc(nrow, sizeof(int));
     int *col_counts = (int *) calloc(ncolA, sizeof(int));
 
     int i, j, k;
-    int max_row1s = 0;			// Max number of nonzeros in a row
-    int max_col1s = 0;			// Max number of nonzeros in a column
+    int max_row1s = 0;          // Max number of nonzeros in a row
+    int max_col1s = 0;          // Max number of nonzeros in a column
     for (i=0; i<nrow; i++) {
         for (j=0; j<ncolA; j++) {
             if (A[i][j] != 0) {
@@ -416,11 +416,11 @@ static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT **A, ssList *RowPivot
         }
     }
     /*************************************************************************
-     * A list of double lists. Elements of each double list contain rows/cols 
-     * indices. Rows/cols of same double-linked list have the same number of 
-     * nonzero elements. 
+     * A list of double lists. Elements of each double list contain rows/cols
+     * indices. Rows/cols of same double-linked list have the same number of
+     * nonzero elements.
      **************************************************************************/
-    ssList **RowID_lists = (ssList **) malloc(sizeof(ssList*) * (max_row1s+1)); 
+    ssList **RowID_lists = (ssList **) malloc(sizeof(ssList*) * (max_row1s+1));
     ssList **ColID_lists = (ssList **) malloc(sizeof(ssList*) * (max_col1s+1));
     for (i=0; i<max_row1s+1; i++) {
         RowID_lists[i] = (ssList *) malloc(sizeof(ssList));
@@ -474,9 +474,9 @@ static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT **A, ssList *RowPivot
         // 计算Markowitz count
         int potential_r  = -1;
         int potential_c  = -1;
-        int potential_mc = -1;				// potential Markowitz count
+        int potential_mc = -1;              // potential Markowitz count
         int current_mc;
-        int mc_minipos;				// the minimum possible Markowitz count in each row test
+        int mc_minipos;             // the minimum possible Markowitz count in each row test
         int direct_found = 0;
         // search for one pivot
         Subscript *rows_inchecking, *cols_inchecking;
@@ -508,7 +508,7 @@ static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT **A, ssList *RowPivot
                                 potential_c = col_id;
                                 if (i==1)
                                     singletons += 1;
-                                //	printf("a singleton row is found.\n");
+                                //  printf("a singleton row is found.\n");
                                 goto found;
                             } else if (potential_mc == -1 || current_mc < potential_mc) {
                                 potential_r = row_id;
@@ -562,7 +562,7 @@ static int zlatev_pivoting(int nrow, int ncolA, GF_ELEMENT **A, ssList *RowPivot
             return ncolA;
         }
 
-found:	
+found:
         // Found a pivot, save it
         pivots_found += 1;
         int p_r = potential_r;
@@ -679,8 +679,8 @@ static int inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT **A, ssList *Ro
     memset(row_counts, 0, nrow  * sizeof(int));
     memset(col_counts, 0, ncolA * sizeof(int));
 
-    int max_row1s = 0;					// 记录初始矩阵里行中非零元素数目的最大值
-    int max_col1s = 0;					// 记录初始矩阵里列中非零元素数目的最大值
+    int max_row1s = 0;                  // 记录初始矩阵里行中非零元素数目的最大值
+    int max_col1s = 0;                  // 记录初始矩阵里列中非零元素数目的最大值
     for (i=0; i<nrow; i++) {
         for (j=0; j<ncolA; j++) {
             if (A[i][j] != 0) {
@@ -696,7 +696,7 @@ static int inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT **A, ssList *Ro
     }
     // 创建指针数组，每个指针指向一个双向链表，同一个链表中的列具有相同数目的非零元素
     // 该链表用来保存active的列的标号，按非零元素个数排列是为了方便inactivate含非零元素最多的列
-    ssList **ColID_lists = (ssList **) malloc(sizeof(ssList*) * (max_col1s+1)); 
+    ssList **ColID_lists = (ssList **) malloc(sizeof(ssList*) * (max_col1s+1));
     for (i=0; i<max_col1s+1; i++) {
         ColID_lists[i] = (ssList *) malloc(sizeof(ssList));
         ColID_lists[i]->ssFirst = ColID_lists[i]->ssLast = NULL;
@@ -714,15 +714,15 @@ static int inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT **A, ssList *Ro
     // 0 - active
     // 1 - inactivated
     // 2 - removed because an entry of it was chosen as the pivot
-    GF_ELEMENT *inactives;				// an array record the state of columns
+    GF_ELEMENT *inactives;              // an array record the state of columns
     inactives = (GF_ELEMENT *) malloc(sizeof(GF_ELEMENT) * ncolA);
     memset(inactives, 0, sizeof(GF_ELEMENT)*ncolA);
 
-    int inactivated = 0;		// number of inactivated columns
-    int active = ncolA;			// number of active columns
+    int inactivated = 0;        // number of inactivated columns
+    int active = ncolA;         // number of active columns
 
-    int p_r;					// used to store row index of the chosen pivot 
-    int p_c;					// used to store col index of the chosen pivot
+    int p_r;                    // used to store row index of the chosen pivot
+    int p_c;                    // used to store col index of the chosen pivot
     int singleton_r_found;
     int ia;
     int selected_pivots = 0;
@@ -765,7 +765,7 @@ static int inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT **A, ssList *Ro
             insertSubAtEnd(ColPivots, newCpivot);
 
             // 更新row_counts
-            row_counts[p_r] = -1;			// use -1 to indicate the row has an elelemnt was chosen as pivot
+            row_counts[p_r] = -1;           // use -1 to indicate the row has an elelemnt was chosen as pivot
             for (i=0; i<nrow; i++) {
                 if ( (row_counts[i] != -1) && (A[i][p_c] != 0) ) {
                     row_counts[i] -= 1;
@@ -817,7 +817,7 @@ static int inactivation_pivoting(int nrow, int ncolA, GF_ELEMENT **A, ssList *Ro
     // assign pivots for the dense part (any ordering is fine)
     for (i=0; i<ncolA; i++) {
         if (inactives[i] == 1) {
-            // find an arbitray row that has not been selected 
+            // find an arbitray row that has not been selected
             int j_candidate;
             for (j=0; j<nrow; j++) {
                 if (row_counts[j] != -1) {
@@ -876,7 +876,7 @@ static void reshape_matrix(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
         col_id = sub_col->index;
 
         // swap rows first
-        // Since rows are in block memory, we only need to swap pointers 
+        // Since rows are in block memory, we only need to swap pointers
         // of the start element of each row.
         if (row_id != k) {
             GF_ELEMENT *temp_p;

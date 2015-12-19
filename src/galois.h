@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#define GF_POWER	8			/* Order of Galois field: 2^8, don't change it */
+#define GF_POWER    8           /* Order of Galois field: 2^8, don't change it */
 #ifndef GALOIS
 #define GALOIS
 typedef unsigned char GF_ELEMENT;
