@@ -53,17 +53,23 @@ extern long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A
  * Create context for overlap-aware (OA) decoding
  *  aoh - allowed overhead >=0
  */
-void create_dec_context_OA(struct decoding_context_OA *dec_ctx, struct snc_parameter sp, int aoh)
+struct decoding_context_OA *create_dec_context_OA(struct snc_parameter sp, int aoh)
 {
     static char fname[] = "snc_create_dec_context_OA";
     int i, j, k;
+
+    struct decoding_context_OA *dec_ctx;
+    if ((dec_ctx = malloc(sizeof(struct decoding_context_OA))) == NULL)
+        return NULL;
 
     // GNC code context
     // Since this is decoding, we construct GNC context without data
     // sc->pp will be filled by decoded packets
     struct snc_context *sc;
-    if ((sc = snc_create_enc_context(NULL, sp)) == NULL)
+    if ((sc = snc_create_enc_context(NULL, sp)) == NULL) {
         fprintf(stderr, "%s: create decoding context failed", fname);
+        goto AllocError;
+    }
 
     dec_ctx->sc = sc;
 
@@ -79,30 +85,42 @@ void create_dec_context_OA(struct decoding_context_OA *dec_ctx, struct snc_param
 
     // Allocate matrices for per-generation decoding
     dec_ctx->Matrices = calloc(dec_ctx->sc->meta.gnum, sizeof(struct running_matrix*));
-    if (dec_ctx->Matrices == NULL)
+    if (dec_ctx->Matrices == NULL) {
         fprintf(stderr, "%s: calloc dec_ctx->Matrices\n", fname);
+        goto AllocError;
+    }
     for (i=0; i<dec_ctx->sc->meta.gnum; i++) {
         dec_ctx->Matrices[i] = calloc(1, sizeof(struct running_matrix));
-        if (dec_ctx->Matrices[i] == NULL)
+        if (dec_ctx->Matrices[i] == NULL) {
             fprintf(stderr, "%s: malloc dec_ctx->Matrices[%d]\n", fname, i);
+            goto AllocError;
+        }
         // Allocate coefficient and message matrices in running_matrix
         // coefficeint: size_g x size_g
         // message:     size_g x size_p
         // Dim-1) Pointers to each row
         dec_ctx->Matrices[i]->coefficient = calloc(gensize, sizeof(GF_ELEMENT*));
-        if (dec_ctx->Matrices[i]->coefficient == NULL)
+        if (dec_ctx->Matrices[i]->coefficient == NULL) {
             fprintf(stderr, "%s: calloc dec_ctx->Matrices[%d]->coefficient\n", fname, i);
+            goto AllocError;
+        }
         dec_ctx->Matrices[i]->message = calloc(gensize, sizeof(GF_ELEMENT*));
-        if (dec_ctx->Matrices[i]->message == NULL)
+        if (dec_ctx->Matrices[i]->message == NULL) {
             fprintf(stderr, "%s: calloc dec_ctx->Matrices[%d]->messsage\n", fname, i);
+            goto AllocError;
+        }
         // Dim-2) Elements of each row
         for (j=0; j<gensize; j++) {
             dec_ctx->Matrices[i]->coefficient[j] = calloc(gensize, sizeof(GF_ELEMENT));
-            if (dec_ctx->Matrices[i]->coefficient[j] == NULL)
+            if (dec_ctx->Matrices[i]->coefficient[j] == NULL) {
                 fprintf(stderr, "%s: calloc dec_ctx->Matrices[%d]->coefficient[%d]\n", fname, i, j);
+                goto AllocError;
+            }
             dec_ctx->Matrices[i]->message[j] = calloc(pktsize, sizeof(GF_ELEMENT));
-            if (dec_ctx->Matrices[i]->message[j] == NULL)
+            if (dec_ctx->Matrices[i]->message[j] == NULL) {
                 fprintf(stderr, "%s: calloc dec_ctx->Matrices[%d]->messsage[%d]\n", fname, i, j);
+                goto AllocError;
+            }
         }
     }
 
@@ -114,6 +132,12 @@ void create_dec_context_OA(struct decoding_context_OA *dec_ctx, struct snc_param
     // performance indices
     dec_ctx->operations = 0;
     dec_ctx->overhead   = 0;
+    return dec_ctx;
+
+AllocError:
+    free_dec_context_OA(dec_ctx);
+    dec_ctx = NULL;
+    return NULL;
 }
 
 void process_packet_OA(struct decoding_context_OA *dec_ctx, struct snc_packet *pkt)
@@ -250,39 +274,62 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct snc_packet *p
 
 void free_dec_context_OA(struct decoding_context_OA *dec_ctx)
 {
+    if (dec_ctx == NULL)
+        return;
+    if (dec_ctx->sc != NULL)
+        snc_free_enc_context(dec_ctx->sc);
     int i, j, k;
     if (dec_ctx->Matrices != NULL) {
         for (i=0; i<dec_ctx->sc->meta.gnum; i++){
             // Free each decoding matrix
-            free_running_matrix(dec_ctx->Matrices[i], dec_ctx->sc->meta.size_g);
+            if (dec_ctx->Matrices[i] != NULL)
+                free_running_matrix(dec_ctx->Matrices[i], dec_ctx->sc->meta.size_g);
             dec_ctx->Matrices[i] = NULL;
         }
         free(dec_ctx->Matrices);
         dec_ctx->Matrices = NULL;
     }
-    for (j=0; j<dec_ctx->sc->meta.snum+dec_ctx->sc->meta.cnum+dec_ctx->aoh; j++) {
-        free(dec_ctx->JMBcoefficient[j]);
-        free(dec_ctx->JMBmessage[j]);
+    if (dec_ctx->JMBcoefficient != NULL) {
+        for (j=0; j<dec_ctx->sc->meta.snum+dec_ctx->sc->meta.cnum+dec_ctx->aoh; j++) {
+            if (dec_ctx->JMBcoefficient[j] != NULL)
+                free(dec_ctx->JMBcoefficient[j]);
+        }
+        free(dec_ctx->JMBcoefficient);
     }
-    free(dec_ctx->JMBcoefficient);
-    free(dec_ctx->JMBmessage);
-    free(dec_ctx->otoc_mapping);
-    free(dec_ctx->ctoo_mapping);
-    snc_free_enc_context(dec_ctx->sc);
+    if (dec_ctx->JMBmessage != NULL) {
+        for (j=0; j<dec_ctx->sc->meta.snum+dec_ctx->sc->meta.cnum+dec_ctx->aoh; j++) {
+            if (dec_ctx->JMBmessage[j] != NULL)
+                free(dec_ctx->JMBmessage[j]);
+        }
+        free(dec_ctx->JMBmessage);
+    }
+    if (dec_ctx->otoc_mapping != NULL)
+        free(dec_ctx->otoc_mapping);
+    if (dec_ctx->ctoo_mapping != NULL)
+        free(dec_ctx->ctoo_mapping);
     free(dec_ctx);
     dec_ctx = NULL;
+    return;
 }
 
 static void free_running_matrix(struct running_matrix *mat, int rows)
 {
     if (mat != NULL) {
-        for (int i=0; i<rows; i++) {
-            free(mat->coefficient[i]);
-            free(mat->message[i]);
+        if (mat->coefficient != NULL) {
+            for (int i=0; i<rows; i++) {
+                if (mat->coefficient[i] != NULL)
+                    free(mat->coefficient[i]);
+            }
+            free(mat->coefficient);
         }
-        free(mat->coefficient);
         mat->coefficient = NULL;
-        free(mat->message);
+        if (mat->message != NULL) {
+            for (int i=0; i<rows; i++) {
+                if (mat->message[i] != NULL)
+                    free(mat->message[i]);
+            }
+            free(mat->message);
+        }
         mat->message = NULL;
         return;
     }
@@ -507,4 +554,124 @@ static void construct_GDM(struct decoding_context_OA *dec_ctx)
             dec_ctx->global_DoF++;
         dec_ctx->ctoo_mapping[dec_ctx->otoc_mapping[i]] = i;
     }
+}
+
+/**
+ * Save a decoding context to a file
+ * Return values:
+ *   On success: bytes written
+ *   On error: -1
+ */
+long save_dec_context_OA(struct decoding_context_OA *dec_ctx, const char *filepath)
+{
+    long filesize = 0;
+    int d_type = OA_DECODER;
+    FILE *fp;
+    if ((fp = fopen(filepath, "w")) == NULL) {
+        fprintf(stderr, "Cannot open %s to save decoding context\n", filepath);
+        return (-1);
+    }
+    int i, j;
+    int gensize = dec_ctx->sc->meta.size_g;
+    int pktsize = dec_ctx->sc->meta.size_p;
+    int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
+    // Write snc metainfo
+    filesize += fwrite(&dec_ctx->sc->meta, sizeof(struct snc_metainfo), 1, fp);
+    // Write decoder type
+    filesize += fwrite(&(d_type), sizeof(int), 1, fp);
+    filesize += fwrite(&dec_ctx->aoh, sizeof(int), 1, fp);
+    filesize += fwrite(&dec_ctx->finished, sizeof(int), 1, fp);
+    filesize += fwrite(&dec_ctx->OA_ready, sizeof(int), 1, fp);
+    filesize += fwrite(&dec_ctx->local_DoF, sizeof(int), 1, fp);
+    filesize += fwrite(&dec_ctx->global_DoF, sizeof(int), 1, fp);
+    // Save running matrices
+    for (i=0; i<dec_ctx->sc->meta.gnum; i++) {
+        for (j=0; j<gensize; j++) {
+            filesize += fwrite(dec_ctx->Matrices[i]->coefficient[j], sizeof(GF_ELEMENT), gensize, fp);
+            filesize += fwrite(dec_ctx->Matrices[i]->message[j], sizeof(GF_ELEMENT), pktsize, fp);
+        }
+    }
+
+    // Save GDM and its related bookkeeping information if OA ready.
+    // Fixme: GDM is sparse, so we can save space by using compact representation
+    // of the matrix. For example, save [row, col, value] for nonzero elements.
+    if (dec_ctx->OA_ready == 1) {
+        for (i=0; i<numpp + dec_ctx->aoh; i++) {
+            filesize += fwrite(dec_ctx->JMBcoefficient[i], sizeof(GF_ELEMENT), numpp, fp);
+            filesize += fwrite(dec_ctx->JMBmessage[i], sizeof(GF_ELEMENT), pktsize, fp);
+        }
+        filesize += fwrite(dec_ctx->otoc_mapping, sizeof(int), numpp, fp);
+        filesize += fwrite(dec_ctx->ctoo_mapping, sizeof(int), numpp, fp);
+        filesize += fwrite(&dec_ctx->inactives, sizeof(int), 1, fp);
+    }
+    // Save performance index
+    filesize += fwrite(&dec_ctx->overhead, sizeof(int), 1, fp);
+    filesize += fwrite(&dec_ctx->operations, sizeof(long long), 1, fp);
+    fclose(fp);
+    return filesize;
+}
+
+struct decoding_context_OA *restore_dec_context_OA(const char *filepath)
+{
+    FILE *fp;
+    if ((fp = fopen(filepath, "r")) == NULL) {
+        fprintf(stderr, "Cannot open %s to load decoding context\n", filepath);
+        return NULL;
+    }
+    struct snc_metainfo meta;
+    fread(&meta, sizeof(struct snc_metainfo), 1, fp);
+    struct snc_parameter sp;
+    sp.datasize = meta.datasize;
+    sp.pcrate = meta.pcrate;
+    sp.size_b = meta.size_b;
+    sp.size_g = meta.size_g;
+    sp.size_p = meta.size_p;
+    sp.type = meta.type;
+    sp.bpc = meta.bpc;
+    sp.bnc = meta.bnc;
+    fseek(fp, sizeof(int), SEEK_CUR);  // skip decoding_type field
+	int aoh;
+	fread(&aoh, sizeof(int), 1, fp);
+    // Create a fresh decoding context
+    struct decoding_context_OA *dec_ctx = create_dec_context_OA(sp, aoh);
+    if (dec_ctx == NULL) {
+        fprintf(stderr, "malloc decoding_context_GG failed\n");
+        return NULL;
+    }
+    // Restore decoding context from file
+    int i, j;
+	fread(&dec_ctx->finished, sizeof(int), 1, fp);
+	fread(&dec_ctx->OA_ready, sizeof(int), 1, fp);
+	fread(&dec_ctx->local_DoF, sizeof(int), 1, fp);
+	fread(&dec_ctx->global_DoF, sizeof(int), 1, fp);
+	// Restore running matrices
+	// Note that running matrices' memory were already allocated in creating_dec_context
+	for (i=0; i<dec_ctx->sc->meta.gnum; i++) {
+		for (j=0; j<meta.size_g; j++) {
+			fread(dec_ctx->Matrices[i]->coefficient[j], sizeof(GF_ELEMENT), meta.size_g, fp);
+			fread(dec_ctx->Matrices[i]->message[j], sizeof(GF_ELEMENT), meta.size_p, fp);
+		}
+	}
+	// Restore GDM and its related information if OA_ready
+	int numpp = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
+	if (dec_ctx->OA_ready == 1) {
+		dec_ctx->JMBcoefficient = calloc(numpp+aoh, sizeof(GF_ELEMENT*));
+		dec_ctx->JMBmessage = calloc(numpp+aoh, sizeof(GF_ELEMENT*));
+		for (i=0; i<numpp+aoh; i++) {
+			dec_ctx->JMBcoefficient[i] = calloc(numpp, sizeof(GF_ELEMENT));
+			fread(dec_ctx->JMBcoefficient[i], sizeof(GF_ELEMENT), numpp, fp);
+			dec_ctx->JMBmessage[i] = calloc(meta.size_p, sizeof(GF_ELEMENT));
+			fread(dec_ctx->JMBmessage[i], sizeof(GF_ELEMENT), meta.size_p, fp);
+		}
+		dec_ctx->otoc_mapping = calloc(numpp, sizeof(int));
+		fread(dec_ctx->otoc_mapping, sizeof(int), numpp, fp);
+		dec_ctx->ctoo_mapping = calloc(numpp, sizeof(int));
+		fread(dec_ctx->ctoo_mapping, sizeof(int), numpp, fp);
+		fread(&dec_ctx->inactives, sizeof(int), 1, fp);
+	}
+	// Restore performance index
+    fread(&dec_ctx->overhead, sizeof(int), 1, fp);
+    fread(&dec_ctx->operations, sizeof(long long), 1, fp);
+    fclose(fp);
+    return dec_ctx;
 }

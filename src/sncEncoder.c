@@ -208,10 +208,10 @@ static int create_context_from_meta(struct snc_context *sc)
     return(0);
 }
 
-int snc_free_enc_context(struct snc_context *sc)
+void snc_free_enc_context(struct snc_context *sc)
 {
     if (sc == NULL)
-        return (0);
+        return;
     int i;
     if (sc->pp != NULL) {
         for (i=sc->meta.snum+sc->meta.cnum-1; i>=0; i--) {
@@ -233,7 +233,8 @@ int snc_free_enc_context(struct snc_context *sc)
     if (sc->graph != NULL)
         free_bipartite_graph(sc->graph);
     free(sc);
-    return(0);
+    sc = NULL;
+    return;
 }
 
 unsigned char *snc_recover_data(struct snc_context *sc)
@@ -264,7 +265,7 @@ unsigned char *snc_recover_data(struct snc_context *sc)
  **/
 long snc_recover_to_file(const char *filepath, struct snc_context *sc)
 {
-    static char fname[] = "snc_recover_data";
+    static char fname[] = "snc_recover_to_file";
     long datasize = sc->meta.datasize;
     long alwrote = 0;
     long towrite = datasize;

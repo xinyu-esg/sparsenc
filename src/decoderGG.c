@@ -29,28 +29,37 @@ extern long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT *
 extern long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B);
 
 // setup decoding context:
-void create_dec_context_GG(struct decoding_context_GG *dec_ctx, struct snc_parameter sp)
+struct decoding_context_GG *create_dec_context_GG(struct snc_parameter sp)
 {
     static char fname[] = "snc_create_dec_context_GG";
     int i, j;
 
+    struct decoding_context_GG *dec_ctx;
+    if ((dec_ctx = malloc(sizeof(struct decoding_context_GG))) == NULL) {
+        fprintf(stderr, "%s: malloc decoding context GG failed\n", fname);
+        return NULL;
+    }
     // GNC code context
     // Since this is decoding, we construct GNC context without data
     // sc->pp will be filled by decoded packets
     struct snc_context *sc;
-    if ((sc = snc_create_enc_context(NULL, sp)) == NULL)
+    if ((sc = snc_create_enc_context(NULL, sp)) == NULL) {
         fprintf(stderr, "%s: create decoding context failed", fname);
-
-
+        goto AllocError;
+    }
     dec_ctx->sc = sc;
 
     // memory areas needed for decoding
     dec_ctx->evolving_checks = calloc(dec_ctx->sc->meta.cnum, sizeof(GF_ELEMENT *));
-    if (dec_ctx->evolving_checks == NULL)
+    if (dec_ctx->evolving_checks == NULL) {
         fprintf(stderr, "%s: calloc dec_ctx->evolving_checks\n", fname);
+        goto AllocError;
+    }
     dec_ctx->check_degrees = calloc(dec_ctx->sc->meta.cnum, sizeof(int));
-    if (dec_ctx->check_degrees == NULL)
+    if (dec_ctx->check_degrees == NULL) {
         fprintf(stderr, "%s: calloc dec_ctx->check_degrees\n", fname);
+        goto AllocError;
+    }
     for (i=0; i<dec_ctx->sc->meta.cnum; i++) {
         NBR_node *nb = dec_ctx->sc->graph->l_nbrs_of_r[i]->first;
         while (nb != NULL) {
@@ -63,13 +72,17 @@ void create_dec_context_GG(struct decoding_context_GG *dec_ctx, struct snc_param
     dec_ctx->decoded   = 0;
     dec_ctx->originals = 0;
     dec_ctx->Matrices = calloc(dec_ctx->sc->meta.gnum, sizeof(struct running_matrix*));
-    if (dec_ctx->Matrices == NULL)
+    if (dec_ctx->Matrices == NULL) {
         fprintf(stderr, "%s: calloc dec_ctx->Matrices\n", fname);
+        goto AllocError;
+    }
 
     for (i=0; i<dec_ctx->sc->meta.gnum; i++) {
         dec_ctx->Matrices[i] = calloc(1, sizeof(struct running_matrix));
-        if (dec_ctx->Matrices[i] == NULL)
+        if (dec_ctx->Matrices[i] == NULL) {
             fprintf(stderr, "%s: malloc dec_ctx->Matrices[%d]\n", fname, i);
+            goto AllocError;
+        }
         dec_ctx->Matrices[i]->remaining_cols = dec_ctx->sc->meta.size_g;
 
         // Allocate coefficient and message matrices in running_matrix
@@ -77,23 +90,33 @@ void create_dec_context_GG(struct decoding_context_GG *dec_ctx, struct snc_param
         // message:     size_g x size_p
         // Dim-1) Pointers to each row
         dec_ctx->Matrices[i]->coefficient = calloc(dec_ctx->sc->meta.size_g, sizeof(GF_ELEMENT*));
-        if (dec_ctx->Matrices[i]->coefficient == NULL)
+        if (dec_ctx->Matrices[i]->coefficient == NULL) {
             fprintf(stderr, "%s: calloc dec_ctx->Matrices[%d]->coefficient\n", fname, i);
+            goto AllocError;
+        }
         dec_ctx->Matrices[i]->message = calloc(dec_ctx->sc->meta.size_g, sizeof(GF_ELEMENT*));
-        if (dec_ctx->Matrices[i]->message == NULL)
+        if (dec_ctx->Matrices[i]->message == NULL) {
             fprintf(stderr, "%s: calloc dec_ctx->Matrices[%d]->messsage\n", fname, i);
+            goto AllocError;
+        }
         // Dim-2) Elements of each row
         for (int j=0; j<dec_ctx->sc->meta.size_g; j++) {
             dec_ctx->Matrices[i]->coefficient[j] = calloc(dec_ctx->sc->meta.size_g, sizeof(GF_ELEMENT));
-            if (dec_ctx->Matrices[i]->coefficient[j] == NULL)
+            if (dec_ctx->Matrices[i]->coefficient[j] == NULL) {
                 fprintf(stderr, "%s: calloc dec_ctx->Matrices[%d]->coefficient[%d]\n", fname, i, j);
+                goto AllocError;
+            }
             dec_ctx->Matrices[i]->message[j] = calloc(dec_ctx->sc->meta.size_p, sizeof(GF_ELEMENT));
-            if (dec_ctx->Matrices[i]->message[j] == NULL)
+            if (dec_ctx->Matrices[i]->message[j] == NULL) {
                 fprintf(stderr, "%s: calloc dec_ctx->Matrices[%d]->messsage[%d]\n", fname, i, j);
+                goto AllocError;
+            }
         }
     }
-    if ( (dec_ctx->recent = malloc(sizeof(ID_list))) == NULL )
+    if ( (dec_ctx->recent = malloc(sizeof(ID_list))) == NULL ) {
         fprintf(stderr, "%s: malloc dec_ctx->recent", fname);
+        goto AllocError;
+    }
 
     dec_ctx->recent->first = dec_ctx->recent->last = NULL;
     memset(dec_ctx->grecent, -1, sizeof(int)*FB_THOLD);             /* set recent decoded generation ids to -1 */
@@ -101,35 +124,59 @@ void create_dec_context_GG(struct decoding_context_GG *dec_ctx, struct snc_param
     dec_ctx->grcount    = 0;
     dec_ctx->operations = 0;
     dec_ctx->overhead   = 0;
+    return dec_ctx;
 
-    constructField(GF_POWER);       /*construct Galois field if necessary*/
+AllocError:
+    free_dec_context_GG(dec_ctx);
+    dec_ctx = NULL;
+    return NULL;
 }
 
 void free_dec_context_GG(struct decoding_context_GG *dec_ctx)
 {
-    int i, j, k;
-    for (i=0; i<dec_ctx->sc->meta.cnum; i++) {
-        if (dec_ctx->evolving_checks[i] != NULL)
-            free(dec_ctx->evolving_checks[i]);
-    }
-    free(dec_ctx->evolving_checks);
-    free(dec_ctx->check_degrees);
-    for (i=0; i<dec_ctx->sc->meta.gnum; i++){
-        // Free each decoding matrix
-        for (j=0; j<dec_ctx->sc->meta.size_g; j++) {
-            free(dec_ctx->Matrices[i]->coefficient[j]);
-            free(dec_ctx->Matrices[i]->message[j]);
-        }
-        free(dec_ctx->Matrices[i]->coefficient);
-        free(dec_ctx->Matrices[i]->message);
-        free(dec_ctx->Matrices[i]);
-    }
-    free(dec_ctx->Matrices);
-    free_list(dec_ctx->recent);
+    if (dec_ctx == NULL)
+        return;
+    if (dec_ctx->sc != NULL)
+        snc_free_enc_context(dec_ctx->sc);
 
-    snc_free_enc_context(dec_ctx->sc);
+    int i, j, k;
+    if (dec_ctx->evolving_checks != NULL) {
+        for (i=0; i<dec_ctx->sc->meta.cnum; i++) {
+            if (dec_ctx->evolving_checks[i] != NULL)
+                free(dec_ctx->evolving_checks[i]);
+        }
+        free(dec_ctx->evolving_checks);
+    }
+    if (dec_ctx->check_degrees != NULL)
+        free(dec_ctx->check_degrees);
+    if (dec_ctx->Matrices != NULL) {
+        for (i=0; i<dec_ctx->sc->meta.gnum; i++){
+            // Free each decoding matrix
+            if (dec_ctx->Matrices[i] != NULL) {
+                if (dec_ctx->Matrices[i]->coefficient != NULL) {
+                    for (j=0; j<dec_ctx->sc->meta.size_g; j++) {
+                        if (dec_ctx->Matrices[i]->coefficient[j] != NULL)
+                            free(dec_ctx->Matrices[i]->coefficient[j]);
+                    }
+                    free(dec_ctx->Matrices[i]->coefficient);
+                }
+                if (dec_ctx->Matrices[i]->message != NULL) {
+                    for (j=0; j<dec_ctx->sc->meta.size_g; j++) {
+                        if (dec_ctx->Matrices[i]->message[j] != NULL)
+                            free(dec_ctx->Matrices[i]->message[j]);
+                    }
+                    free(dec_ctx->Matrices[i]->message);
+                }
+                free(dec_ctx->Matrices[i]);
+            }
+        }
+        free(dec_ctx->Matrices);
+    }
+    if (dec_ctx->recent != NULL)
+        free_list(dec_ctx->recent);
     free(dec_ctx);
     dec_ctx = NULL;
+    return;
 }
 
 
@@ -535,3 +582,161 @@ static void mask_packet(struct decoding_context_GG *dec_ctx, GF_ELEMENT ce, int 
     return;
 }
 
+/**
+ * Save a decoding context to a file
+ * Return values:
+ *   On success: bytes written
+ *   On error: -1
+ */
+long save_dec_context_GG(struct decoding_context_GG *dec_ctx, const char *filepath)
+{
+    long filesize = 0;
+    int d_type = GG_DECODER;
+    FILE *fp;
+    if ((fp = fopen(filepath, "w")) == NULL) {
+        fprintf(stderr, "Cannot open %s to save decoding context\n", filepath);
+        return (-1);
+    }
+    int i, j, k;
+    int gensize = dec_ctx->sc->meta.size_g;
+    int pktsize = dec_ctx->sc->meta.size_p;
+    int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
+    // Write snc metainfo
+    filesize += fwrite(&dec_ctx->sc->meta, sizeof(struct snc_metainfo), 1, fp);
+    // Write decoder type
+    filesize += fwrite(&(d_type), sizeof(int), 1, fp);
+    // Save already decoded packets in dec_ctx->sc->pp
+    filesize += fwrite(&dec_ctx->decoded, sizeof(int), 1, fp);
+    for (i=0; i<numpp; i++) {
+        if (dec_ctx->sc->pp[i] != NULL) {
+            filesize += fwrite(&i, sizeof(int), 1, fp);  // pktid
+            filesize += fwrite(dec_ctx->sc->pp[i], sizeof(GF_ELEMENT), pktsize, fp);
+        }
+    }
+    // Save evolving check packets
+    int count = 0;
+    for (i=0; i<dec_ctx->sc->meta.cnum; i++) {
+        if (dec_ctx->evolving_checks[i] != NULL)
+            count++;
+    }
+    filesize += fwrite(&count, sizeof(int), 1, fp);  // evolving packets non-NULL count
+    for (i=0; i<dec_ctx->sc->meta.cnum; i++) {
+        if (dec_ctx->evolving_checks[i] != NULL) {
+            filesize += fwrite(&i, sizeof(int), 1, fp);  // check id
+            filesize += fwrite(dec_ctx->evolving_checks[i], sizeof(GF_ELEMENT), pktsize, fp);
+        }
+    }
+    // Save check degrees
+    filesize += fwrite(dec_ctx->check_degrees, sizeof(int), dec_ctx->sc->meta.cnum, fp);
+    filesize += fwrite(&dec_ctx->finished, sizeof(int), 1, fp);
+    filesize += fwrite(&dec_ctx->decoded, sizeof(int), 1, fp);  // Yes, I know. I saved this value twice!
+    filesize += fwrite(&dec_ctx->originals, sizeof(int), 1, fp);
+    // Save running matrices
+    for (i=0; i<dec_ctx->sc->meta.gnum; i++) {
+        filesize += fwrite(&dec_ctx->Matrices[i]->remaining_rows, sizeof(int), 1, fp);
+        filesize += fwrite(&dec_ctx->Matrices[i]->remaining_cols, sizeof(int), 1, fp);
+        filesize += fwrite(&dec_ctx->Matrices[i]->erased, sizeof(FLAGS), 1, fp);
+        //for (j=0; j<gensize; j++) {
+        for (j=0; j<dec_ctx->Matrices[i]->remaining_rows; j++) {
+            filesize += fwrite(dec_ctx->Matrices[i]->coefficient[j], sizeof(GF_ELEMENT), gensize, fp);
+            filesize += fwrite(dec_ctx->Matrices[i]->message[j], sizeof(GF_ELEMENT), pktsize, fp);
+        }
+    }
+    // Save recent ID_list
+    count = 0;
+    ID *id = dec_ctx->recent->first;
+    while (id != NULL) {
+        count++;
+        id = id->next;
+    }
+    filesize += fwrite(&count, sizeof(int), 1, fp);  // Number of recent IDs in the list
+    id = dec_ctx->recent->first;
+    while (count > 0) {
+        fwrite(&id->data, sizeof(int), 1, fp);
+        count--;
+        id = id->next;
+    }
+    // Save performance index
+    filesize += fwrite(&dec_ctx->overhead, sizeof(int), 1, fp);
+    filesize += fwrite(&dec_ctx->operations, sizeof(long long), 1, fp);
+    fclose(fp);
+    return filesize;
+}
+
+struct decoding_context_GG *restore_dec_context_GG(const char *filepath)
+{
+    FILE *fp;
+    if ((fp = fopen(filepath, "r")) == NULL) {
+        fprintf(stderr, "Cannot open %s to load decoding context\n", filepath);
+        return NULL;
+    }
+    struct snc_metainfo meta;
+    fread(&meta, sizeof(struct snc_metainfo), 1, fp);
+    struct snc_parameter sp;
+    sp.datasize = meta.datasize;
+    sp.pcrate = meta.pcrate;
+    sp.size_b = meta.size_b;
+    sp.size_g = meta.size_g;
+    sp.size_p = meta.size_p;
+    sp.type = meta.type;
+    sp.bpc = meta.bpc;
+    sp.bnc = meta.bnc;
+    // Create a fresh decoding context
+    struct decoding_context_GG *dec_ctx = create_dec_context_GG(sp);
+    if (dec_ctx == NULL) {
+        fprintf(stderr, "malloc decoding_context_GG failed\n");
+        return NULL;
+    }
+    // Restore decoding context from file
+    fseek(fp, sizeof(int), SEEK_CUR);  // skip decoding_type field
+	// Restore already decoded packets
+	int i, j, k;
+	fread(&dec_ctx->decoded, sizeof(int), 1, fp);
+	for (i=0; i<dec_ctx->decoded; i++) {
+		int pktid;
+		fread(&pktid, sizeof(int), 1, fp);
+		dec_ctx->sc->pp[pktid] = calloc(meta.size_p, sizeof(GF_ELEMENT));
+		fread(dec_ctx->sc->pp[pktid], sizeof(GF_ELEMENT), meta.size_p, fp);
+	}
+	// Restore evolving packets
+	int count;
+	fread(&count, sizeof(int), 1, fp);
+	for (i=0; i<count; i++) {
+		int evoid;
+		fread(&evoid, sizeof(int), 1, fp);
+		dec_ctx->evolving_checks[evoid] = calloc(meta.size_p, sizeof(GF_ELEMENT));
+		fread(dec_ctx->evolving_checks[evoid], sizeof(GF_ELEMENT), meta.size_p, fp);
+	}
+	// Restore check degrees
+	fread(dec_ctx->check_degrees, sizeof(int), dec_ctx->sc->meta.cnum, fp);
+	fread(&dec_ctx->finished, sizeof(int), 1, fp);
+	fread(&dec_ctx->decoded, sizeof(int), 1, fp);
+	fread(&dec_ctx->originals, sizeof(int), 1, fp);
+	// Restore running matrices
+	// Note that running matrices' memory were already allocated in creating_dec_context
+	for (i=0; i<dec_ctx->sc->meta.gnum; i++) {
+		fread(&dec_ctx->Matrices[i]->remaining_rows, sizeof(int), 1, fp);
+		fread(&dec_ctx->Matrices[i]->remaining_cols, sizeof(int), 1, fp);
+		fread(&dec_ctx->Matrices[i]->erased, sizeof(FLAGS), 1, fp);
+		//for (j=0; j<meta.size_g; j++) {
+		for (j=0; j<dec_ctx->Matrices[i]->remaining_rows; j++) {
+			fread(dec_ctx->Matrices[i]->coefficient[j], sizeof(GF_ELEMENT), meta.size_g, fp);
+			fread(dec_ctx->Matrices[i]->message[j], sizeof(GF_ELEMENT), meta.size_p, fp);
+		}
+	}
+	// Restore recent ID_list
+	fread(&count, sizeof(int), 1, fp);
+	ID *new_id;
+	for (i=0; i<count; i++) {
+		if ( (new_id = malloc(sizeof(ID))) == NULL )
+			fprintf(stderr, "malloc new ID failed\n");
+		fread(&new_id->data, sizeof(int), 1, fp);
+		new_id->next = NULL;
+		append_to_list(dec_ctx->recent, new_id);
+	}
+	// Restore performance index
+    fread(&dec_ctx->overhead, sizeof(int), 1, fp);
+    fread(&dec_ctx->operations, sizeof(long long), 1, fp);
+    fclose(fp);
+    return dec_ctx;
+}

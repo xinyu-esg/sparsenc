@@ -17,7 +17,7 @@ static int apply_parity_check_matrix(struct decoding_context_CBD *dec_ctx);
 static void finish_recovering_CBD(struct decoding_context_CBD *dec_ctx);
 
 // create decoding context for band decoder
-void create_dec_context_CBD(struct decoding_context_CBD *dec_ctx, struct snc_parameter sp)
+struct decoding_context_CBD *create_dec_context_CBD(struct snc_parameter sp)
 {
     static char fname[] = "snc_create_dec_context_CBD";
     int i, j, k;
@@ -27,11 +27,20 @@ void create_dec_context_CBD(struct decoding_context_CBD *dec_ctx, struct snc_par
     // sc->pp will be filled by decoded packets
     if (sp.type != BAND_SNC) {
         fprintf(stderr, "Band decoder only applies to band GNC code.\n");
-        return;
+        return NULL;
     }
+
+    struct decoding_context_CBD *dec_ctx = malloc(sizeof(struct decoding_context_CBD));
+    if (dec_ctx == NULL) {
+        fprintf(stderr, "%s: malloc decoding context CBD failed\n", fname);
+        return NULL;
+    }
+
     struct snc_context *sc;
-    if ((sc = snc_create_enc_context(NULL, sp)) == NULL)
+    if ((sc = snc_create_enc_context(NULL, sp)) == NULL) {
         fprintf(stderr, "%s: create decoding context failed", fname);
+        goto AllocError;
+    }
 
     dec_ctx->sc = sc;
 
@@ -44,19 +53,30 @@ void create_dec_context_CBD(struct decoding_context_CBD *dec_ctx, struct snc_par
     int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
 
     dec_ctx->row = (struct row_vector **) calloc(numpp, sizeof(struct row_vector *));
-    if (dec_ctx->row == NULL)
+    if (dec_ctx->row == NULL) {
         fprintf(stderr, "%s: calloc dec_ctx->row failed\n", fname);
+        goto AllocError;
+    }
     dec_ctx->message = calloc(numpp, sizeof(GF_ELEMENT*));
-    if (dec_ctx->message == NULL)
+    if (dec_ctx->message == NULL) {
         fprintf(stderr, "%s: calloc dec_ctx->message failed\n", fname);
+        goto AllocError;
+    }
     for (i=0; i<numpp; i++) {
         dec_ctx->message[i] = calloc(pktsize, sizeof(GF_ELEMENT));
-        if (dec_ctx->message[i] == NULL)
+        if (dec_ctx->message[i] == NULL) {
             fprintf(stderr, "%s: calloc dec_ctx->message[%d] failed\n", fname, i);
+            goto AllocError;
+        }
     }
 
     dec_ctx->overhead     = 0;
     dec_ctx->operations   = 0;
+    return dec_ctx;
+
+AllocError:
+    free_dec_context_CBD(dec_ctx);
+    return NULL;
 }
 
 /*
@@ -250,15 +270,134 @@ static void finish_recovering_CBD(struct decoding_context_CBD *dec_ctx)
 
 void free_dec_context_CBD(struct decoding_context_CBD *dec_ctx)
 {
-    for (int i=dec_ctx->sc->meta.snum+dec_ctx->sc->meta.cnum-1; i>=0; i--) {
-        free(dec_ctx->row[i]->elem);
-        free(dec_ctx->row[i]);
-        free(dec_ctx->message[i]);
+    if (dec_ctx == NULL)
+        return;
+    if (dec_ctx->sc != NULL)
+        snc_free_enc_context(dec_ctx->sc);
+    if (dec_ctx->row != NULL) {
+        for (int i=dec_ctx->sc->meta.snum+dec_ctx->sc->meta.cnum-1; i>=0; i--) {
+            if (dec_ctx->row[i] != NULL) {
+                if (dec_ctx->row[i]->elem != NULL)
+                    free(dec_ctx->row[i]->elem);
+                free(dec_ctx->row[i]);
+            }
+        }
+        free(dec_ctx->row);
     }
-    free(dec_ctx->row);
-    free(dec_ctx->message);
-    snc_free_enc_context(dec_ctx->sc);
+    if (dec_ctx->message != NULL) {
+        for (int i=dec_ctx->sc->meta.snum+dec_ctx->sc->meta.cnum-1; i>=0; i--) {
+            if (dec_ctx->message[i] != NULL)
+                free(dec_ctx->message[i]);
+        }
+        free(dec_ctx->message);
+    }
     free(dec_ctx);
     dec_ctx = NULL;
+    return;
 }
 
+/**
+ * Save a decoding context to a file
+ * Return values:
+ *   On success: bytes written
+ *   On error: -1
+ */
+long save_dec_context_CBD(struct decoding_context_CBD *dec_ctx, const char *filepath)
+{
+    long filesize = 0;
+    int d_type = CBD_DECODER;
+    FILE *fp;
+    if ((fp = fopen(filepath, "w")) == NULL) {
+        fprintf(stderr, "Cannot open %s to save decoding context\n", filepath);
+        return (-1);
+    }
+    // Write snc metainfo
+    filesize += fwrite(&dec_ctx->sc->meta, sizeof(struct snc_metainfo), 1, fp);
+    // Write decoder type
+    filesize += fwrite(&(d_type), sizeof(int), 1, fp);
+    // Write decoding context
+    filesize += fwrite(&dec_ctx->finished, sizeof(int), 1, fp);
+    filesize += fwrite(&dec_ctx->DoF, sizeof(int), 1, fp);
+    filesize += fwrite(&dec_ctx->de_precode, sizeof(int), 1, fp);
+    // Decoder matrix rows
+    int gensize = dec_ctx->sc->meta.size_g;
+    int pktsize = dec_ctx->sc->meta.size_p;
+    int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
+    for (int i=0; i<numpp; i++) {
+        int rowlen = dec_ctx->row[i] == NULL ? 0 : dec_ctx->row[i]->len;
+        filesize += fwrite(&rowlen, sizeof(int), 1, fp);
+        if (rowlen != 0) {
+            filesize += fwrite(dec_ctx->row[i]->elem, sizeof(GF_ELEMENT), rowlen, fp);
+            filesize += fwrite(dec_ctx->message[i], sizeof(GF_ELEMENT), pktsize, fp);
+        }
+    }
+    /*performance index*/
+    filesize += fwrite(&dec_ctx->overhead, sizeof(int), 1, fp);
+    filesize += fwrite(&dec_ctx->operations, sizeof(long long), 1, fp);
+    fclose(fp);
+    return filesize;
+}
+
+/*
+ * Restore a decoding context from a file
+ */
+struct decoding_context_CBD *restore_dec_context_CBD(const char *filepath)
+{
+    FILE *fp;
+    if ((fp = fopen(filepath, "r")) == NULL) {
+        fprintf(stderr, "Cannot open %s to load decoding context\n", filepath);
+        return NULL;
+    }
+    struct snc_metainfo meta;
+    fread(&meta, sizeof(struct snc_metainfo), 1, fp);
+    struct snc_parameter sp;
+    sp.datasize = meta.datasize;
+    sp.pcrate = meta.pcrate;
+    sp.size_b = meta.size_b;
+    sp.size_g = meta.size_g;
+    sp.size_p = meta.size_p;
+    sp.type = meta.type;
+    sp.bpc = meta.bpc;
+    sp.bnc = meta.bnc;
+    // Create a fresh decoding context
+    struct decoding_context_CBD *dec_ctx = create_dec_context_CBD(sp);
+    if (dec_ctx == NULL) {
+        fprintf(stderr, "malloc decoding_context_CBD failed\n");
+        return NULL;
+    }
+    // Restore decoding context from file
+    fseek(fp, sizeof(int), SEEK_CUR);  // skip decoding_type field
+
+    fread(&dec_ctx->finished, sizeof(int), 1, fp);
+    fread(&dec_ctx->DoF, sizeof(int), 1, fp);
+    fread(&dec_ctx->de_precode, sizeof(int), 1, fp);
+    // Decoder matrix rows
+    int gensize = dec_ctx->sc->meta.size_g;
+    int pktsize = dec_ctx->sc->meta.size_p;
+    int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
+    for (int i=0; i<numpp; i++) {
+        int rowlen = 0;
+        fread(&rowlen, sizeof(int), 1, fp);
+        if (rowlen != 0) {
+            // There is an non-NULL row
+            dec_ctx->row[i] = (struct row_vector*) malloc(sizeof(struct row_vector));
+            if (dec_ctx->row[i] == NULL) {
+                free_dec_context_CBD(dec_ctx);
+                return NULL;
+            }
+            dec_ctx->row[i]->len = rowlen;
+            dec_ctx->row[i]->elem = (GF_ELEMENT *) calloc(rowlen, sizeof(GF_ELEMENT));
+            if (dec_ctx->row[i]->elem == NULL) {
+                free_dec_context_CBD(dec_ctx);
+                return NULL;
+            }
+            fread(dec_ctx->row[i]->elem, sizeof(GF_ELEMENT), rowlen, fp);
+            fread(dec_ctx->message[i], sizeof(GF_ELEMENT), pktsize, fp);
+        }
+    }
+    /*performance index*/
+    fread(&dec_ctx->overhead, sizeof(int), 1, fp);
+    fread(&dec_ctx->operations, sizeof(long long), 1, fp);
+    fclose(fp);
+    return dec_ctx;
+}

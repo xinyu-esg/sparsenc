@@ -72,35 +72,7 @@ struct snc_metainfo {
 
 struct snc_decoder;     // Sparse network code decoder
 
-/*
- * Buffer for storing GNC packets (for recoding)
- *
- * Buffer size specifies how many packets are saved for
- * each subgeneration. "FIFO" strategy is used when buffer
- * size is reached; the oldest buffered packet will be
- * discarded when a subgeneration buffer is full while a new
- * packet belonging to the subgeneration arrives.
- *
- * Buffer data structure
- *
- * gbuf --> gbuf[0]
- *                     snc_packet  snc_packet ...
- *          gbuf[1]          ^            ^
- *                           |            |
- *          gbuf[2] --> gbuf[2][0]   gbuf[2][1] ....
- *            .
- *            .
- *            .
- */
-struct snc_buffer {
-    struct snc_metainfo    meta;    // Meta info of the code
-    int                    size;    // Number of bufferred packets of each subgeneration
-    int                    nemp;    // Number of non-empty subgeneration buffers
-    struct snc_packet   ***gbuf;    // Pointers to subgeneration buffers
-    int                   *nc;      // Number of currently buffered packets
-    int                   *pn;      // Positions to store next packet of each subgeneration
-    int                   *nsched;  // Number of scheduled times of each subgeneration
-};
+struct snc_buffer;      // Buffer for storing snc packets
 
 /*------------------------------- sncEncoder -------------------------------*/
 /**
@@ -120,7 +92,7 @@ struct snc_metainfo *snc_get_metainfo(struct snc_context *sc);
 int snc_load_file_to_context(const char *filepath, long start, struct snc_context *sc);
 
 // Free up encode context
-int snc_free_enc_context(struct snc_context *sc);
+void snc_free_enc_context(struct snc_context *sc);
 
 // Restore data in the encode context to a char buffer
 unsigned char *snc_recover_data(struct snc_context *sc);
@@ -173,6 +145,12 @@ long long snc_decode_cost(struct snc_decoder *decoder);
 
 // Free decoder memory
 void snc_free_decoder(struct snc_decoder *decoder);
+
+// Save decoder context into a file
+long snc_save_decoder_context(struct snc_decoder *decoder, const char *filepath);
+
+// Restore decoder from the context stored in a file
+struct snc_decoder *snc_restore_decoder(const char *filepath);
 
 /*----------------------------- sncRecoder ------------------------------*/
 /**

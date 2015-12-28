@@ -68,7 +68,30 @@ int main(int argc, char *argv[])
     }
 
     struct snc_decoder *decoder = snc_create_decoder(sp, decoder_type);
+    if (decoder == NULL)
+        exit(1);
     clock_t start, stop, dtime = 0;
+    // Make decoder stop in the middle of decoding.
+    // Test saving/restoring decoder context to/from file.
+    int count = 0;
+    while (snc_decoder_finished(decoder) != 1) {
+        struct snc_packet *pkt = snc_generate_packet(sc);
+        //Measure decoding time
+        start = clock();
+		snc_process_packet(decoder, pkt);
+        stop = clock();
+        dtime += stop - start;
+        count++;
+        if (count > 2200) {
+            printf("Save decoder context into file\n");
+            snc_save_decoder_context(decoder, "CBDdecoder.part");
+            break;
+        }
+    }
+    snc_free_decoder(decoder);
+
+    decoder = snc_restore_decoder("CBDdecoder.part");
+
     while (snc_decoder_finished(decoder) != 1) {
         struct snc_packet *pkt = snc_generate_packet(sc);
         /* Measure decoding time */
@@ -77,11 +100,12 @@ int main(int argc, char *argv[])
         stop = clock();
         dtime += stop - start;
     }
+
     printf("dec-time: %.2f ", ((double) dtime)/CLOCKS_PER_SEC);
 
     struct snc_context *dsc = snc_get_enc_context(decoder);
     unsigned char *rec_buf = snc_recover_data(dsc);
-    if (memcmp(buf, rec_buf, sp.datasize) != 0) 
+    if (memcmp(buf, rec_buf, sp.datasize) != 0)
         fprintf(stderr, "recovered is NOT identical to original.\n");
 
     print_code_summary(dsc, snc_code_overhead(decoder), snc_decode_cost(decoder));

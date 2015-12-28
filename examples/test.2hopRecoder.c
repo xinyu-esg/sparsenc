@@ -62,6 +62,8 @@ int main(int argc, char *argv[])
     int bufsize = 2;    // SNC buffer size, default is 2
     if (argc == 10)
         bufsize = atoi(argv[9]);
+    sp.bpc      = 0;
+    sp.bnc      = 0;
 
     srand( (int) time(0) );
     char *buf = malloc(sp.datasize);

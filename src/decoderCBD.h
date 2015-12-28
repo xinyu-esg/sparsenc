@@ -30,7 +30,19 @@ struct decoding_context_CBD
     long long operations;       // record the number of computations used
 };
 
-void create_dec_context_CBD(struct decoding_context_CBD *dec_ctx, struct snc_parameter sp);
+struct decoding_context_CBD *create_dec_context_CBD(struct snc_parameter sp);
 void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct snc_packet *pkt);
 void free_dec_context_CBD(struct decoding_context_CBD *dec_ctx);
+
+/**
+ * File format to store ongoing decoding context
+ * abc.decoderCBD.part
+ *
+ * snc_parameter
+ * decoder_type
+ * decoding_context_CBD (excluding snc_context)
+ *
+ */
+long save_dec_context_CBD(struct decoding_context_CBD *dec_ctx, const char *filepath);
+struct decoding_context_CBD *restore_dec_context_CBD(const char *filepath);
 #endif

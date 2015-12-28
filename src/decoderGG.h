@@ -46,7 +46,24 @@ struct decoding_context_GG {
     int overhead;                       // record how many packets have been received
 };
 
-void create_dec_context_GG(struct decoding_context_GG *dec_ctx, struct snc_parameter sp);
+/**
+ * Create the GG decode context
+ * Return Values
+ *   On success - return 0
+ *   Otherwise  - return -1
+ */
+struct decoding_context_GG *create_dec_context_GG(struct snc_parameter sp);
 void free_dec_context_GG(struct decoding_context_GG *dec_ctx);
 void process_packet_GG(struct decoding_context_GG *dec_ctx, struct snc_packet *pkt);
+
+/**
+ * File format to store ongoing decoding context
+ *
+ * snc_parameter
+ * decoder_type
+ * decoding_context_GG (excluding snc_context)
+ *
+ */
+long save_dec_context_GG(struct decoding_context_GG *dec_ctx, const char *filepath);
+struct decoding_context_GG *restore_dec_context_GG(const char *filepath);
 #endif /* GG_DECODER */

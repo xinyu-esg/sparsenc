@@ -64,7 +64,7 @@ clean:
 
 install: libsnc.so
 	cp include/snc.h /usr/include/
-	if [[ `uname -i` == "x86_64" ]]; then \
+	if [[ `uname -a | grep -o x86_64` == "x86_64" ]]; then \
 		cp libsnc.so /usr/lib64/; \
 	else \
 		cp libsnc.so /usr/lib/; \
@@ -73,7 +73,7 @@ install: libsnc.so
 .PHONY: uninstall
 uninstall:
 	rm -f /usr/include/snc.h
-	if [[ `uname -i` == "X86_64" ]]; then \
+	if [[ `uname -a | grep -o x86_64` == "X86_64" ]]; then \
 		rm -f /usr/lib64/libsnc.so; \
 	else \
 		rm -f /usr/lib/libsnc.so; \

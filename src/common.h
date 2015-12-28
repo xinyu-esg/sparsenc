@@ -72,6 +72,37 @@ struct snc_context {
     GF_ELEMENT              **pp;       // Pointers to precoded source packets
 };
 
+
+/*
+ * Buffer for storing SNC packets (for recoding)
+ *
+ * Buffer size specifies how many packets are saved for
+ * each subgeneration. "FIFO" strategy is used when buffer
+ * size is reached; the oldest buffered packet will be
+ * discarded when a subgeneration buffer is full while a new
+ * packet belonging to the subgeneration arrives.
+ *
+ * Buffer data structure
+ *
+ * gbuf --> gbuf[0]
+ *                     snc_packet  snc_packet ...
+ *          gbuf[1]          ^            ^
+ *                           |            |
+ *          gbuf[2] --> gbuf[2][0]   gbuf[2][1] ....
+ *            .
+ *            .
+ *            .
+ */
+struct snc_buffer {
+    struct snc_metainfo    meta;    // Meta info of the code
+    int                    size;    // Number of bufferred packets of each subgeneration
+    int                    nemp;    // Number of non-empty subgeneration buffers
+    struct snc_packet   ***gbuf;    // Pointers to subgeneration buffers
+    int                   *nc;      // Number of currently buffered packets
+    int                   *pn;      // Positions to store next packet of each subgeneration
+    int                   *nsched;  // Number of scheduled times of each subgeneration
+};
+
 /* common.c */
 int has_item(int array[], int item, int length);
 void append_to_list(struct node_list *list, struct node *nd);

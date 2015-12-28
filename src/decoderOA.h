@@ -33,7 +33,18 @@ struct decoding_context_OA
     long long operations;               // record the number of computations used
 };
 
-void create_dec_context_OA(struct decoding_context_OA *dec_ctx, struct snc_parameter sp, int aoh);
+struct decoding_context_OA *create_dec_context_OA(struct snc_parameter sp, int aoh);
 void process_packet_OA(struct decoding_context_OA *dec_ctx, struct snc_packet *pkt);
 void free_dec_context_OA(struct decoding_context_OA *dec_ctx);
+
+/**
+ * File format to store ongoing decoding context
+ *
+ * snc_parameter
+ * decoder_type
+ * decoding_context_OA (excluding snc_context)
+ *
+ */
+long save_dec_context_OA(struct decoding_context_OA *dec_ctx, const char *filepath);
+struct decoding_context_OA *restore_dec_context_OA(const char *filepath);
 #endif

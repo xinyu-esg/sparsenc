@@ -26,7 +26,17 @@ struct decoding_context_BD
     long long operations;       // record the number of computations used
 };
 
-void create_dec_context_BD(struct decoding_context_BD *dec_ctx, struct snc_parameter sp);
+struct decoding_context_BD *create_dec_context_BD(struct snc_parameter sp);
 void process_packet_BD(struct decoding_context_BD *dec_ctx, struct snc_packet *pkt);
 void free_dec_context_BD(struct decoding_context_BD *dec_ctx);
 
+/**
+ * File format to store ongoing decoding context
+ *
+ * snc_parameter
+ * decoder_type
+ * decoding_context_BD (excluding snc_context)
+ *
+ */
+long save_dec_context_BD(struct decoding_context_BD *dec_ctx, const char *filepath);
+struct decoding_context_BD *restore_dec_context_BD(const char *filepath);

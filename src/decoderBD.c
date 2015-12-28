@@ -14,7 +14,7 @@ extern long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A,
 extern long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int *otoc, int *inactives);
 
 // create decoding context for band decoder
-void create_dec_context_BD(struct decoding_context_BD *dec_ctx, struct snc_parameter sp)
+struct decoding_context_BD *create_dec_context_BD(struct snc_parameter sp)
 {
     static char fname[] = "snc_create_dec_context_BD";
     int i, j, k;
@@ -24,11 +24,19 @@ void create_dec_context_BD(struct decoding_context_BD *dec_ctx, struct snc_param
     // sc->pp will be filled by decoded packets
     if (sp.type != BAND_SNC) {
         fprintf(stderr, "Band decoder only applies to band GNC code.\n");
-        return;
+        return NULL;
+    }
+
+    struct decoding_context_BD *dec_ctx;
+    if ((dec_ctx = malloc(sizeof(struct decoding_context_BD))) == NULL) {
+        fprintf(stderr, "malloc decoding_context_BD failed\n");
+        return NULL;
     }
     struct snc_context *sc;
-    if ((sc = snc_create_enc_context(NULL, sp)) == NULL)
+    if ((sc = snc_create_enc_context(NULL, sp)) == NULL) {
         fprintf(stderr, "%s: create decoding context failed", fname);
+        goto AllocError;
+    }
 
     dec_ctx->sc = sc;
 
@@ -42,14 +50,26 @@ void create_dec_context_BD(struct decoding_context_BD *dec_ctx, struct snc_param
     int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
 
     dec_ctx->coefficient = calloc(numpp, sizeof(GF_ELEMENT*));
+    if (dec_ctx->coefficient == NULL)
+        goto AllocError;
     dec_ctx->message     = calloc(numpp, sizeof(GF_ELEMENT*));
+    if (dec_ctx->message == NULL)
+        goto AllocError;
     for (i=0; i<numpp; i++) {
         dec_ctx->coefficient[i] = calloc(numpp, sizeof(GF_ELEMENT));
+        if (dec_ctx->coefficient[i] == NULL)
+            goto AllocError;
         dec_ctx->message[i]     = calloc(pktsize, sizeof(GF_ELEMENT));
+        if (dec_ctx->message[i] == NULL)
+            goto AllocError;
     }
 
     dec_ctx->otoc_mapping = malloc(sizeof(int) * numpp);
+    if (dec_ctx->otoc_mapping == NULL)
+        goto AllocError;
     dec_ctx->ctoo_mapping = malloc(sizeof(int) * numpp);
+    if (dec_ctx->ctoo_mapping == NULL)
+        goto AllocError;
     for (j=0; j<numpp; j++) {
         dec_ctx->otoc_mapping[j]   = j;             // original to current mapping
         dec_ctx->ctoo_mapping[j]   = j;             // current to original mapping
@@ -57,7 +77,15 @@ void create_dec_context_BD(struct decoding_context_BD *dec_ctx, struct snc_param
 
     dec_ctx->overhead     = 0;
     dec_ctx->overheads = calloc(dec_ctx->sc->meta.gnum, sizeof(int));
+    if (dec_ctx->overheads == NULL)
+        goto AllocError;
     dec_ctx->operations   = 0;
+    return dec_ctx;
+
+AllocError:
+    free_dec_context_BD(dec_ctx);
+    dec_ctx = NULL;
+    return NULL;
 }
 
 
@@ -289,17 +317,153 @@ static void finish_recovering_BD(struct decoding_context_BD *dec_ctx)
 
 void free_dec_context_BD(struct decoding_context_BD *dec_ctx)
 {
-    for (int i=dec_ctx->sc->meta.snum+dec_ctx->sc->meta.cnum-1; i>=0; i--) {
-        free(dec_ctx->coefficient[i]);
-        free(dec_ctx->message[i]);
+    if (dec_ctx == NULL)
+        return;
+    if (dec_ctx->sc != NULL)
+        snc_free_enc_context(dec_ctx->sc);
+    if (dec_ctx->coefficient != NULL) {
+        for (int i=dec_ctx->sc->meta.snum+dec_ctx->sc->meta.cnum-1; i>=0; i--) {
+            if (dec_ctx->coefficient[i] != NULL)
+                free(dec_ctx->coefficient[i]);
+        }
+        free(dec_ctx->coefficient);
     }
-    free(dec_ctx->coefficient);
-    free(dec_ctx->message);
-    free(dec_ctx->overheads);
-    free(dec_ctx->otoc_mapping);
-    free(dec_ctx->ctoo_mapping);
-    snc_free_enc_context(dec_ctx->sc);
+    if (dec_ctx->message != NULL) {
+        for (int i=dec_ctx->sc->meta.snum+dec_ctx->sc->meta.cnum-1; i>=0; i--) {
+            if (dec_ctx->message[i] != NULL)
+                free(dec_ctx->message[i]);
+        }
+        free(dec_ctx->message);
+    }
+    if (dec_ctx->otoc_mapping != NULL)
+        free(dec_ctx->otoc_mapping);
+    if (dec_ctx->ctoo_mapping != NULL)
+        free(dec_ctx->ctoo_mapping);
+    if (dec_ctx->overheads != NULL)
+        free(dec_ctx->overheads);
     free(dec_ctx);
     dec_ctx = NULL;
+    return;
 }
 
+/**
+ * Save a decoding context to a file
+ * Return values:
+ *   On success: bytes written
+ *   On error: -1
+ */
+long save_dec_context_BD(struct decoding_context_BD *dec_ctx, const char *filepath)
+{
+    long filesize = 0;
+    int d_type = BD_DECODER;
+    FILE *fp;
+    if ((fp = fopen(filepath, "w")) == NULL) {
+        fprintf(stderr, "Cannot open %s to save decoding context\n", filepath);
+        return (-1);
+    }
+    int i, j;
+    int gensize = dec_ctx->sc->meta.size_g;
+    int pktsize = dec_ctx->sc->meta.size_p;
+    int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
+    // Write snc metainfo
+    filesize += fwrite(&dec_ctx->sc->meta, sizeof(struct snc_metainfo), 1, fp);
+    // Write decoder type
+    filesize += fwrite(&(d_type), sizeof(int), 1, fp);
+    filesize += fwrite(&dec_ctx->finished, sizeof(int), 1, fp);
+    filesize += fwrite(&dec_ctx->DoF, sizeof(int), 1, fp);
+    filesize += fwrite(&dec_ctx->de_precode, sizeof(int), 1, fp);
+    filesize += fwrite(&dec_ctx->inactivated, sizeof(int), 1, fp);
+    // Save running matrices
+    if (dec_ctx->de_precode == 0) {
+        // Parity-check packets are not applied yet
+        int count = 0;
+        int len;
+        i = 0;
+        while (count != dec_ctx->DoF) {
+            if (dec_ctx->coefficient[i][i] != 0) {
+                filesize += fwrite(&i, sizeof(int), 1, fp);
+                len = numpp -i < gensize ? numpp - i : gensize;
+                filesize += fwrite(&len, sizeof(int), 1, fp);
+                filesize += fwrite(&(dec_ctx->coefficient[i][i]), sizeof(GF_ELEMENT), len, fp);
+                filesize += fwrite(dec_ctx->message[i], sizeof(GF_ELEMENT), pktsize, fp);
+                count++;
+            }
+            i++;
+        }
+    } else {
+        // Save the pivoted decoding matrix
+        // Fixme: save space by making use of the sparse structure
+        for (i=0; i<numpp; i++) {
+            filesize += fwrite(dec_ctx->coefficient[i], sizeof(GF_ELEMENT), numpp, fp);
+            filesize += fwrite(dec_ctx->message[i], sizeof(GF_ELEMENT), pktsize, fp);
+        }
+        filesize += fwrite(dec_ctx->otoc_mapping, sizeof(int), numpp, fp);
+        filesize += fwrite(dec_ctx->ctoo_mapping, sizeof(int), numpp, fp);
+    }
+    // Save performance index
+    filesize += fwrite(&dec_ctx->overhead, sizeof(int), 1, fp);
+    filesize += fwrite(dec_ctx->overheads, sizeof(int), dec_ctx->sc->meta.gnum, fp);
+    filesize += fwrite(&dec_ctx->operations, sizeof(long long), 1, fp);
+    fclose(fp);
+    return filesize;
+}
+
+
+struct decoding_context_BD *restore_dec_context_BD(const char *filepath)
+{
+    FILE *fp;
+    if ((fp = fopen(filepath, "r")) == NULL) {
+        fprintf(stderr, "Cannot open %s to load decoding context\n", filepath);
+        return NULL;
+    }
+    struct snc_metainfo meta;
+    fread(&meta, sizeof(struct snc_metainfo), 1, fp);
+    struct snc_parameter sp;
+    sp.datasize = meta.datasize;
+    sp.pcrate = meta.pcrate;
+    sp.size_b = meta.size_b;
+    sp.size_g = meta.size_g;
+    sp.size_p = meta.size_p;
+    sp.type = meta.type;
+    sp.bpc = meta.bpc;
+    sp.bnc = meta.bnc;
+    fseek(fp, sizeof(int), SEEK_CUR);  // skip decoding_type field
+    // Create a fresh decoding context
+    struct decoding_context_BD *dec_ctx = create_dec_context_BD(sp);
+    if (dec_ctx == NULL) {
+        fprintf(stderr, "malloc decoding_context_GG failed\n");
+        return NULL;
+    }
+    // Restore decoding context from file
+    int i, j;
+	fread(&dec_ctx->finished, sizeof(int), 1, fp);
+	fread(&dec_ctx->DoF, sizeof(int), 1, fp);
+	fread(&dec_ctx->de_precode, sizeof(int), 1, fp);
+	fread(&dec_ctx->inactivated, sizeof(int), 1, fp);
+	// Restore running matrices
+    if (dec_ctx->de_precode == 0) {
+        int count = 0;
+        int pivot, len;
+        while (count != dec_ctx->DoF) {
+           fread(&pivot, sizeof(int), 1, fp);
+           fread(&len, sizeof(int), 1, fp);
+           fread(&(dec_ctx->coefficient[pivot][pivot]), sizeof(GF_ELEMENT), len, fp);
+           fread(dec_ctx->message[pivot], sizeof(GF_ELEMENT), meta.size_p, fp);
+           count++;
+        }
+    } else {
+        int numpp = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
+        for (i=0; i<numpp; i++) {
+            fread(dec_ctx->coefficient[i], sizeof(GF_ELEMENT), numpp, fp);
+            fread(dec_ctx->message[i], sizeof(GF_ELEMENT), numpp, fp);
+        }
+        fread(dec_ctx->otoc_mapping, sizeof(int), numpp, fp);
+        fread(dec_ctx->ctoo_mapping, sizeof(int), numpp, fp);
+    }
+	// Restore performance index
+    fread(&dec_ctx->overhead, sizeof(int), 1, fp);
+    fread(dec_ctx->overheads, sizeof(int), dec_ctx->sc->meta.gnum, fp);
+    fread(&dec_ctx->operations, sizeof(long long), 1, fp);
+    fclose(fp);
+    return dec_ctx;
+}

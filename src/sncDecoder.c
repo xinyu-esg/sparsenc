@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include "decoderGG.h"
 #include "decoderOA.h"
@@ -16,46 +17,44 @@ struct snc_decoder {
     int    d_type;          // decoder type
 };
 
-struct snc_decoder *snc_create_decoder(struct snc_parameter sp, int d_type) {
+struct snc_decoder *snc_create_decoder(struct snc_parameter sp, int d_type)
+{
     struct snc_decoder *decoder = malloc(sizeof(struct snc_decoder));
     if (decoder == NULL)
         return NULL;
 
     decoder->d_type = d_type;
 
-    switch (d_type) {
+    switch (decoder->d_type) {
     case GG_DECODER:
-        decoder->dec_ctx = malloc(sizeof(struct decoding_context_GG));
+        decoder->dec_ctx = create_dec_context_GG(sp);
         if (decoder->dec_ctx == NULL)
             goto failure;
-        create_dec_context_GG(((struct decoding_context_GG *) decoder->dec_ctx), sp);
         break;
     case OA_DECODER:
-        decoder->dec_ctx = malloc(sizeof(struct decoding_context_OA));
+        decoder->dec_ctx = create_dec_context_OA(sp, 0);
         if (decoder->dec_ctx == NULL)
             goto failure;
-        create_dec_context_OA(((struct decoding_context_OA *) decoder->dec_ctx), sp, 0);
         break;
     case BD_DECODER:
-        decoder->dec_ctx = malloc(sizeof(struct decoding_context_BD));
+        decoder->dec_ctx = create_dec_context_BD(sp);
         if (decoder->dec_ctx == NULL)
             goto failure;
-        create_dec_context_BD(((struct decoding_context_BD *) decoder->dec_ctx), sp);
         break;
     case CBD_DECODER:
-        decoder->dec_ctx = malloc(sizeof(struct decoding_context_CBD));
+        decoder->dec_ctx = create_dec_context_CBD(sp);
         if (decoder->dec_ctx == NULL)
             goto failure;
-        create_dec_context_CBD(((struct decoding_context_CBD *) decoder->dec_ctx), sp);
         break;
     }
     return decoder;
 failure:
-    free(decoder);
+    snc_free_decoder(decoder);
     return NULL;
 }
 
-void snc_process_packet(struct snc_decoder *decoder, struct snc_packet *pkt) {
+void snc_process_packet(struct snc_decoder *decoder, struct snc_packet *pkt)
+{
     switch (decoder->d_type) {
     case GG_DECODER:
         process_packet_GG(((struct decoding_context_GG *) decoder->dec_ctx), pkt);
@@ -73,7 +72,8 @@ void snc_process_packet(struct snc_decoder *decoder, struct snc_packet *pkt) {
     return;
 }
 
-int snc_decoder_finished(struct snc_decoder *decoder) {
+int snc_decoder_finished(struct snc_decoder *decoder)
+{
     switch (decoder->d_type) {
     case GG_DECODER:
         return ((struct decoding_context_GG *) decoder->dec_ctx)->finished;
@@ -87,7 +87,8 @@ int snc_decoder_finished(struct snc_decoder *decoder) {
     return 0;
 }
 
-struct snc_context *snc_get_enc_context(struct snc_decoder *decoder) {
+struct snc_context *snc_get_enc_context(struct snc_decoder *decoder)
+{
     switch (decoder->d_type) {
     case GG_DECODER:
         return ((struct decoding_context_GG *) decoder->dec_ctx)->sc;
@@ -101,7 +102,8 @@ struct snc_context *snc_get_enc_context(struct snc_decoder *decoder) {
     return 0;
 }
 
-int snc_code_overhead(struct snc_decoder *decoder) {
+int snc_code_overhead(struct snc_decoder *decoder)
+{
     switch (decoder->d_type) {
     case GG_DECODER:
         return ((struct decoding_context_GG *) decoder->dec_ctx)->overhead;
@@ -115,7 +117,8 @@ int snc_code_overhead(struct snc_decoder *decoder) {
     return 0;
 }
 
-long long snc_decode_cost(struct snc_decoder *decoder) {
+long long snc_decode_cost(struct snc_decoder *decoder)
+{
     switch (decoder->d_type) {
     case GG_DECODER:
         return ((struct decoding_context_GG *) decoder->dec_ctx)->operations;
@@ -129,7 +132,10 @@ long long snc_decode_cost(struct snc_decoder *decoder) {
     return 0;
 }
 
-void snc_free_decoder(struct snc_decoder *decoder) {
+void snc_free_decoder(struct snc_decoder *decoder)
+{
+    if (decoder == NULL)
+        return;
     switch (decoder->d_type) {
     case GG_DECODER:
         free_dec_context_GG(((struct decoding_context_GG *) decoder->dec_ctx));
@@ -148,4 +154,54 @@ void snc_free_decoder(struct snc_decoder *decoder) {
     free(decoder);
     decoder = NULL;
     return;
+}
+
+
+long snc_save_decoder_context(struct snc_decoder *decoder, const char *filepath)
+{
+    switch (decoder->d_type) {
+    case GG_DECODER:
+        return save_dec_context_GG((struct decoding_context_GG *) decoder->dec_ctx, filepath);
+    case OA_DECODER:
+        return save_dec_context_OA((struct decoding_context_OA *) decoder->dec_ctx, filepath);
+    case BD_DECODER:
+        return save_dec_context_BD((struct decoding_context_BD *) decoder->dec_ctx, filepath);
+    case CBD_DECODER:
+        return save_dec_context_CBD((struct decoding_context_CBD *) decoder->dec_ctx, filepath);
+    }
+}
+
+struct snc_decoder *snc_restore_decoder(const char *filepath)
+{
+    struct snc_decoder *decoder;
+    FILE *fp;
+    if ((fp = fopen(filepath, "r")) == NULL) {
+        fprintf(stderr, "Cannot open %s to load decoding context\n", filepath);
+        return NULL;
+    }
+    // Check decoder context file type
+    fseek(fp, sizeof(struct snc_metainfo), SEEK_SET);  // skip decoding_type field
+    int d_type;
+    fread(&d_type, sizeof(int), 1, fp);
+    fclose(fp);
+    if ((decoder = malloc(sizeof(struct snc_decoder))) == NULL)
+        return NULL;
+    switch (d_type) {
+    case GG_DECODER:
+        decoder->dec_ctx = restore_dec_context_GG(filepath);
+        decoder->d_type = GG_DECODER;
+        return decoder;
+    case OA_DECODER:
+        decoder->dec_ctx = restore_dec_context_OA(filepath);
+        decoder->d_type = OA_DECODER;
+        return decoder;
+    case BD_DECODER:
+        decoder->dec_ctx = restore_dec_context_BD(filepath);
+        decoder->d_type = BD_DECODER;
+        return decoder;
+    case CBD_DECODER:
+        decoder->dec_ctx = restore_dec_context_CBD(filepath);
+        decoder->d_type = CBD_DECODER;
+        return decoder;
+    }
 }
