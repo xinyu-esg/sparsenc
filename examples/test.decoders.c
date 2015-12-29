@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "snc.h"
+#include "sparsenc.h"
 
 char usage[] = "usage: ./sncDecoder code_t dec_t datasize pcrate size_b size_g size_p bpc bnc \n\
                        code_t   - RAND, BAND, WINDWRAP\n\

@@ -1,6 +1,6 @@
 #include "common.h"
 #include "galois.h"
-#include "snc.h"
+#include "sparsenc.h"
 
 /* Schedule a subgeneration to recode a packet according
  * to the specified scheduling type. */

@@ -6,4 +6,5 @@
 *.mp3
 *.out
 *.example
+__pycache__
 test/*

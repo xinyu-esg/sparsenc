@@ -4,7 +4,7 @@
 #include "decoderOA.h"
 #include "decoderBD.h"
 #include "decoderCBD.h"
-#include "snc.h"
+#include "sparsenc.h"
 
 /* Definition of SNC decoder
  * It includes an allocated decoder context which contains encode

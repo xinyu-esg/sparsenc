@@ -1,4 +1,4 @@
-#include "snc.h"
+#include "sparsenc.h"
 /*
  * BD (band GNC code) DECODING CONTEXT
  */

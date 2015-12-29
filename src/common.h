@@ -9,7 +9,7 @@
 #include <string.h>
 #include <assert.h>
 #include <time.h>
-#include "snc.h"
+#include "sparsenc.h"
 
 #ifndef TRACE_LEVEL
 #define TRACE_LEVEL 4

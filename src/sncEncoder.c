@@ -7,7 +7,7 @@
 #include <math.h>
 #include "common.h"
 #include "galois.h"
-#include "snc.h"
+#include "sparsenc.h"
 
 static int create_context_from_meta(struct snc_context *sc);
 static int verify_code_parameter(struct snc_metainfo *meta);

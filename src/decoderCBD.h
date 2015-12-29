@@ -1,6 +1,6 @@
 #ifndef CBD_DECODER_H
 #define CBD_DECODER_H
-#include "snc.h"
+#include "sparsenc.h"
 
 /* Row vector of a matrix */
 struct row_vector
