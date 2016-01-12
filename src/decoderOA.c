@@ -268,8 +268,6 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct snc_packet *p
         free(re_ordered);
     }
 
-    snc_free_packet(pkt);
-    pkt = NULL;
 }
 
 void free_dec_context_OA(struct decoding_context_OA *dec_ctx)

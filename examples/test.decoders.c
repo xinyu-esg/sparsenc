@@ -6,7 +6,7 @@
 #include <string.h>
 #include "sparsenc.h"
 
-char usage[] = "usage: ./sncDecoder code_t dec_t datasize pcrate size_b size_g size_p bpc bnc \n\
+char usage[] = "usage: ./sncDecoder code_t dec_t datasize pcrate size_b size_g size_p bpc bnc sys\n\
                        code_t   - RAND, BAND, WINDWRAP\n\
                        dec_t    - GG, OA, BD, CBD\n\
                        datasize - Number of bytes\n\
@@ -15,10 +15,11 @@ char usage[] = "usage: ./sncDecoder code_t dec_t datasize pcrate size_b size_g s
                        size_g   - Subgeneration size\n\
                        size_p   - Packet size in bytes\n\
                        bpc      - Use binary precode (0 or 1)\n\
-                       bnc      - Use binary network code (0 or 1)\n";
+                       bnc      - Use binary network code (0 or 1)\n\
+                       sys      - Systematic code (0 or 1)\n";
 int main(int argc, char *argv[])
 {
-    if (argc != 10) {
+    if (argc != 11) {
         printf("%s\n", usage);
         exit(1);
     }
@@ -54,6 +55,7 @@ int main(int argc, char *argv[])
     sp.size_p   = atoi(argv[7]);
     sp.bpc      = atoi(argv[8]);
     sp.bnc      = atoi(argv[9]);
+    sp.sys      = atoi(argv[10]);
 
     srand( (int) time(0) );
     unsigned char *buf = malloc(sp.datasize);
@@ -73,6 +75,7 @@ int main(int argc, char *argv[])
     clock_t start, stop, dtime = 0;
     // Make decoder stop in the middle of decoding.
     // Test saving/restoring decoder context to/from file.
+    /*
     int count = 0;
     while (snc_decoder_finished(decoder) != 1) {
         struct snc_packet *pkt = snc_generate_packet(sc);
@@ -91,12 +94,13 @@ int main(int argc, char *argv[])
     snc_free_decoder(decoder);
 
     decoder = snc_restore_decoder("CBDdecoder.part");
-
+    */
     while (snc_decoder_finished(decoder) != 1) {
         struct snc_packet *pkt = snc_generate_packet(sc);
         /* Measure decoding time */
         start = clock();
 		snc_process_packet(decoder, pkt);
+        snc_free_packet(pkt);
         stop = clock();
         dtime += stop - start;
     }

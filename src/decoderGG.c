@@ -216,8 +216,6 @@ void process_packet_GG(struct decoding_context_GG *dec_ctx, struct snc_packet *p
     }
     memcpy(matrix->message[r_rows], pkt->syms, sizeof(GF_ELEMENT)*dec_ctx->sc->meta.size_p);
     matrix->remaining_rows += 1;
-    snc_free_packet(pkt);
-    pkt = NULL;
 
     //3, check if this class is full rank with at most MIN_DEG packets unknown
     //

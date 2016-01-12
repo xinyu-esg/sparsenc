@@ -44,6 +44,7 @@ struct snc_context *snc_create_enc_context(unsigned char *buf, struct snc_parame
     sc->meta.type     = sp.type;
     sc->meta.bpc      = sp.bpc;
     sc->meta.bnc      = sp.bnc;
+    sc->meta.sys      = sp.sys;
     // Determine packet and generation numbers
     int num_src = ALIGN(sc->meta.datasize, sc->meta.size_p);
     int num_chk = number_of_checks(num_src, sc->meta.pcrate);
@@ -183,6 +184,11 @@ static int create_context_from_meta(struct snc_context *sc)
         }
         memset(sc->gene[j]->pktid, -1, sizeof(int)*sc->meta.size_g);
     }
+    sc->nccount = calloc(sc->meta.gnum, sizeof(int));
+    if (sc->nccount == NULL) {
+        fprintf(stderr, "%s: calloc sc->nccount\n", fname);
+        return (-1);
+    }
 
     int coverage;
     if (sc->meta.type == RAND_SNC) {
@@ -232,6 +238,8 @@ void snc_free_enc_context(struct snc_context *sc)
     }
     if (sc->graph != NULL)
         free_bipartite_graph(sc->graph);
+    if (sc->nccount != NULL)
+        free(sc->nccount);
     free(sc);
     sc = NULL;
     return;
@@ -257,6 +265,14 @@ unsigned char *snc_recover_data(struct snc_context *sc)
         alwrote += towrite;
     }
     return data;
+}
+
+// Wrapper of free()
+void snc_free_recovered(unsigned char *data)
+{
+    if (data != NULL)
+        free(data);
+    return;
 }
 
 /**
@@ -501,9 +517,17 @@ void snc_free_packet(struct snc_packet *pkt)
 static void encode_packet(struct snc_context *sc, int gid, struct snc_packet *pkt)
 {
     pkt->gid = gid;
+    int pktid;
+    if (sc->meta.sys == 1 && sc->nccount[gid] < sc->meta.size_b) {
+        // Send an uncoded packet
+        pktid = sc->gene[gid]->pktid[sc->nccount[gid]];
+        set_bit_in_array(pkt->coes, sc->nccount[gid]);
+        memcpy(pkt->syms, sc->pp[pktid], sc->meta.size_p*sizeof(GF_ELEMENT));
+        sc->nccount[gid] += 1;
+        return;
+    }
     int i;
     GF_ELEMENT co;
-    int pktid;
     for (i=0; i<sc->meta.size_g; i++) {
         pktid = sc->gene[gid]->pktid[i];  // The i-th packet of the gid-th generation
         if (sc->meta.bnc) {
@@ -516,10 +540,13 @@ static void encode_packet(struct snc_context *sc, int gid, struct snc_packet *pk
         }
         galois_multiply_add_region(pkt->syms, sc->pp[pktid], co, sc->meta.size_p, GF_POWER);
     }
+    sc->nccount[gid] += 1;
 }
 
 static int schedule_generation(struct snc_context *sc)
 {
+    if (sc->meta.gnum == 1)
+        return 0;
     int gid = rand() % (sc->meta.gnum);
     return gid;
 }
@@ -556,18 +583,26 @@ void print_code_summary(struct snc_context *sc, int overhead, long long operatio
     } else {
         strcpy(typestr3, "NonBinaryNC");
     }
+    char typestr4[20];
+    if (sc->meta.sys) {
+        strcpy(typestr4, "Systematic");
+    } else {
+        strcpy(typestr4, "NonSystematic");
+    }
     printf("datasize: %d ", sc->meta.datasize);
     printf("precode: %.3f ", sc->meta.pcrate);
     printf("size_b: %d ", sc->meta.size_b);
     printf("size_g: %d ", sc->meta.size_g);
     printf("size_p: %d ", sc->meta.size_p);
-    printf("type: [%s::%s::%s] ", typestr, typestr2, typestr3);
+    printf("type: [%s::%s::%s::%s] ", typestr, typestr2, typestr3, typestr4);
     printf("snum: %d ", sc->meta.snum);
     printf("cnum: %d ", sc->meta.cnum);
     printf("gnum: %d ", sc->meta.gnum);
     if (operations != 0) {
         printf("overhead: %.3f ", (double) overhead/sc->meta.snum);
         printf("computation: %f\n", (double) operations/sc->meta.snum/sc->meta.size_p);
+    } else {
+        printf("\n");
     }
 }
 

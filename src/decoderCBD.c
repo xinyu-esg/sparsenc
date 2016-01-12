@@ -111,11 +111,8 @@ void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct snc_packet 
     int pivot = process_vector_CBD(dec_ctx, ces, pkt->syms);
     free(ces);
     ces = NULL;
-    snc_free_packet(pkt);
-    pkt = NULL;
     // If the number of received DoF is equal to NUM_SRC, apply the parity-check matrix.
     // The messages corresponding to rows of parity-check matrix are all-zero.
-
     if (dec_ctx->DoF == dec_ctx->sc->meta.snum) {
         dec_ctx->de_precode = 1;    /*Mark de_precode before applying precode matrix*/
         int missing_DoF = apply_parity_check_matrix(dec_ctx);

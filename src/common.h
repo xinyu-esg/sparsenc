@@ -70,6 +70,7 @@ struct snc_context {
     struct  subgeneration   **gene;     // array of pointers each points to a subgeneration.
     struct  bipartite_graph  *graph;
     GF_ELEMENT              **pp;       // Pointers to precoded source packets
+    int                      *nccount;  // Count of coded packets generated from each subgeneration
 };
 
 

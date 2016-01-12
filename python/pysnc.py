@@ -1,8 +1,12 @@
 # This file wraps APIs from libspasenc.so in Python
-from ctypes import *
+from __future__ import division
+from math import ceil
+# from ctypes import *
+from ctypes import cdll, c_int, c_ubyte, c_double, c_long, c_longlong, c_char_p, POINTER, sizeof, cast, memmove, Structure
 # code types
 RAND_SNC = 0
 BAND_SNC = 1
+RLNC = 9
 
 # decoder types
 GG_DECODER = 0
@@ -20,6 +24,33 @@ class snc_packet(Structure):
                 ("coes", POINTER(c_ubyte)),
                 ("syms", POINTER(c_ubyte))]
 
+    def serialize(self, size_g, size_p, bnc=0):
+        """ Serialize an SNC packet to a binary byte string
+        """
+        pktstr = bytearray()
+        pktstr += c_int(self.gid)
+        if bnc == 1:
+            ce_len = int(ceil(size_g/8))
+        else:
+            ce_len = size_g
+        pktstr += cast(self.coes, POINTER(c_ubyte * ce_len))[0]
+        pktstr += cast(self.syms, POINTER(c_ubyte * size_p))[0]
+        return pktstr
+
+    def deserialize(self, pktstr, size_g, size_p, bnc=0):
+        """ Deserialize a byte stream and fill in an existing snc_packet
+        instance
+        """
+        self.gid = c_int.from_buffer_copy(pktstr)
+        if bnc == 1:
+            ce_len = int(ceil(size_g/8))
+        else:
+            ce_len = size_g
+        coes = (c_ubyte * ce_len).from_buffer_copy(pktstr, sizeof(c_int))
+        memmove(self.coes, coes, ce_len)
+        syms = (c_ubyte * size_p).from_buffer_copy(pktstr, sizeof(c_int)+ce_len)
+        memmove(self.syms, syms, size_p)
+
 
 class snc_parameter(Structure):
     _fields_ = [("datasize", c_long),
@@ -29,7 +60,8 @@ class snc_parameter(Structure):
                 ("size_p", c_int),
                 ("type",   c_int),
                 ("bpc",    c_int),
-                ("bnc",    c_int)]
+                ("bnc",    c_int),
+                ("sys",    c_int)]
 
 
 class snc_metainfo(Structure):
@@ -41,6 +73,7 @@ class snc_metainfo(Structure):
                 ("type",   c_int),
                 ("bpc",    c_int),
                 ("bnc",    c_int),
+                ("sys",    c_int),
                 ("snum",   c_int),
                 ("cnum",   c_int),
                 ("gnum",   c_int)]
@@ -59,7 +92,7 @@ snc = cdll.LoadLibrary("libsparsenc.so")
 ##########################
 # Wrap encoder functions #
 ##########################
-snc.snc_create_enc_context.argtypes = [c_char_p, snc_parameter]
+snc.snc_create_enc_context.argtypes = [POINTER(c_ubyte), snc_parameter]
 snc.snc_create_enc_context.restype = POINTER(snc_context)
 
 snc.snc_get_metainfo.argtypes = [POINTER(snc_context)]
@@ -73,6 +106,9 @@ snc.snc_free_enc_context.restype = None
 
 snc.snc_recover_data.argtypes = [POINTER(snc_context)]
 snc.snc_recover_data.restype = POINTER(c_ubyte)
+
+snc.snc_free_recovered.argtypes = [POINTER(c_ubyte)]
+snc.snc_free_recovered.restype = None
 
 snc.snc_recover_to_file.argtypes = [c_char_p, POINTER(snc_context)]
 snc.snc_recover_to_file.restype = c_long

@@ -53,6 +53,7 @@ struct snc_parameter {
     int     type;
     int     bpc;         // binary precode
     int     bnc;         // binary network coding
+    int     sys;         // systematic code
 };
 
 // Metainfo of the data to be snc-coded
@@ -65,6 +66,7 @@ struct snc_metainfo {
     int     type;       // Code type
     int     bpc;        // binary precode
     int     bnc;        // binary network coding
+    int     sys;        // systematic code
     int     snum;       // Number of source packets splitted from the data.
     int     cnum;       // Number of parity-check packets (cnum ~= snum * pcrate)
     int     gnum;       // Number of subgenerations
@@ -96,6 +98,9 @@ void snc_free_enc_context(struct snc_context *sc);
 
 // Restore data in the encode context to a char buffer
 unsigned char *snc_recover_data(struct snc_context *sc);
+
+// Free the buffer of the recovered data
+void snc_free_recovered(unsigned char *data);
 
 // Restore data in the encode context to a file (append if file exists)
 long snc_recover_to_file(const char *filepath, struct snc_context *sc);

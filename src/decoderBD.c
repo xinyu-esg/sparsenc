@@ -195,8 +195,6 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct snc_packet *p
         finish_recovering_BD(dec_ctx);
     }
 
-    snc_free_packet(pkt);
-    pkt = NULL;
     free(ces);
     ces = NULL;
 }
