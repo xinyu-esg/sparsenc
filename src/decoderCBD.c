@@ -231,7 +231,11 @@ static int apply_parity_check_matrix(struct decoding_context_CBD *dec_ctx)
     return missing_DoF;
 }
 
-
+/**
+ * Finish CBD decoding
+ * This routine converts decoding matrix from upper triangular
+ * form to diagonal.
+ */
 static void finish_recovering_CBD(struct decoding_context_CBD *dec_ctx)
 {
     int gensize = dec_ctx->sc->meta.size_g;

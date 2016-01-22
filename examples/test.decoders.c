@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
         struct snc_packet *pkt = snc_generate_packet(sc);
         //Measure decoding time
         start = clock();
-		snc_process_packet(decoder, pkt);
+        snc_process_packet(decoder, pkt);
         stop = clock();
         dtime += stop - start;
         count++;
@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
         struct snc_packet *pkt = snc_generate_packet(sc);
         /* Measure decoding time */
         start = clock();
-		snc_process_packet(decoder, pkt);
+        snc_process_packet(decoder, pkt);
         snc_free_packet(pkt);
         stop = clock();
         dtime += stop - start;

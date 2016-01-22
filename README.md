@@ -1,10 +1,14 @@
 Introduction
 ============
-This project provides a set of APIs to encode and decode **sparse** **n**etwork **c**odes. Network coding [1][2] is known to be able to improve network throughput and combat packet loss by algebrically combining packets at intermediate packets. This library provides several computationally efficient network codes to overcome the high complexity issue of the random linear network coding. The basic idea is to encode against subsets of source packets called **subgenerations**.
+This project provides a set of APIs to encode and decode **sparse** **n**etwork **c**odes. Network coding [1][2] is known to be able to improve network throughput and combat packet loss by algebrically combining packets at intermediate nodes. This library provides several computationally efficient network codes to overcome the high complexity issue of the random linear network coding (RLNC). The basic idea is to encode against subsets of source packets called **subgenerations**. The RLNC is a special case that the number of subgenerations is one.
 
 The library at present supports two catagories of sparse network codes (SNC): random and band codes. Random SNC encodes from subgenerations that are randomly overlapped whereas the band code encodes from subgenerations that are overlapped consecutively (in terms of packet indices). The _band_ name comes from that its decoding matrix is a band matrix.
 
 Four decoders with different performance tradeoff considerations are provided in the library. The (sub)generation-by-(sub)generation (GG) decoder has a linear-time complexity but exhibits higher code overhead. On the other hand, the overlap-aware (OA) decoder has optimized code overhead but exhibits higher complexity. These two decoders essentially can be used for all kinds of subgeneration-based code (i.e., not limited to the two codes currently provided in the library). The band (BD) and compact band (CBD) decoders can only be applied to the band code. The decoders have optimized code overheads as well and their complexities are between GG and OA decoders. CBD decoder uses compact matrix representation and therefore has lower memory usage. BD decoder, on the other hand, employes pivoting techniques and therefore its decoding complexity is lower. BD decoder uses full-size matrix representation for random access, as is heavily needed during pivoting. So BD decoder has higher memory usage.
+
+The support of original RLNC is straightforward. RLNC is just a special case of SNC with the number of subgenerations being 1. The CBD decoder is recommended for decoding RLNC.
+
+Systematic coding is also supported, which generates coded packets from each subgeneration only after each source packet therein is sent once. The decoding cost can be significantly reduced when the code is used in networks with low packet loss rate. The price to pay is higher overhead if the number of subgenerations is greater than 1. It is recommended to use systematic coding for RLNC in many scenarios.
 
 For more details about subgeneration-based codes and the decoder design, please refer to [3].
 

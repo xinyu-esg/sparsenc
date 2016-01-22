@@ -687,52 +687,52 @@ struct decoding_context_GG *restore_dec_context_GG(const char *filepath)
     }
     // Restore decoding context from file
     fseek(fp, sizeof(int), SEEK_CUR);  // skip decoding_type field
-	// Restore already decoded packets
-	int i, j, k;
-	fread(&dec_ctx->decoded, sizeof(int), 1, fp);
-	for (i=0; i<dec_ctx->decoded; i++) {
-		int pktid;
-		fread(&pktid, sizeof(int), 1, fp);
-		dec_ctx->sc->pp[pktid] = calloc(meta.size_p, sizeof(GF_ELEMENT));
-		fread(dec_ctx->sc->pp[pktid], sizeof(GF_ELEMENT), meta.size_p, fp);
-	}
-	// Restore evolving packets
-	int count;
-	fread(&count, sizeof(int), 1, fp);
-	for (i=0; i<count; i++) {
-		int evoid;
-		fread(&evoid, sizeof(int), 1, fp);
-		dec_ctx->evolving_checks[evoid] = calloc(meta.size_p, sizeof(GF_ELEMENT));
-		fread(dec_ctx->evolving_checks[evoid], sizeof(GF_ELEMENT), meta.size_p, fp);
-	}
-	// Restore check degrees
-	fread(dec_ctx->check_degrees, sizeof(int), dec_ctx->sc->meta.cnum, fp);
-	fread(&dec_ctx->finished, sizeof(int), 1, fp);
-	fread(&dec_ctx->decoded, sizeof(int), 1, fp);
-	fread(&dec_ctx->originals, sizeof(int), 1, fp);
-	// Restore running matrices
-	// Note that running matrices' memory were already allocated in creating_dec_context
-	for (i=0; i<dec_ctx->sc->meta.gnum; i++) {
-		fread(&dec_ctx->Matrices[i]->remaining_rows, sizeof(int), 1, fp);
-		fread(&dec_ctx->Matrices[i]->remaining_cols, sizeof(int), 1, fp);
-		fread(&dec_ctx->Matrices[i]->erased, sizeof(FLAGS), 1, fp);
-		//for (j=0; j<meta.size_g; j++) {
-		for (j=0; j<dec_ctx->Matrices[i]->remaining_rows; j++) {
-			fread(dec_ctx->Matrices[i]->coefficient[j], sizeof(GF_ELEMENT), meta.size_g, fp);
-			fread(dec_ctx->Matrices[i]->message[j], sizeof(GF_ELEMENT), meta.size_p, fp);
-		}
-	}
-	// Restore recent ID_list
-	fread(&count, sizeof(int), 1, fp);
-	ID *new_id;
-	for (i=0; i<count; i++) {
-		if ( (new_id = malloc(sizeof(ID))) == NULL )
-			fprintf(stderr, "malloc new ID failed\n");
-		fread(&new_id->data, sizeof(int), 1, fp);
-		new_id->next = NULL;
-		append_to_list(dec_ctx->recent, new_id);
-	}
-	// Restore performance index
+    // Restore already decoded packets
+    int i, j, k;
+    fread(&dec_ctx->decoded, sizeof(int), 1, fp);
+    for (i=0; i<dec_ctx->decoded; i++) {
+        int pktid;
+        fread(&pktid, sizeof(int), 1, fp);
+        dec_ctx->sc->pp[pktid] = calloc(meta.size_p, sizeof(GF_ELEMENT));
+        fread(dec_ctx->sc->pp[pktid], sizeof(GF_ELEMENT), meta.size_p, fp);
+    }
+    // Restore evolving packets
+    int count;
+    fread(&count, sizeof(int), 1, fp);
+    for (i=0; i<count; i++) {
+        int evoid;
+        fread(&evoid, sizeof(int), 1, fp);
+        dec_ctx->evolving_checks[evoid] = calloc(meta.size_p, sizeof(GF_ELEMENT));
+        fread(dec_ctx->evolving_checks[evoid], sizeof(GF_ELEMENT), meta.size_p, fp);
+    }
+    // Restore check degrees
+    fread(dec_ctx->check_degrees, sizeof(int), dec_ctx->sc->meta.cnum, fp);
+    fread(&dec_ctx->finished, sizeof(int), 1, fp);
+    fread(&dec_ctx->decoded, sizeof(int), 1, fp);
+    fread(&dec_ctx->originals, sizeof(int), 1, fp);
+    // Restore running matrices
+    // Note that running matrices' memory were already allocated in creating_dec_context
+    for (i=0; i<dec_ctx->sc->meta.gnum; i++) {
+        fread(&dec_ctx->Matrices[i]->remaining_rows, sizeof(int), 1, fp);
+        fread(&dec_ctx->Matrices[i]->remaining_cols, sizeof(int), 1, fp);
+        fread(&dec_ctx->Matrices[i]->erased, sizeof(FLAGS), 1, fp);
+        //for (j=0; j<meta.size_g; j++) {
+        for (j=0; j<dec_ctx->Matrices[i]->remaining_rows; j++) {
+            fread(dec_ctx->Matrices[i]->coefficient[j], sizeof(GF_ELEMENT), meta.size_g, fp);
+            fread(dec_ctx->Matrices[i]->message[j], sizeof(GF_ELEMENT), meta.size_p, fp);
+        }
+    }
+    // Restore recent ID_list
+    fread(&count, sizeof(int), 1, fp);
+    ID *new_id;
+    for (i=0; i<count; i++) {
+        if ( (new_id = malloc(sizeof(ID))) == NULL )
+            fprintf(stderr, "malloc new ID failed\n");
+        fread(&new_id->data, sizeof(int), 1, fp);
+        new_id->next = NULL;
+        append_to_list(dec_ctx->recent, new_id);
+    }
+    // Restore performance index
     fread(&dec_ctx->overhead, sizeof(int), 1, fp);
     fread(&dec_ctx->operations, sizeof(long long), 1, fp);
     fclose(fp);

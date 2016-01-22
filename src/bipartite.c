@@ -61,6 +61,16 @@ int create_bipartite_graph(BP_graph *graph, int nleft, int nright)
         graph->r_nbrs_of_l[i]->first = graph->r_nbrs_of_l[i]->last = NULL;
     }
 
+#ifdef HDPC
+    // A reference bipartite graph, which is completely dense
+    for (i=0; i<S; i++) {
+        for (j=0; j<LDPC_SYS; j++) {
+            if (include_left_node(j, i, graph) < 0)
+                goto failure;
+        }
+    }
+#else
+    // Construct circular LDPC code
     int a, b;
     int touching_edge = 0;
     for (i=0; i<ceil((double) LDPC_SYS/S); i++) {
@@ -101,6 +111,7 @@ int create_bipartite_graph(BP_graph *graph, int nleft, int nright)
                 goto failure;
         }
     }
+#endif
     return 0;
 
 failure:

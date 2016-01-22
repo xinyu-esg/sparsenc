@@ -628,8 +628,8 @@ struct decoding_context_OA *restore_dec_context_OA(const char *filepath)
     sp.bpc = meta.bpc;
     sp.bnc = meta.bnc;
     fseek(fp, sizeof(int), SEEK_CUR);  // skip decoding_type field
-	int aoh;
-	fread(&aoh, sizeof(int), 1, fp);
+    int aoh;
+    fread(&aoh, sizeof(int), 1, fp);
     // Create a fresh decoding context
     struct decoding_context_OA *dec_ctx = create_dec_context_OA(sp, aoh);
     if (dec_ctx == NULL) {
@@ -638,36 +638,36 @@ struct decoding_context_OA *restore_dec_context_OA(const char *filepath)
     }
     // Restore decoding context from file
     int i, j;
-	fread(&dec_ctx->finished, sizeof(int), 1, fp);
-	fread(&dec_ctx->OA_ready, sizeof(int), 1, fp);
-	fread(&dec_ctx->local_DoF, sizeof(int), 1, fp);
-	fread(&dec_ctx->global_DoF, sizeof(int), 1, fp);
-	// Restore running matrices
-	// Note that running matrices' memory were already allocated in creating_dec_context
-	for (i=0; i<dec_ctx->sc->meta.gnum; i++) {
-		for (j=0; j<meta.size_g; j++) {
-			fread(dec_ctx->Matrices[i]->coefficient[j], sizeof(GF_ELEMENT), meta.size_g, fp);
-			fread(dec_ctx->Matrices[i]->message[j], sizeof(GF_ELEMENT), meta.size_p, fp);
-		}
-	}
-	// Restore GDM and its related information if OA_ready
-	int numpp = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
-	if (dec_ctx->OA_ready == 1) {
-		dec_ctx->JMBcoefficient = calloc(numpp+aoh, sizeof(GF_ELEMENT*));
-		dec_ctx->JMBmessage = calloc(numpp+aoh, sizeof(GF_ELEMENT*));
-		for (i=0; i<numpp+aoh; i++) {
-			dec_ctx->JMBcoefficient[i] = calloc(numpp, sizeof(GF_ELEMENT));
-			fread(dec_ctx->JMBcoefficient[i], sizeof(GF_ELEMENT), numpp, fp);
-			dec_ctx->JMBmessage[i] = calloc(meta.size_p, sizeof(GF_ELEMENT));
-			fread(dec_ctx->JMBmessage[i], sizeof(GF_ELEMENT), meta.size_p, fp);
-		}
-		dec_ctx->otoc_mapping = calloc(numpp, sizeof(int));
-		fread(dec_ctx->otoc_mapping, sizeof(int), numpp, fp);
-		dec_ctx->ctoo_mapping = calloc(numpp, sizeof(int));
-		fread(dec_ctx->ctoo_mapping, sizeof(int), numpp, fp);
-		fread(&dec_ctx->inactives, sizeof(int), 1, fp);
-	}
-	// Restore performance index
+    fread(&dec_ctx->finished, sizeof(int), 1, fp);
+    fread(&dec_ctx->OA_ready, sizeof(int), 1, fp);
+    fread(&dec_ctx->local_DoF, sizeof(int), 1, fp);
+    fread(&dec_ctx->global_DoF, sizeof(int), 1, fp);
+    // Restore running matrices
+    // Note that running matrices' memory were already allocated in creating_dec_context
+    for (i=0; i<dec_ctx->sc->meta.gnum; i++) {
+        for (j=0; j<meta.size_g; j++) {
+            fread(dec_ctx->Matrices[i]->coefficient[j], sizeof(GF_ELEMENT), meta.size_g, fp);
+            fread(dec_ctx->Matrices[i]->message[j], sizeof(GF_ELEMENT), meta.size_p, fp);
+        }
+    }
+    // Restore GDM and its related information if OA_ready
+    int numpp = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
+    if (dec_ctx->OA_ready == 1) {
+        dec_ctx->JMBcoefficient = calloc(numpp+aoh, sizeof(GF_ELEMENT*));
+        dec_ctx->JMBmessage = calloc(numpp+aoh, sizeof(GF_ELEMENT*));
+        for (i=0; i<numpp+aoh; i++) {
+            dec_ctx->JMBcoefficient[i] = calloc(numpp, sizeof(GF_ELEMENT));
+            fread(dec_ctx->JMBcoefficient[i], sizeof(GF_ELEMENT), numpp, fp);
+            dec_ctx->JMBmessage[i] = calloc(meta.size_p, sizeof(GF_ELEMENT));
+            fread(dec_ctx->JMBmessage[i], sizeof(GF_ELEMENT), meta.size_p, fp);
+        }
+        dec_ctx->otoc_mapping = calloc(numpp, sizeof(int));
+        fread(dec_ctx->otoc_mapping, sizeof(int), numpp, fp);
+        dec_ctx->ctoo_mapping = calloc(numpp, sizeof(int));
+        fread(dec_ctx->ctoo_mapping, sizeof(int), numpp, fp);
+        fread(&dec_ctx->inactives, sizeof(int), 1, fp);
+    }
+    // Restore performance index
     fread(&dec_ctx->overhead, sizeof(int), 1, fp);
     fread(&dec_ctx->operations, sizeof(long long), 1, fp);
     fclose(fp);

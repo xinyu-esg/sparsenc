@@ -520,8 +520,12 @@ static void encode_packet(struct snc_context *sc, int gid, struct snc_packet *pk
     int pktid;
     if (sc->meta.sys == 1 && sc->nccount[gid] < sc->meta.size_b) {
         // Send an uncoded packet
+        if (sc->meta.bnc == 1) {
+            set_bit_in_array(pkt->coes, sc->nccount[gid]);
+        } else {
+            pkt->coes[sc->nccount[gid]] = 1;
+        }
         pktid = sc->gene[gid]->pktid[sc->nccount[gid]];
-        set_bit_in_array(pkt->coes, sc->nccount[gid]);
         memcpy(pkt->syms, sc->pp[pktid], sc->meta.size_p*sizeof(GF_ELEMENT));
         sc->nccount[gid] += 1;
         return;
@@ -541,6 +545,7 @@ static void encode_packet(struct snc_context *sc, int gid, struct snc_packet *pk
         galois_multiply_add_region(pkt->syms, sc->pp[pktid], co, sc->meta.size_p, GF_POWER);
     }
     sc->nccount[gid] += 1;
+    return;
 }
 
 static int schedule_generation(struct snc_context *sc)

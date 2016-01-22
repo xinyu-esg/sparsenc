@@ -434,11 +434,11 @@ struct decoding_context_BD *restore_dec_context_BD(const char *filepath)
     }
     // Restore decoding context from file
     int i, j;
-	fread(&dec_ctx->finished, sizeof(int), 1, fp);
-	fread(&dec_ctx->DoF, sizeof(int), 1, fp);
-	fread(&dec_ctx->de_precode, sizeof(int), 1, fp);
-	fread(&dec_ctx->inactivated, sizeof(int), 1, fp);
-	// Restore running matrices
+    fread(&dec_ctx->finished, sizeof(int), 1, fp);
+    fread(&dec_ctx->DoF, sizeof(int), 1, fp);
+    fread(&dec_ctx->de_precode, sizeof(int), 1, fp);
+    fread(&dec_ctx->inactivated, sizeof(int), 1, fp);
+    // Restore running matrices
     if (dec_ctx->de_precode == 0) {
         int count = 0;
         int pivot, len;
@@ -458,7 +458,7 @@ struct decoding_context_BD *restore_dec_context_BD(const char *filepath)
         fread(dec_ctx->otoc_mapping, sizeof(int), numpp, fp);
         fread(dec_ctx->ctoo_mapping, sizeof(int), numpp, fp);
     }
-	// Restore performance index
+    // Restore performance index
     fread(&dec_ctx->overhead, sizeof(int), 1, fp);
     fread(dec_ctx->overheads, sizeof(int), dec_ctx->sc->meta.gnum, fp);
     fread(&dec_ctx->operations, sizeof(long long), 1, fp);
