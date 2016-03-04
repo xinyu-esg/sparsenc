@@ -53,7 +53,7 @@ extern long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A
  * Create context for overlap-aware (OA) decoding
  *  aoh - allowed overhead >=0
  */
-struct decoding_context_OA *create_dec_context_OA(struct snc_parameter sp, int aoh)
+struct decoding_context_OA *create_dec_context_OA(struct snc_parameter *sp, int aoh)
 {
     static char fname[] = "snc_create_dec_context_OA";
     int i, j, k;
@@ -345,10 +345,10 @@ static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
     int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
 
     // Recover inactivated packets
-#if defined(GNCTRACE)
-    printf("Finishing decoding...\n");
-    printf("Recovering \"inactive\" packets...\n");
-#endif
+    if (get_loglevel() == TRACE) {
+        printf("Finishing decoding...\n");
+        printf("Recovering \"inactive\" packets...\n");
+    }
     int ias = dec_ctx->inactives;
     GF_ELEMENT **ces_submatrix = calloc(ias, sizeof(GF_ELEMENT*));
     for (i=0; i<ias; i++) {
@@ -376,9 +376,8 @@ static void diagonalize_GDM(struct decoding_context_OA *dec_ctx)
 
 
     // Recover active packets
-#if defined(GNCTRACE)
-    printf("Recovering \"active\" packets...\n");
-#endif
+    if (get_loglevel() == TRACE)
+        printf("Recovering \"active\" packets...\n");
     GF_ELEMENT quotient;
     for (i=0; i<numpp-ias; i++) {
         /*
@@ -459,10 +458,10 @@ static long running_matrix_to_REF(struct decoding_context_OA *dec_ctx)
                 operations += pktsize;
             }
         }
-#if defined(GNCTRACE)
-        if (consecutive == 1)
-            printf("Class %d is self-decodable.\n", i);
-#endif
+        if (get_loglevel() == TRACE) {
+            if (consecutive == 1)
+                printf("Class %d is self-decodable.\n", i);
+        }
     }
     return operations;
 }
@@ -532,9 +531,8 @@ static void construct_GDM(struct decoding_context_OA *dec_ctx)
         }
     }
     free(global_ces);
-#if defined(GNCTRACE)
-    printf("%d local DoFs are available, copied %d to GDM.\n", dec_ctx->local_DoF, p_copy);
-#endif
+    if (get_loglevel() == TRACE)
+        printf("%d local DoFs are available, copied %d to GDM.\n", dec_ctx->local_DoF, p_copy);
     // Free up local matrices
     for (i=0; i<dec_ctx->sc->meta.gnum; i++) {
         free_running_matrix(dec_ctx->Matrices[i], dec_ctx->sc->meta.size_g);
@@ -627,11 +625,13 @@ struct decoding_context_OA *restore_dec_context_OA(const char *filepath)
     sp.type = meta.type;
     sp.bpc = meta.bpc;
     sp.bnc = meta.bnc;
+    sp.sys = meta.sys;
+    sp.seed = meta.seed;
     fseek(fp, sizeof(int), SEEK_CUR);  // skip decoding_type field
     int aoh;
     fread(&aoh, sizeof(int), 1, fp);
     // Create a fresh decoding context
-    struct decoding_context_OA *dec_ctx = create_dec_context_OA(sp, aoh);
+    struct decoding_context_OA *dec_ctx = create_dec_context_OA(&sp, aoh);
     if (dec_ctx == NULL) {
         fprintf(stderr, "malloc decoding_context_GG failed\n");
         return NULL;

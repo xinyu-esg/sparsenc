@@ -6,7 +6,7 @@
 #include <string.h>
 #include "sparsenc.h"
 
-char usage[] = "usage: ./sncDecoder code_t dec_t datasize pcrate size_b size_g size_p bpc bnc sys\n\
+char usage[] = "usage: ./restoreDecoders code_t dec_t datasize pcrate size_b size_g size_p bpc bnc sys\n\
                        code_t   - RAND, BAND, WINDWRAP\n\
                        dec_t    - GG, OA, BD, CBD\n\
                        datasize - Number of bytes\n\
@@ -76,7 +76,6 @@ int main(int argc, char *argv[])
     clock_t start, stop, dtime = 0;
     // Make decoder stop in the middle of decoding.
     // Test saving/restoring decoder context to/from file.
-    /* 
     int count = 0;
     while (snc_decoder_finished(decoder) != 1) {
         struct snc_packet *pkt = snc_generate_packet(sc);
@@ -95,7 +94,7 @@ int main(int argc, char *argv[])
     snc_free_decoder(decoder);
 
     decoder = snc_restore_decoder("CBDdecoder.part");
-    */
+
     while (snc_decoder_finished(decoder) != 1) {
         struct snc_packet *pkt = snc_generate_packet(sc);
         /* Measure decoding time */

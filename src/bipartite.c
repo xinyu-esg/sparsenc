@@ -14,8 +14,6 @@
 #include <math.h>
 static int is_prime(int number);
 static int include_left_node(int l_index, int r_index, BP_graph *graph);
-static int bipartite_rand(void);
-static void bipartite_srand(unsigned int seed);
 
 // The number of required LDPC check symbols given the number of source packets.
 int number_of_checks(int snum, double r)
@@ -36,7 +34,6 @@ int number_of_checks(int snum, double r)
 // construct LDPC graph
 int create_bipartite_graph(BP_graph *graph, int nleft, int nright)
 {
-    bipartite_srand(7);
     int LDPC_SYS = nleft;
     int S        = nright;
     if (S == 0)
@@ -61,16 +58,31 @@ int create_bipartite_graph(BP_graph *graph, int nleft, int nright)
         graph->r_nbrs_of_l[i]->first = graph->r_nbrs_of_l[i]->last = NULL;
     }
 
-#ifdef HDPC
-    // A reference bipartite graph, which is completely dense
-    for (i=0; i<S; i++) {
-        for (j=0; j<LDPC_SYS; j++) {
-            if (include_left_node(j, i, graph) < 0)
-                goto failure;
+    char *hdpc = getenv("SNC_PRECODE");
+    if (hdpc != NULL && strcmp(hdpc, "HDPC") == 0) {
+        // A reference bipartite graph, which is much highly dense. This is only used 
+        // when SNC_PRECODE env var is set to HDPC. The env var is ONLY for development
+        // and testing use.
+        for (i=0; i<S; i++) {
+            for (j=0; j<LDPC_SYS; j++) {
+                int included = 1;
+                if (graph->binaryce == 1) {
+                    if (snc_rand() % 2 == 0)
+                        included = 0;
+                } else {
+                    if (snc_rand() % 256 == 0)
+                        included = 0;
+                }
+                if (included) {
+                    if (include_left_node(j, i, graph) < 0)
+                        goto failure;
+                }
+            }
         }
+        return 0;
     }
-#else
-    // Construct circular LDPC code
+
+    // By default use circulant LDPC code which is used by Raptor code
     int a, b;
     int touching_edge = 0;
     for (i=0; i<ceil((double) LDPC_SYS/S); i++) {
@@ -111,7 +123,6 @@ int create_bipartite_graph(BP_graph *graph, int nleft, int nright)
                 goto failure;
         }
     }
-#endif
     return 0;
 
 failure:
@@ -127,7 +138,7 @@ static int include_left_node(int l_index, int r_index, BP_graph *graph)
     if (graph->binaryce == 1) {
         ce = 1;
     } else {
-        ce = (GF_ELEMENT) (bipartite_rand() % 255 + 1); // Value range: [1-255]
+        ce = (GF_ELEMENT) (snc_rand() % 255 + 1); // Value range: [1-255]
     }
     // Record neighbor of a right-side node
     NBR_node *nb = calloc(1, sizeof(NBR_node));
@@ -175,16 +186,4 @@ static int is_prime(int number)
             return 0;
     }
     return 1;
-}
-
-static unsigned long int next = 1;
-static int bipartite_rand(void) // RAND_MAX assumed to be 32767
-{
-    next = next * 1103515245 + 12345;
-    return (unsigned int)(next/65536) % 32768;
-}
-
-static void bipartite_srand(unsigned int seed)
-{
-    next = seed;
 }

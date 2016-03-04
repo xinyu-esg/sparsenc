@@ -6,12 +6,6 @@
 typedef struct node      ID;
 typedef struct node_list ID_list;
 
-typedef unsigned long FLAGS;                    /* bit flags */
-#define _BIT_MASK(n) ( 1UL << (n) )     /* only bit at n is on */
-#define _FLAG_SET(x, n) (x) |= _BIT_MASK(n);
-#define _FLAG_ON(x, n)  (((x) & _BIT_MASK(n)) == _BIT_MASK(n))
-#define _FLAG_OFF(x, n) (((x) & _BIT_MASK(n)) == 0)
-
 struct running_matrix;
 
 struct decoding_context_GG {
@@ -52,7 +46,7 @@ struct decoding_context_GG {
  *   On success - return 0
  *   Otherwise  - return -1
  */
-struct decoding_context_GG *create_dec_context_GG(struct snc_parameter sp);
+struct decoding_context_GG *create_dec_context_GG(struct snc_parameter *sp);
 void free_dec_context_GG(struct decoding_context_GG *dec_ctx);
 void process_packet_GG(struct decoding_context_GG *dec_ctx, struct snc_packet *pkt);
 

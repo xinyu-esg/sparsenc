@@ -3,6 +3,18 @@
  */
 #include <stdint.h>
 #include "common.h"
+static int loglevel = 0;    // log level for the library
+void set_loglevel(const char *level)
+{
+    if (strcmp(level, "TRACE") == 0)
+        loglevel = TRACE;
+    return;
+}
+
+int get_loglevel()
+{
+    return loglevel;
+}
 
 // check if an item is existed in an int array
 int has_item(int array[], int item, int length)
@@ -94,7 +106,7 @@ void free_list(struct node_list *list)
 
 
 /**
- * Get/set the i-th encoding bit from a sequence of GF_ELEMENT pointed
+ * Get/set the i-th bit from a sequence of bytes pointed
  * by coes. The indices of bits are as following:
  *
  *    [7|6|5|4|3|2|1|0]   [15|14|13|12|11|10|9|8]   ...
@@ -102,14 +114,14 @@ void free_list(struct node_list *list)
  * It's caller's responsibility to ensure that ceil(max(i)/8) elements
  * are allocated in the memory pointed by coes.
  */
-inline GF_ELEMENT get_bit_in_array(GF_ELEMENT *coes, int i)
+inline unsigned char get_bit_in_array(unsigned char *coes, int i)
 {
-    GF_ELEMENT co = coes[i/8];
-    GF_ELEMENT mask = 0x1 << (i % 8);
-    return ((GF_ELEMENT) ((mask & co) == mask));
+    unsigned char co = coes[i/8];
+    unsigned char mask = 0x1 << (i % 8);
+    return ((mask & co) == mask);
 }
 
-inline void set_bit_in_array(GF_ELEMENT *coes, int i)
+inline void set_bit_in_array(unsigned char *coes, int i)
 {
     coes[i/8] |= (0x1 << (i % 8));
     return;
@@ -158,3 +170,20 @@ return;
 #endif
 }
 */
+
+/*
+ * This is the pseudo-random number generator used by
+ *   1) grouping of generations in RAND codes
+ *   2) precoding coefficients of GF(256) precodes
+ */
+static unsigned long int next = 1;
+int snc_rand(void)
+{
+    next = next * 1103515245 + 12345;
+    return (unsigned int)(next/65536) % 32768;
+}
+
+void snc_srand(unsigned int seed)
+{
+    next = seed;
+}

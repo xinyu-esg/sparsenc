@@ -14,7 +14,7 @@ extern long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A,
 extern long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int *otoc, int *inactives);
 
 // create decoding context for band decoder
-struct decoding_context_BD *create_dec_context_BD(struct snc_parameter sp)
+struct decoding_context_BD *create_dec_context_BD(struct snc_parameter *sp)
 {
     static char fname[] = "snc_create_dec_context_BD";
     int i, j, k;
@@ -22,7 +22,7 @@ struct decoding_context_BD *create_dec_context_BD(struct snc_parameter sp)
     // GNC code context
     // Since this is decoding, we construct GNC context without data
     // sc->pp will be filled by decoded packets
-    if (sp.type != BAND_SNC) {
+    if (sp->type != BAND_SNC) {
         fprintf(stderr, "Band decoder only applies to band GNC code.\n");
         return NULL;
     }
@@ -176,17 +176,14 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct snc_packet *p
     // If the number of received DoF is equal to NUM_SRC, apply the parity-check matrix.
     // The messages corresponding to rows of parity-check matrix are all-zero.
     if (dec_ctx->DoF == dec_ctx->sc->meta.snum) {
-#if defined(GNCTRACE)
-        printf("Start to apply the parity-check matrix...\n");
-#endif
+        if (get_loglevel() == TRACE)
+            printf("Start to apply the parity-check matrix...\n");
         int allzeros = partially_diag_decoding_matrix(dec_ctx);
-#if defined(GNCTRACE)
-        printf("%d all-zero rows when partially diagonalizing the decoding matrix.\n", allzeros);
-#endif
+        if (get_loglevel() == TRACE)
+            printf("%d all-zero rows when partially diagonalizing the decoding matrix.\n", allzeros);
         int missing_DoF = apply_parity_check_matrix(dec_ctx);
-#if defined(GNCTRACE)
-        printf("After applying the parity-check matrix, %d DoF are missing.\n", missing_DoF);
-#endif
+        if (get_loglevel() == TRACE)
+            printf("After applying the parity-check matrix, %d DoF are missing.\n", missing_DoF);
         dec_ctx->DoF = numpp - missing_DoF;
         dec_ctx->de_precode = 1;
     }
@@ -425,9 +422,11 @@ struct decoding_context_BD *restore_dec_context_BD(const char *filepath)
     sp.type = meta.type;
     sp.bpc = meta.bpc;
     sp.bnc = meta.bnc;
+    sp.sys = meta.sys;
+    sp.seed = meta.seed;
     fseek(fp, sizeof(int), SEEK_CUR);  // skip decoding_type field
     // Create a fresh decoding context
-    struct decoding_context_BD *dec_ctx = create_dec_context_BD(sp);
+    struct decoding_context_BD *dec_ctx = create_dec_context_BD(&sp);
     if (dec_ctx == NULL) {
         fprintf(stderr, "malloc decoding_context_GG failed\n");
         return NULL;

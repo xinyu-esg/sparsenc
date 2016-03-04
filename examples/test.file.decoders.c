@@ -48,6 +48,8 @@ int main(int argc, char *argv[])
     sp.size_p   = atoi(argv[7]);
     sp.bpc      = 0;
     sp.bnc      = 0;
+    sp.sys      = atoi(argv[10]);
+    sp.seed     = -1;  // Initialize seed as -1
     char *filename = argv[8];
     char *copyname = calloc(strlen(argv[8])+strlen(".dec.copy")+1, sizeof(char));
     strcat(copyname, filename);
@@ -76,7 +78,7 @@ int main(int argc, char *argv[])
          */
         long toEncode = remaining > sp.datasize ? sp.datasize : remaining; 
         sp.datasize = toEncode;
-        if ((sc = snc_create_enc_context(NULL, sp)) == NULL) {
+        if ((sc = snc_create_enc_context(NULL, &sp)) == NULL) {
             fprintf(stderr, "Cannot create File Context.\n");
             return 1;
         }
@@ -85,7 +87,7 @@ int main(int argc, char *argv[])
         start += toEncode;
         chunks--;
 
-        struct snc_decoder *decoder = snc_create_decoder(sp, decoder_type);
+        struct snc_decoder *decoder = snc_create_decoder(&sp, decoder_type);
         clock_t start, stop, dtime = 0;
         while (snc_decoder_finished(decoder) != 1) {
             struct snc_packet *pkt = snc_generate_packet(sc);

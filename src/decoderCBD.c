@@ -17,7 +17,7 @@ static int apply_parity_check_matrix(struct decoding_context_CBD *dec_ctx);
 static void finish_recovering_CBD(struct decoding_context_CBD *dec_ctx);
 
 // create decoding context for band decoder
-struct decoding_context_CBD *create_dec_context_CBD(struct snc_parameter sp)
+struct decoding_context_CBD *create_dec_context_CBD(struct snc_parameter *sp)
 {
     static char fname[] = "snc_create_dec_context_CBD";
     int i, j, k;
@@ -25,7 +25,7 @@ struct decoding_context_CBD *create_dec_context_CBD(struct snc_parameter sp)
     // GNC code context
     // Since this is decoding, we construct GNC context without data
     // sc->pp will be filled by decoded packets
-    if (sp.type != BAND_SNC) {
+    if (sp->type != BAND_SNC) {
         fprintf(stderr, "Band decoder only applies to band GNC code.\n");
         return NULL;
     }
@@ -72,6 +72,11 @@ struct decoding_context_CBD *create_dec_context_CBD(struct snc_parameter sp)
 
     dec_ctx->overhead     = 0;
     dec_ctx->operations   = 0;
+#if defined(SIMULATION)
+    dec_ctx->ops1 = 0;             // operations of forward sub
+    dec_ctx->ops2 = 0;             // operations of applying precode
+    dec_ctx->ops3 = 0;             // operations of backward sub
+#endif
     return dec_ctx;
 
 AllocError:
@@ -108,17 +113,20 @@ void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct snc_packet 
     }
 
     /* Process full-length encoding vector against decoding matrix */
+    int lastDoF = dec_ctx->DoF;
     int pivot = process_vector_CBD(dec_ctx, ces, pkt->syms);
     free(ces);
     ces = NULL;
+#if defined(SIMULATION)
+    printf("received %d DoF: %d\n", dec_ctx->overhead, dec_ctx->DoF-lastDoF);
+#endif
     // If the number of received DoF is equal to NUM_SRC, apply the parity-check matrix.
     // The messages corresponding to rows of parity-check matrix are all-zero.
     if (dec_ctx->DoF == dec_ctx->sc->meta.snum) {
         dec_ctx->de_precode = 1;    /*Mark de_precode before applying precode matrix*/
         int missing_DoF = apply_parity_check_matrix(dec_ctx);
-#if defined(GNCTRACE)
-        printf("After applying the parity-check matrix, %d DoF are missing.\n", missing_DoF);
-#endif
+        if (get_loglevel() == TRACE)
+            printf("After applying the parity-check matrix, %d DoF are missing.\n", missing_DoF);
         dec_ctx->DoF = numpp - missing_DoF;
     }
 
@@ -146,12 +154,16 @@ static int process_vector_CBD(struct decoding_context_CBD *dec_ctx, GF_ELEMENT *
                 /* There is a valid row saved for pivot-i, process against it */
                 assert(dec_ctx->row[i]->elem[0]);
                 quotient = galois_divide(vector[i], dec_ctx->row[i]->elem[0], GF_POWER);
-                dec_ctx->operations += 1;
                 galois_multiply_add_region(&(vector[i]), dec_ctx->row[i]->elem, quotient, dec_ctx->row[i]->len, GF_POWER);
-                assert(!vector[i]);
-                dec_ctx->operations += dec_ctx->row[i]->len;
                 galois_multiply_add_region(message, dec_ctx->message[i], quotient, pktsize, GF_POWER);
-                dec_ctx->operations += pktsize;
+                dec_ctx->operations += 1 + dec_ctx->row[i]->len + pktsize;
+#if defined(SIMULATION)
+                if (!dec_ctx->de_precode) {
+                    dec_ctx->ops1 += 1 + dec_ctx->row[i]->len + pktsize;
+                } else {
+                    dec_ctx->ops2 += 1 + dec_ctx->row[i]->len + pktsize;
+                }
+#endif
             } else {
                 pivotfound = 1;
                 pivot = i;
@@ -189,9 +201,6 @@ static int process_vector_CBD(struct decoding_context_CBD *dec_ctx, GF_ELEMENT *
 static int apply_parity_check_matrix(struct decoding_context_CBD *dec_ctx)
 {
     static char fname[] = "apply_parity_check_matrix";
-#if defined(GNCTRACE)
-    printf("Entering %s\n", fname);
-#endif
     int i, j, k;
     int num_of_new_DoF = 0;
 
@@ -223,10 +232,9 @@ static int apply_parity_check_matrix(struct decoding_context_CBD *dec_ctx)
     for (i=0; i<numpp; i++) {
         if (dec_ctx->row[i] == NULL)
             missing_DoF++;
-#if defined(GNCTRACE)
-        else if (dec_ctx->row[i]->elem[0] ==0)
+        else if (dec_ctx->row[i]->elem[0] ==0 && get_loglevel() == TRACE) {
             printf("%s: row[%d]->elem[0] is 0\n", fname, i);
-#endif
+        }
     }
     return missing_DoF;
 }
@@ -254,12 +262,18 @@ static void finish_recovering_CBD(struct decoding_context_CBD *dec_ctx)
             quotient = galois_divide(dec_ctx->row[j]->elem[i-j], dec_ctx->row[i]->elem[0], GF_POWER);
             galois_multiply_add_region(dec_ctx->message[j], dec_ctx->message[i], quotient, pktsize, GF_POWER);
             dec_ctx->operations += (pktsize + 1);
+#if defined(SIMULATION)
+            dec_ctx->ops3 += (pktsize + 1);
+#endif
             dec_ctx->row[j]->elem[i-j] = 0;
         }
         /* convert diagonal to 1*/
         if (dec_ctx->row[i]->elem[0] != 1) {
             galois_multiply_region(dec_ctx->message[i], galois_divide(1, dec_ctx->row[i]->elem[0], GF_POWER), pktsize, GF_POWER);
             dec_ctx->operations += (pktsize + 1);
+#if defined(SIMULATION)
+            dec_ctx->ops3 += (pktsize + 1);
+#endif
             dec_ctx->row[i]->elem[0] = 1;
         }
         /* save decoded packet */
@@ -267,6 +281,12 @@ static void finish_recovering_CBD(struct decoding_context_CBD *dec_ctx)
         memcpy(dec_ctx->sc->pp[i], dec_ctx->message[i], pktsize*sizeof(GF_ELEMENT));
     }
     dec_ctx->finished = 1;
+#if defined(SIMULATION)
+    int snum = dec_ctx->sc->meta.snum;
+    printf("Splitted operations: %f %f %f\n", (double) dec_ctx->ops1/snum/pktsize,
+                                              (double) dec_ctx->ops2/snum/pktsize,
+                                              (double) dec_ctx->ops3/snum/pktsize);
+#endif
 }
 
 void free_dec_context_CBD(struct decoding_context_CBD *dec_ctx)
@@ -360,8 +380,10 @@ struct decoding_context_CBD *restore_dec_context_CBD(const char *filepath)
     sp.type = meta.type;
     sp.bpc = meta.bpc;
     sp.bnc = meta.bnc;
+    sp.sys = meta.sys;
+    sp.seed = meta.seed;
     // Create a fresh decoding context
-    struct decoding_context_CBD *dec_ctx = create_dec_context_CBD(sp);
+    struct decoding_context_CBD *dec_ctx = create_dec_context_CBD(&sp);
     if (dec_ctx == NULL) {
         fprintf(stderr, "malloc decoding_context_CBD failed\n");
         return NULL;

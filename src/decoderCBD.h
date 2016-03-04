@@ -28,9 +28,14 @@ struct decoding_context_CBD
     /*performance index*/
     int overhead;               // record how many packets have been received
     long long operations;       // record the number of computations used
+#if defined(SIMULATION)
+    long long ops1;             // operations of forward sub
+    long long ops2;             // operations of applying precode
+    long long ops3;             // operations of backward sub
+#endif
 };
 
-struct decoding_context_CBD *create_dec_context_CBD(struct snc_parameter sp);
+struct decoding_context_CBD *create_dec_context_CBD(struct snc_parameter *sp);
 void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct snc_packet *pkt);
 void free_dec_context_CBD(struct decoding_context_CBD *dec_ctx);
 

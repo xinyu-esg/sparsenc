@@ -17,7 +17,7 @@ struct snc_decoder {
     int    d_type;          // decoder type
 };
 
-struct snc_decoder *snc_create_decoder(struct snc_parameter sp, int d_type)
+struct snc_decoder *snc_create_decoder(struct snc_parameter *sp, int d_type)
 {
     struct snc_decoder *decoder = malloc(sizeof(struct snc_decoder));
     if (decoder == NULL)

@@ -54,6 +54,7 @@ struct snc_parameter {
     int     bpc;         // binary precode
     int     bnc;         // binary network coding
     int     sys;         // systematic code
+    int     seed;        // seed of local RNG (set to -1 when creating a new sp instance)
 };
 
 // Metainfo of the data to be snc-coded
@@ -67,6 +68,7 @@ struct snc_metainfo {
     int     bpc;        // binary precode
     int     bnc;        // binary network coding
     int     sys;        // systematic code
+    int     seed;       // seed of local RNG
     int     snum;       // Number of source packets splitted from the data.
     int     cnum;       // Number of parity-check packets (cnum ~= snum * pcrate)
     int     gnum;       // Number of subgenerations
@@ -85,7 +87,7 @@ struct snc_buffer;      // Buffer for storing snc packets
  *   On success, a pointer to the allocated encode context is returned;
  *   On error, NULL is returned, and errno is set appropriately.
  **/
-struct snc_context *snc_create_enc_context(unsigned char *buf, struct snc_parameter sp);
+struct snc_context *snc_create_enc_context(unsigned char *buf, struct snc_parameter *sp);
 
 // Get code metainfo of an encode context
 struct snc_metainfo *snc_get_metainfo(struct snc_context *sc);
@@ -129,7 +131,7 @@ void print_code_summary(struct snc_context *sc, int overhead, long long operatio
  *      BD_DECODER
  *      CBD_DECODER
  */
-struct snc_decoder *snc_create_decoder(struct snc_parameter sp, int d_type);
+struct snc_decoder *snc_create_decoder(struct snc_parameter *sp, int d_type);
 
 // Get the encode context that the decoder is working on/finished.
 struct snc_context *snc_get_enc_context(struct snc_decoder *decoder);

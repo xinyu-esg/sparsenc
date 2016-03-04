@@ -5,6 +5,7 @@
  * from memory buffer or files.
  **************************************************************/
 #include <math.h>
+#include <sys/time.h>
 #include "common.h"
 #include "galois.h"
 #include "sparsenc.h"
@@ -13,6 +14,7 @@ static int create_context_from_meta(struct snc_context *sc);
 static int verify_code_parameter(struct snc_metainfo *meta);
 static void perform_precoding(struct snc_context *sc);
 static int group_packets_rand(struct snc_context *sc);
+static int group_packets_pseudorand(struct snc_context *sc);
 static int group_packets_band(struct snc_context *sc);
 static int group_packets_windwrap(struct snc_context *sc);
 static void encode_packet(struct snc_context *sc, int gid, struct snc_packet *pkt);
@@ -27,27 +29,60 @@ static int schedule_generation(struct snc_context *sc);
  *   0  - Create successfully
  *   -1 - Create failed
  */
-struct snc_context *snc_create_enc_context(unsigned char *buf, struct snc_parameter sp)
+struct snc_context *snc_create_enc_context(unsigned char *buf, struct snc_parameter *sp)
 {
     static char fname[] = "snc_create_enc_context";
+    // Set log level
+    char *loglevel = getenv("SNC_LOG_LEVEL");
+    if (loglevel != NULL)
+        set_loglevel(loglevel);
+
     // Allocate file_context
     struct snc_context *sc;
     if ( (sc = calloc(1, sizeof(struct snc_context))) == NULL ) {
         fprintf(stderr, "%s: calloc file_context\n", fname);
         return NULL;
     }
-    sc->meta.datasize = sp.datasize;
-    sc->meta.pcrate   = sp.pcrate;
-    sc->meta.size_b   = sp.size_b;
-    sc->meta.size_g   = sp.size_g;
-    sc->meta.size_p   = sp.size_p;
-    sc->meta.type     = sp.type;
-    sc->meta.bpc      = sp.bpc;
-    sc->meta.bnc      = sp.bnc;
-    sc->meta.sys      = sp.sys;
+    sc->meta.datasize = sp->datasize;
+    sc->meta.pcrate   = sp->pcrate;
+    sc->meta.size_b   = sp->size_b;
+    sc->meta.size_g   = sp->size_g;
+    sc->meta.size_p   = sp->size_p;
+    sc->meta.type     = sp->type;
+    sc->meta.bpc      = sp->bpc;
+    sc->meta.bnc      = sp->bnc;
+    sc->meta.sys      = sp->sys;
+    /* Seed local random number generator for precoding and/or random grouping
+     *
+     *   If creating a completely new snc context, seed is -1 by default. We
+     *   will seed using current time stamp.
+     *
+     *   In other cases, we might create a sc based on sp that is in a file or
+     *   received from a network. In this case, seed != -1 and we just use the
+     *   given seed.
+     */
+    if (sp->seed == -1) {
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        sp->seed = tv.tv_sec * 1000 + tv.tv_usec / 1000; // seed use microsec
+    }
+    snc_srand(sp->seed);
+    sc->meta.seed = sp->seed;
     // Determine packet and generation numbers
     int num_src = ALIGN(sc->meta.datasize, sc->meta.size_p);
-    int num_chk = number_of_checks(num_src, sc->meta.pcrate);
+    int num_chk;
+    char *pc = getenv("SNC_PRECISE_CHECK");
+    if ( pc != NULL && atoi(pc) == 1) {
+        // Use precise number of check packets
+        // The env variable should ONLY be used for internal simulations.
+        num_chk = (int) ceil(num_src * sc->meta.pcrate);
+    } else {
+        // Use raptor code's parameter where num_chk is the smallest prime
+        // greater than or equal to ceil(pcrate * num_src) + X where X is the
+        // smallest integer such that X(X-1) >= 2 * num_src. Raptor's pcrate
+        // is always 0.01.
+        num_chk = number_of_checks(num_src, sc->meta.pcrate);
+    }
     sc->meta.snum  = num_src;  // Number of source packets
     sc->meta.cnum  = num_chk;  // Number of check packets
     if (sc->meta.type == BAND_SNC) {
@@ -193,14 +228,12 @@ static int create_context_from_meta(struct snc_context *sc)
     int coverage;
     if (sc->meta.type == RAND_SNC) {
         coverage = group_packets_rand(sc);
+        //coverage = group_packets_pseudorand(sc);
     } else if (sc->meta.type == BAND_SNC) {
         coverage = group_packets_band(sc);
     } else if (sc->meta.type == WINDWRAP_SNC) {
         coverage = group_packets_windwrap(sc);
     }
-#if defined(GNCTRACE)
-    printf("Data Size: %ld\t Source Packets: %d\t Check Packets: %d\t Generations: %d\t Coverage: %d\n",sc->meta.datasize, sc->meta.snum, sc->meta.cnum, sc->meta.gnum, coverage);
-#endif
     // Creating bipartite graph of the precode
     if (sc->meta.cnum != 0) {
         if ( (sc->graph = malloc(sizeof(BP_graph))) == NULL ) {
@@ -286,10 +319,8 @@ long snc_recover_to_file(const char *filepath, struct snc_context *sc)
     long alwrote = 0;
     long towrite = datasize;
 
-#if defined(GNCTRACE)
-    printf("Writing to decoded file.\n");
-#endif
-
+    if (get_loglevel() == TRACE)
+        printf("Writing to decoded file.\n");
     FILE *fp;
     if ((fp = fopen(filepath, "a")) == NULL)
         return (-1);
@@ -330,7 +361,7 @@ static void perform_precoding(struct snc_context *sc)
  * grouping information to clients is removed. The only information clients
  * need to know is the number of packets, base size, and generation size.
  */
-static int group_packets_rand(struct snc_context *sc)
+static int group_packets_pseudorand(struct snc_context *sc)
 {
     int num_p = sc->meta.snum + sc->meta.cnum;
     int num_g = sc->meta.gnum;
@@ -378,6 +409,50 @@ static int group_packets_rand(struct snc_context *sc)
     return coverage;
 }
 
+
+/*
+ * Use local RNG to group packets
+ */
+static int group_packets_rand(struct snc_context *sc)
+{
+    int num_p = sc->meta.snum + sc->meta.cnum;
+    int num_g = sc->meta.gnum;
+
+    int *selected = calloc(num_p, sizeof(int));
+
+    int i, j;
+    int index;
+    int rotate = 0;
+    for (i=0; i<num_g; i++) {
+        sc->gene[i]->gid = i;
+        // split packets into disjoint groups
+        for (j=0; j<sc->meta.size_b; j++) {
+            index = (i * sc->meta.size_b + j) % num_p;  // source packet index
+
+            while (has_item(sc->gene[i]->pktid, index, j) != -1)
+                index = snc_rand() % num_p;
+            sc->gene[i]->pktid[j] = index;
+            selected[index] += 1;
+        }
+
+        // fill in the rest of the generation with packets from other generations
+        for (j=sc->meta.size_b; j<sc->meta.size_g; j++) {
+            index = snc_rand() % num_p;
+            while (has_item(sc->gene[i]->pktid, index, j) != -1) {
+                index = snc_rand() % num_p;
+            }
+            sc->gene[i]->pktid[j] = index;
+            selected[index] += 1;
+        }
+    }
+    int coverage = 0;
+    for (i=0; i<num_p; i++)
+        coverage += selected[i];
+
+    free(selected);
+    return coverage;
+}
+
 /*
  * Group packets to generations that overlap head-to-toe. Each generation's
  * encoding coefficients form a band in GDM.
@@ -396,9 +471,8 @@ static int group_packets_band(struct snc_context *sc)
         sc->gene[i]->gid = i;
         leading_pivot = i * sc->meta.size_b;
         if (leading_pivot > num_p - sc->meta.size_g) {
-#if defined(GNCTRACE)
-            printf("Band lead of gid: %d is modified\n", i);
-#endif
+            if (get_loglevel() == TRACE)
+                printf("Band lead of gid: %d is modified\n", i);
             leading_pivot = num_p - sc->meta.size_g;
         }
         for (j=0; j<sc->meta.size_g; j++) {
@@ -457,7 +531,8 @@ struct snc_packet *snc_alloc_empty_packet(struct snc_metainfo *meta)
     if (pkt == NULL)
         return NULL;
     if (meta->bnc) {
-        pkt->coes = calloc(ALIGN(meta->size_g, 8), sizeof(GF_ELEMENT));    // Each unsigned char contains 8 bits
+        // For binary code, coding coefficients (bits) are condensed
+        pkt->coes = calloc(ALIGN(meta->size_g, 8), sizeof(GF_ELEMENT));
     } else {
         pkt->coes = calloc(meta->size_g, sizeof(GF_ELEMENT));
     }

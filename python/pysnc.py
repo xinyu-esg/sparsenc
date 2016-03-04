@@ -2,7 +2,7 @@
 from __future__ import division
 from math import ceil
 # from ctypes import *
-from ctypes import cdll, c_int, c_ubyte, c_double, c_long, c_longlong, c_char_p, POINTER, sizeof, cast, memmove, Structure
+from ctypes import cdll, c_int, c_ubyte, c_double, c_long, c_longlong, c_char_p, POINTER, sizeof, byref, cast, memmove, Structure
 # code types
 RAND_SNC = 0
 BAND_SNC = 1
@@ -61,7 +61,8 @@ class snc_parameter(Structure):
                 ("type",   c_int),
                 ("bpc",    c_int),
                 ("bnc",    c_int),
-                ("sys",    c_int)]
+                ("sys",    c_int),
+                ("seed",   c_int)]
 
 
 class snc_metainfo(Structure):
@@ -74,6 +75,7 @@ class snc_metainfo(Structure):
                 ("bpc",    c_int),
                 ("bnc",    c_int),
                 ("sys",    c_int),
+                ("seed",   c_int),
                 ("snum",   c_int),
                 ("cnum",   c_int),
                 ("gnum",   c_int)]
@@ -92,7 +94,7 @@ snc = cdll.LoadLibrary("libsparsenc.so")
 ##########################
 # Wrap encoder functions #
 ##########################
-snc.snc_create_enc_context.argtypes = [POINTER(c_ubyte), snc_parameter]
+snc.snc_create_enc_context.argtypes = [POINTER(c_ubyte), POINTER(snc_parameter)]
 snc.snc_create_enc_context.restype = POINTER(snc_context)
 
 snc.snc_get_metainfo.argtypes = [POINTER(snc_context)]
@@ -131,7 +133,7 @@ snc.print_code_summary.restype = None
 ##########################
 # Wrap decoder functions #
 ##########################
-snc.snc_create_decoder.argtypes = [snc_parameter, c_int]
+snc.snc_create_decoder.argtypes = [POINTER(snc_parameter), c_int]
 snc.snc_create_decoder.restype = POINTER(snc_decoder)
 
 snc.snc_get_enc_context.argtypes = [POINTER(snc_decoder)]
