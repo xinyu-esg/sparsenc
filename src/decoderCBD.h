@@ -19,6 +19,7 @@ struct decoding_context_CBD
     int finished;               // an indicator tracking the finish of decoding
     int DoF;                    // total true DoF that the receiver has received
     int de_precode;             // apply precode or not
+    int naive;                  // decode in naive mode (for non-band code)
 
     // decoding matrix
     struct row_vector **row;    // NUM_PP rows for storing coefficient vectors

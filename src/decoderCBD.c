@@ -25,9 +25,10 @@ struct decoding_context_CBD *create_dec_context_CBD(struct snc_parameter *sp)
     // GNC code context
     // Since this is decoding, we construct GNC context without data
     // sc->pp will be filled by decoded packets
+    int niv = 0;
     if (sp->type != BAND_SNC) {
-        fprintf(stderr, "Band decoder only applies to band GNC code.\n");
-        return NULL;
+        fprintf(stderr, "Band decoder only applies to band GNC code. Fallback to naive mode for non-band codes.\n");
+        niv = 1;
     }
 
     struct decoding_context_CBD *dec_ctx = malloc(sizeof(struct decoding_context_CBD));
@@ -47,6 +48,7 @@ struct decoding_context_CBD *create_dec_context_CBD(struct snc_parameter *sp)
     dec_ctx->finished     = 0;
     dec_ctx->DoF          = 0;
     dec_ctx->de_precode   = 0;
+    dec_ctx->naive        = niv;
 
     int gensize = dec_ctx->sc->meta.size_g;
     int pktsize = dec_ctx->sc->meta.size_p;
@@ -178,7 +180,7 @@ static int process_vector_CBD(struct decoding_context_CBD *dec_ctx, GF_ELEMENT *
         if (dec_ctx->row[pivot] == NULL)
             fprintf(stderr, "%s: malloc dec_ctx->row[%d] failed\n", fname, pivot);
         int len;
-        if (!dec_ctx->de_precode) {
+        if (!dec_ctx->de_precode && !dec_ctx->naive) {
             /* before de_precode every row is no more than gensize-width */
             len = numpp - pivot > gensize ? gensize : numpp - pivot;
         } else {
@@ -340,6 +342,7 @@ long save_dec_context_CBD(struct decoding_context_CBD *dec_ctx, const char *file
     filesize += fwrite(&dec_ctx->finished, sizeof(int), 1, fp);
     filesize += fwrite(&dec_ctx->DoF, sizeof(int), 1, fp);
     filesize += fwrite(&dec_ctx->de_precode, sizeof(int), 1, fp);
+    filesize += fwrite(&dec_ctx->naive, sizeof(int), 1, fp);
     // Decoder matrix rows
     int gensize = dec_ctx->sc->meta.size_g;
     int pktsize = dec_ctx->sc->meta.size_p;
@@ -394,6 +397,7 @@ struct decoding_context_CBD *restore_dec_context_CBD(const char *filepath)
     fread(&dec_ctx->finished, sizeof(int), 1, fp);
     fread(&dec_ctx->DoF, sizeof(int), 1, fp);
     fread(&dec_ctx->de_precode, sizeof(int), 1, fp);
+    fread(&dec_ctx->naive, sizeof(int), 1, fp);
     // Decoder matrix rows
     int gensize = dec_ctx->sc->meta.size_g;
     int pktsize = dec_ctx->sc->meta.size_p;
