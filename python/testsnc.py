@@ -61,17 +61,18 @@ while chunks > 0:
         toEncode = datasize
     else:
         toEncode = remaining
-    sp = snc_parameter(toEncode, 0.01, 32, 64, 1280, c_type, 0, 1, 0, -1)
+    sp = snc_parameters(toEncode, 0.01, 32, 64, 1280, c_type, 0, 1, 0, -1, 0, 0, 0)
     sc = snc.snc_create_enc_context(None, byref(sp))
     snc.snc_load_file_to_context(c_char_p(filename.encode()),
                                  offset, sc)  # Load file to snc_context
+    sp.seed = (snc.snc_get_parameters(sc))[0].seed
     decoder = snc.snc_create_decoder(byref(sp), d_type)  # Create decoder
     while not snc.snc_decoder_finished(decoder):
         pkt_p = snc.snc_generate_packet(sc)
         # Emulate (de)-serialization
         pktstr = pkt_p.contents.serialize(sp.size_g, sp.size_p, sp.bnc)
         snc.snc_free_packet(pkt_p)
-        pkt_p2 = snc.snc_alloc_empty_packet(snc.snc_get_metainfo(sc))
+        pkt_p2 = snc.snc_alloc_empty_packet(snc.snc_get_parameters(sc))
         pkt_p2.contents.deserialize(pktstr, sp.size_g, sp.size_p, sp.bnc)
         snc.snc_process_packet(decoder, pkt_p2)
         snc.snc_free_packet(pkt_p2)

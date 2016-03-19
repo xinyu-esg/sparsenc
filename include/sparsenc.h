@@ -44,21 +44,8 @@ struct snc_packet {
     GF_ELEMENT  *syms;  // SIZE_P symbols of coded packet
 };
 
-struct snc_parameter {
-    long    datasize;
-    double  pcrate;
-    int     size_b;
-    int     size_g;
-    int     size_p;
-    int     type;
-    int     bpc;         // binary precode
-    int     bnc;         // binary network coding
-    int     sys;         // systematic code
-    int     seed;        // seed of local RNG (set to -1 when creating a new sp instance)
-};
-
-// Metainfo of the data to be snc-coded
-struct snc_metainfo {
+// SNC parameters for the data to be snc-coded
+struct snc_parameters {
     long    datasize;   // Data size in bytes.
     double  pcrate;     // precode rate
     int     size_b;
@@ -87,10 +74,10 @@ struct snc_buffer;      // Buffer for storing snc packets
  *   On success, a pointer to the allocated encode context is returned;
  *   On error, NULL is returned, and errno is set appropriately.
  **/
-struct snc_context *snc_create_enc_context(unsigned char *buf, struct snc_parameter *sp);
+struct snc_context *snc_create_enc_context(unsigned char *buf, struct snc_parameters *sp);
 
-// Get code metainfo of an encode context
-struct snc_metainfo *snc_get_metainfo(struct snc_context *sc);
+// Get code parameters of an encode context
+struct snc_parameters *snc_get_parameters(struct snc_context *sc);
 
 // Load file content into encode context
 int snc_load_file_to_context(const char *filepath, long start, struct snc_context *sc);
@@ -108,7 +95,7 @@ void snc_free_recovered(unsigned char *data);
 long snc_recover_to_file(const char *filepath, struct snc_context *sc);
 
 // Allocate an snc packet with coes and syms being zero
-struct snc_packet *snc_alloc_empty_packet(struct snc_metainfo *meta);
+struct snc_packet *snc_alloc_empty_packet(struct snc_parameters *sp);
 
 // Generate an snc packet from the encode context
 struct snc_packet *snc_generate_packet(struct snc_context *sc);
@@ -131,7 +118,7 @@ void print_code_summary(struct snc_context *sc, int overhead, long long operatio
  *      BD_DECODER
  *      CBD_DECODER
  */
-struct snc_decoder *snc_create_decoder(struct snc_parameter *sp, int d_type);
+struct snc_decoder *snc_create_decoder(struct snc_parameters *sp, int d_type);
 
 // Get the encode context that the decoder is working on/finished.
 struct snc_context *snc_get_enc_context(struct snc_decoder *decoder);
@@ -163,12 +150,12 @@ struct snc_decoder *snc_restore_decoder(const char *filepath);
 /**
  * Create a buffer for storing snc packets.
  *   Arguments:
- *     snc_metainfo - meta info of the snc code
- *     bufsize      - buffer size of each subgeneration
+ *     snc_parameters - parameters of the snc code
+ *     bufsize        - buffer size of each subgeneration
  *   Return Value:
  *     Pointer to the buffer on success; NULL on error
  **/
-struct snc_buffer *snc_create_buffer(struct snc_metainfo meta, int bufsize);
+struct snc_buffer *snc_create_buffer(struct snc_parameters *sp, int bufsize);
 
 // Save an snc packet to an snc buffer
 void snc_buffer_packet(struct snc_buffer *buffer, struct snc_packet *pkt);

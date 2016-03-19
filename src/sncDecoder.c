@@ -17,7 +17,7 @@ struct snc_decoder {
     int    d_type;          // decoder type
 };
 
-struct snc_decoder *snc_create_decoder(struct snc_parameter *sp, int d_type)
+struct snc_decoder *snc_create_decoder(struct snc_parameters *sp, int d_type)
 {
     struct snc_decoder *decoder = malloc(sizeof(struct snc_decoder));
     if (decoder == NULL)
@@ -180,7 +180,7 @@ struct snc_decoder *snc_restore_decoder(const char *filepath)
         return NULL;
     }
     // Check decoder context file type
-    fseek(fp, sizeof(struct snc_metainfo), SEEK_SET);  // skip decoding_type field
+    fseek(fp, sizeof(struct snc_parameters), SEEK_SET);  // skip decoding_type field
     int d_type;
     fread(&d_type, sizeof(int), 1, fp);
     fclose(fp);

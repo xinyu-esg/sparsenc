@@ -36,7 +36,7 @@ struct decoding_context_CBD
 #endif
 };
 
-struct decoding_context_CBD *create_dec_context_CBD(struct snc_parameter *sp);
+struct decoding_context_CBD *create_dec_context_CBD(struct snc_parameters *sp);
 void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct snc_packet *pkt);
 void free_dec_context_CBD(struct decoding_context_CBD *dec_ctx);
 

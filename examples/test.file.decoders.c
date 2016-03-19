@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
         printf("%s\n", usage);
         exit(1);
     }
-    struct snc_parameter sp;
+    struct snc_parameters sp;
     if (strcmp(argv[1], "RAND") == 0)
         sp.type = RAND_SNC;
     else if (strcmp(argv[1], "BAND") == 0)
@@ -71,12 +71,12 @@ int main(int argc, char *argv[])
     long start = 0;
     while (chunks > 0) {
         /*
-         * As a rough example, we create and free enc/dec context 
+         * As a rough example, we create and free enc/dec context
          * for each chunk. It's a waste of (alloc/init/free) time
          * to not reuse existing context. But we don't care because
          * this is just a test of APIs.
          */
-        long toEncode = remaining > sp.datasize ? sp.datasize : remaining; 
+        long toEncode = remaining > sp.datasize ? sp.datasize : remaining;
         sp.datasize = toEncode;
         if ((sc = snc_create_enc_context(NULL, &sp)) == NULL) {
             fprintf(stderr, "Cannot create File Context.\n");
@@ -87,6 +87,7 @@ int main(int argc, char *argv[])
         start += toEncode;
         chunks--;
 
+        sp.seed = (snc_get_parameters(sc))->seed;
         struct snc_decoder *decoder = snc_create_decoder(&sp, decoder_type);
         clock_t start, stop, dtime = 0;
         while (snc_decoder_finished(decoder) != 1) {

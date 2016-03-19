@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
         printf("%s\n", usage);
         exit(1);
     }
-    struct snc_parameter sp;
+    struct snc_parameters sp;
     if (strcmp(argv[1], "RAND") == 0)
         sp.type = RAND_SNC;
     else if (strcmp(argv[1], "BAND") == 0)
@@ -64,6 +64,8 @@ int main(int argc, char *argv[])
         bufsize = atoi(argv[9]);
     sp.bpc      = 0;
     sp.bnc      = 0;
+    sp.sys      = 0;
+    sp.seed     = -1;
 
     srand( (int) time(0) );
     char *buf = malloc(sp.datasize);
@@ -73,21 +75,21 @@ int main(int argc, char *argv[])
 
     struct snc_context *sc;
     /* Create GNC encoding context */
-    if ((sc = snc_create_enc_context(buf, sp)) == NULL) {
+    if ((sc = snc_create_enc_context(buf, &sp)) == NULL) {
         fprintf(stderr, "Cannot create snc_context.\n");
         exit(1);
     }
 
     /* Create recoder buffer */
     struct snc_buffer *buffer;
-    struct snc_metainfo *meta = snc_get_metainfo(sc);
-    if ((buffer = snc_create_buffer(*meta, bufsize)) == NULL) {
+    if ((buffer = snc_create_buffer(snc_get_parameters(sc), bufsize)) == NULL) {
         fprintf(stderr, "Cannot create snc buffer.\n");
         exit(1);
     }
 
     /* Create decoder */
-    struct snc_decoder *decoder = snc_create_decoder(sp, decoder_t);
+    sp.seed = (snc_get_parameters(sc))->seed;
+    struct snc_decoder *decoder = snc_create_decoder(&sp, decoder_t);
     clock_t start, stop, dtime = 0;
     while (!snc_decoder_finished(decoder)) {
         struct snc_packet *pkt = snc_generate_packet(sc);
@@ -106,7 +108,7 @@ int main(int argc, char *argv[])
 
     struct snc_context *dsc = snc_get_enc_context(decoder);
     unsigned char *rec_buf = snc_recover_data(dsc);
-    if (memcmp(buf, rec_buf, sp.datasize) != 0) 
+    if (memcmp(buf, rec_buf, sp.datasize) != 0)
         fprintf(stderr, "recovered is NOT identical to original.\n");
     print_code_summary(dsc, snc_code_overhead(decoder), snc_decode_cost(decoder));
 

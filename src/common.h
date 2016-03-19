@@ -59,7 +59,7 @@ struct subgeneration {
  * Definition of snc_context
  **/
 struct snc_context {
-    struct  snc_metainfo      meta;
+    struct  snc_parameters    params;
     struct  subgeneration   **gene;     // array of pointers each points to a subgeneration.
     struct  bipartite_graph  *graph;
     GF_ELEMENT              **pp;       // Pointers to precoded source packets
@@ -88,7 +88,7 @@ struct snc_context {
  *            .
  */
 struct snc_buffer {
-    struct snc_metainfo    meta;    // Meta info of the code
+    struct snc_parameters  params;  // Meta info of the code
     int                    size;    // Number of bufferred packets of each subgeneration
     int                    nemp;    // Number of non-empty subgeneration buffers
     struct snc_packet   ***gbuf;    // Pointers to subgeneration buffers

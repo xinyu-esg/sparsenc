@@ -17,7 +17,7 @@ static int apply_parity_check_matrix(struct decoding_context_CBD *dec_ctx);
 static void finish_recovering_CBD(struct decoding_context_CBD *dec_ctx);
 
 // create decoding context for band decoder
-struct decoding_context_CBD *create_dec_context_CBD(struct snc_parameter *sp)
+struct decoding_context_CBD *create_dec_context_CBD(struct snc_parameters *sp)
 {
     static char fname[] = "snc_create_dec_context_CBD";
     int i, j, k;
@@ -50,9 +50,9 @@ struct decoding_context_CBD *create_dec_context_CBD(struct snc_parameter *sp)
     dec_ctx->de_precode   = 0;
     dec_ctx->naive        = niv;
 
-    int gensize = dec_ctx->sc->meta.size_g;
-    int pktsize = dec_ctx->sc->meta.size_p;
-    int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
+    int gensize = dec_ctx->sc->params.size_g;
+    int pktsize = dec_ctx->sc->params.size_p;
+    int numpp   = dec_ctx->sc->params.snum + dec_ctx->sc->params.cnum;
 
     dec_ctx->row = (struct row_vector **) calloc(numpp, sizeof(struct row_vector *));
     if (dec_ctx->row == NULL) {
@@ -97,9 +97,9 @@ void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct snc_packet 
     int i, j, k;
     GF_ELEMENT quotient;
 
-    int gensize = dec_ctx->sc->meta.size_g;
-    int pktsize = dec_ctx->sc->meta.size_p;
-    int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
+    int gensize = dec_ctx->sc->params.size_g;
+    int pktsize = dec_ctx->sc->params.size_p;
+    int numpp   = dec_ctx->sc->params.snum + dec_ctx->sc->params.cnum;
 
     // transform GNC encoding vector to full length
     GF_ELEMENT *ces = calloc(numpp, sizeof(GF_ELEMENT));
@@ -107,7 +107,7 @@ void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct snc_packet 
         fprintf(stderr, "%s: calloc ces failed\n", fname);
     for (i=0; i<gensize; i++) {
         int index = dec_ctx->sc->gene[pkt->gid]->pktid[i];
-        if (dec_ctx->sc->meta.bnc) {
+        if (dec_ctx->sc->params.bnc) {
             ces[index] = get_bit_in_array(pkt->coes, i);
         } else {
             ces[index] = pkt->coes[i];
@@ -124,7 +124,7 @@ void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct snc_packet 
 #endif
     // If the number of received DoF is equal to NUM_SRC, apply the parity-check matrix.
     // The messages corresponding to rows of parity-check matrix are all-zero.
-    if (dec_ctx->DoF == dec_ctx->sc->meta.snum) {
+    if (dec_ctx->DoF == dec_ctx->sc->params.snum) {
         dec_ctx->de_precode = 1;    /*Mark de_precode before applying precode matrix*/
         int missing_DoF = apply_parity_check_matrix(dec_ctx);
         if (get_loglevel() == TRACE)
@@ -132,7 +132,7 @@ void process_packet_CBD(struct decoding_context_CBD *dec_ctx, struct snc_packet 
         dec_ctx->DoF = numpp - missing_DoF;
     }
 
-    if (dec_ctx->DoF == dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum) {
+    if (dec_ctx->DoF == dec_ctx->sc->params.snum + dec_ctx->sc->params.cnum) {
         finish_recovering_CBD(dec_ctx);
     }
 }
@@ -146,9 +146,9 @@ static int process_vector_CBD(struct decoding_context_CBD *dec_ctx, GF_ELEMENT *
     int pivotfound = 0;
     GF_ELEMENT quotient;
 
-    int gensize = dec_ctx->sc->meta.size_g;
-    int pktsize = dec_ctx->sc->meta.size_p;
-    int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
+    int gensize = dec_ctx->sc->params.size_g;
+    int pktsize = dec_ctx->sc->params.size_p;
+    int numpp   = dec_ctx->sc->params.snum + dec_ctx->sc->params.cnum;
 
     for (i=0; i<numpp; i++) {
         if (vector[i] != 0) {
@@ -206,15 +206,15 @@ static int apply_parity_check_matrix(struct decoding_context_CBD *dec_ctx)
     int i, j, k;
     int num_of_new_DoF = 0;
 
-    int gensize = dec_ctx->sc->meta.size_g;
-    int pktsize = dec_ctx->sc->meta.size_p;
-    int numpp = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
+    int gensize = dec_ctx->sc->params.size_g;
+    int pktsize = dec_ctx->sc->params.size_p;
+    int numpp = dec_ctx->sc->params.snum + dec_ctx->sc->params.cnum;
 
     // 1, Copy parity-check vectors to the nonzero rows of the decoding matrix
     GF_ELEMENT *ces = malloc(numpp*sizeof(GF_ELEMENT));
     GF_ELEMENT *msg = malloc(pktsize*sizeof(GF_ELEMENT));
     int p = 0;          // index pointer to the parity-check vector that is to be copyed
-    for (int p=0; p<dec_ctx->sc->meta.cnum; p++) {
+    for (int p=0; p<dec_ctx->sc->params.cnum; p++) {
         memset(ces, 0, numpp*sizeof(GF_ELEMENT));
         memset(msg, 0, pktsize*sizeof(GF_ELEMENT));
         /* Set the coding vector according to parity-check bits */
@@ -223,7 +223,7 @@ static int apply_parity_check_matrix(struct decoding_context_CBD *dec_ctx)
             ces[varnode->data] = varnode->ce;
             varnode = varnode->next;
         }
-        ces[dec_ctx->sc->meta.snum+p] = 1;
+        ces[dec_ctx->sc->params.snum+p] = 1;
         int pivot = process_vector_CBD(dec_ctx, ces, msg);
     }
     free(ces);
@@ -248,9 +248,9 @@ static int apply_parity_check_matrix(struct decoding_context_CBD *dec_ctx)
  */
 static void finish_recovering_CBD(struct decoding_context_CBD *dec_ctx)
 {
-    int gensize = dec_ctx->sc->meta.size_g;
-    int pktsize = dec_ctx->sc->meta.size_p;
-    int numpp = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
+    int gensize = dec_ctx->sc->params.size_g;
+    int pktsize = dec_ctx->sc->params.size_p;
+    int numpp = dec_ctx->sc->params.snum + dec_ctx->sc->params.cnum;
     int i, j;
     int len;
     GF_ELEMENT quotient;
@@ -284,7 +284,7 @@ static void finish_recovering_CBD(struct decoding_context_CBD *dec_ctx)
     }
     dec_ctx->finished = 1;
 #if defined(SIMULATION)
-    int snum = dec_ctx->sc->meta.snum;
+    int snum = dec_ctx->sc->params.snum;
     printf("Splitted operations: %f %f %f\n", (double) dec_ctx->ops1/snum/pktsize,
                                               (double) dec_ctx->ops2/snum/pktsize,
                                               (double) dec_ctx->ops3/snum/pktsize);
@@ -298,7 +298,7 @@ void free_dec_context_CBD(struct decoding_context_CBD *dec_ctx)
     if (dec_ctx->sc != NULL)
         snc_free_enc_context(dec_ctx->sc);
     if (dec_ctx->row != NULL) {
-        for (int i=dec_ctx->sc->meta.snum+dec_ctx->sc->meta.cnum-1; i>=0; i--) {
+        for (int i=dec_ctx->sc->params.snum+dec_ctx->sc->params.cnum-1; i>=0; i--) {
             if (dec_ctx->row[i] != NULL) {
                 if (dec_ctx->row[i]->elem != NULL)
                     free(dec_ctx->row[i]->elem);
@@ -308,7 +308,7 @@ void free_dec_context_CBD(struct decoding_context_CBD *dec_ctx)
         free(dec_ctx->row);
     }
     if (dec_ctx->message != NULL) {
-        for (int i=dec_ctx->sc->meta.snum+dec_ctx->sc->meta.cnum-1; i>=0; i--) {
+        for (int i=dec_ctx->sc->params.snum+dec_ctx->sc->params.cnum-1; i>=0; i--) {
             if (dec_ctx->message[i] != NULL)
                 free(dec_ctx->message[i]);
         }
@@ -334,8 +334,8 @@ long save_dec_context_CBD(struct decoding_context_CBD *dec_ctx, const char *file
         fprintf(stderr, "Cannot open %s to save decoding context\n", filepath);
         return (-1);
     }
-    // Write snc metainfo
-    filesize += fwrite(&dec_ctx->sc->meta, sizeof(struct snc_metainfo), 1, fp);
+    // Write snc params
+    filesize += fwrite(&dec_ctx->sc->params, sizeof(struct snc_parameters), 1, fp);
     // Write decoder type
     filesize += fwrite(&(d_type), sizeof(int), 1, fp);
     // Write decoding context
@@ -344,9 +344,9 @@ long save_dec_context_CBD(struct decoding_context_CBD *dec_ctx, const char *file
     filesize += fwrite(&dec_ctx->de_precode, sizeof(int), 1, fp);
     filesize += fwrite(&dec_ctx->naive, sizeof(int), 1, fp);
     // Decoder matrix rows
-    int gensize = dec_ctx->sc->meta.size_g;
-    int pktsize = dec_ctx->sc->meta.size_p;
-    int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
+    int gensize = dec_ctx->sc->params.size_g;
+    int pktsize = dec_ctx->sc->params.size_p;
+    int numpp   = dec_ctx->sc->params.snum + dec_ctx->sc->params.cnum;
     for (int i=0; i<numpp; i++) {
         int rowlen = dec_ctx->row[i] == NULL ? 0 : dec_ctx->row[i]->len;
         filesize += fwrite(&rowlen, sizeof(int), 1, fp);
@@ -372,19 +372,8 @@ struct decoding_context_CBD *restore_dec_context_CBD(const char *filepath)
         fprintf(stderr, "Cannot open %s to load decoding context\n", filepath);
         return NULL;
     }
-    struct snc_metainfo meta;
-    fread(&meta, sizeof(struct snc_metainfo), 1, fp);
-    struct snc_parameter sp;
-    sp.datasize = meta.datasize;
-    sp.pcrate = meta.pcrate;
-    sp.size_b = meta.size_b;
-    sp.size_g = meta.size_g;
-    sp.size_p = meta.size_p;
-    sp.type = meta.type;
-    sp.bpc = meta.bpc;
-    sp.bnc = meta.bnc;
-    sp.sys = meta.sys;
-    sp.seed = meta.seed;
+    struct snc_parameters sp;
+    fread(&sp, sizeof(struct snc_parameters), 1, fp);
     // Create a fresh decoding context
     struct decoding_context_CBD *dec_ctx = create_dec_context_CBD(&sp);
     if (dec_ctx == NULL) {
@@ -399,9 +388,9 @@ struct decoding_context_CBD *restore_dec_context_CBD(const char *filepath)
     fread(&dec_ctx->de_precode, sizeof(int), 1, fp);
     fread(&dec_ctx->naive, sizeof(int), 1, fp);
     // Decoder matrix rows
-    int gensize = dec_ctx->sc->meta.size_g;
-    int pktsize = dec_ctx->sc->meta.size_p;
-    int numpp   = dec_ctx->sc->meta.snum + dec_ctx->sc->meta.cnum;
+    int gensize = dec_ctx->sc->params.size_g;
+    int pktsize = dec_ctx->sc->params.size_p;
+    int numpp   = dec_ctx->sc->params.snum + dec_ctx->sc->params.cnum;
     for (int i=0; i<numpp; i++) {
         int rowlen = 0;
         fread(&rowlen, sizeof(int), 1, fp);

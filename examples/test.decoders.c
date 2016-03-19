@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
         printf("%s\n", usage);
         exit(1);
     }
-    struct snc_parameter sp;
+    struct snc_parameters sp;
     if (strcmp(argv[1], "RAND") == 0)
         sp.type = RAND_SNC;
     else if (strcmp(argv[1], "BAND") == 0)
@@ -70,13 +70,14 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    sp.seed = (snc_get_parameters(sc))->seed;
     struct snc_decoder *decoder = snc_create_decoder(&sp, decoder_type);
     if (decoder == NULL)
         exit(1);
     clock_t start, stop, dtime = 0;
     // Make decoder stop in the middle of decoding.
     // Test saving/restoring decoder context to/from file.
-    /* 
+    /*
     int count = 0;
     while (snc_decoder_finished(decoder) != 1) {
         struct snc_packet *pkt = snc_generate_packet(sc);

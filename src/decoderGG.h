@@ -38,6 +38,9 @@ struct decoding_context_GG {
      *******************************************/
     long long operations;               // record the number of computations used
     int overhead;                       // record how many packets have been received
+    long long ops1, ops2;               // splitted decoding operations
+                                        // ops1 - operations invoked by Gaussian elimination
+                                        // ops2 - operations invoked by substitutions
 };
 
 /**
@@ -46,7 +49,7 @@ struct decoding_context_GG {
  *   On success - return 0
  *   Otherwise  - return -1
  */
-struct decoding_context_GG *create_dec_context_GG(struct snc_parameter *sp);
+struct decoding_context_GG *create_dec_context_GG(struct snc_parameters *sp);
 void free_dec_context_GG(struct decoding_context_GG *dec_ctx);
 void process_packet_GG(struct decoding_context_GG *dec_ctx, struct snc_packet *pkt);
 

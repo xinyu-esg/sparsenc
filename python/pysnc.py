@@ -30,7 +30,7 @@ class snc_packet(Structure):
         pktstr = bytearray()
         pktstr += c_int(self.gid)
         if bnc == 1:
-            ce_len = int(ceil(size_g/8))
+            ce_len = int(ceil(size_g/8))  # Python 2/3 compatibility
         else:
             ce_len = size_g
         pktstr += cast(self.coes, POINTER(c_ubyte * ce_len))[0]
@@ -43,7 +43,7 @@ class snc_packet(Structure):
         """
         self.gid = c_int.from_buffer_copy(pktstr)
         if bnc == 1:
-            ce_len = int(ceil(size_g/8))
+            ce_len = int(ceil(size_g/8))  # Python 2/3 compatibility
         else:
             ce_len = size_g
         coes = (c_ubyte * ce_len).from_buffer_copy(pktstr, sizeof(c_int))
@@ -52,20 +52,7 @@ class snc_packet(Structure):
         memmove(self.syms, syms, size_p)
 
 
-class snc_parameter(Structure):
-    _fields_ = [("datasize", c_long),
-                ("pcrate", c_double),
-                ("size_b", c_int),
-                ("size_g", c_int),
-                ("size_p", c_int),
-                ("type",   c_int),
-                ("bpc",    c_int),
-                ("bnc",    c_int),
-                ("sys",    c_int),
-                ("seed",   c_int)]
-
-
-class snc_metainfo(Structure):
+class snc_parameters(Structure):
     _fields_ = [("datasize", c_long),
                 ("pcrate", c_double),
                 ("size_b", c_int),
@@ -94,11 +81,11 @@ snc = cdll.LoadLibrary("libsparsenc.so")
 ##########################
 # Wrap encoder functions #
 ##########################
-snc.snc_create_enc_context.argtypes = [POINTER(c_ubyte), POINTER(snc_parameter)]
+snc.snc_create_enc_context.argtypes = [POINTER(c_ubyte), POINTER(snc_parameters)]
 snc.snc_create_enc_context.restype = POINTER(snc_context)
 
-snc.snc_get_metainfo.argtypes = [POINTER(snc_context)]
-snc.snc_get_metainfo.restype = POINTER(snc_metainfo)
+snc.snc_get_parameters.argtypes = [POINTER(snc_context)]
+snc.snc_get_parameters.restype = POINTER(snc_parameters)
 
 snc.snc_load_file_to_context.argtypes = [c_char_p, c_long, POINTER(snc_context)]
 snc.snc_load_file_to_context.restype = c_int
@@ -115,7 +102,7 @@ snc.snc_free_recovered.restype = None
 snc.snc_recover_to_file.argtypes = [c_char_p, POINTER(snc_context)]
 snc.snc_recover_to_file.restype = c_long
 
-snc.snc_alloc_empty_packet.argtypes = [POINTER(snc_metainfo)]
+snc.snc_alloc_empty_packet.argtypes = [POINTER(snc_parameters)]
 snc.snc_alloc_empty_packet.restype = POINTER(snc_packet)
 
 snc.snc_generate_packet.argtypes = [POINTER(snc_context)]
@@ -133,7 +120,7 @@ snc.print_code_summary.restype = None
 ##########################
 # Wrap decoder functions #
 ##########################
-snc.snc_create_decoder.argtypes = [POINTER(snc_parameter), c_int]
+snc.snc_create_decoder.argtypes = [POINTER(snc_parameters), c_int]
 snc.snc_create_decoder.restype = POINTER(snc_decoder)
 
 snc.snc_get_enc_context.argtypes = [POINTER(snc_decoder)]
@@ -163,7 +150,7 @@ snc.snc_restore_decoder.restype = POINTER(snc_decoder)
 #################################
 # Wrap recoder/buffer functions #
 #################################
-snc.snc_create_buffer.argtypes = [POINTER(snc_metainfo), c_int]
+snc.snc_create_buffer.argtypes = [POINTER(snc_parameters), c_int]
 snc.snc_create_buffer.restype = POINTER(snc_buffer)
 
 snc.snc_buffer_packet.argtypes = [POINTER(snc_buffer), POINTER(snc_packet)]

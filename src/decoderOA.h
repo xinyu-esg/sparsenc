@@ -31,9 +31,14 @@ struct decoding_context_OA
 
     int overhead;                       // record how many packets have been received
     long long operations;               // record the number of computations used
+    long long ops1, ops2, ops3, ops4;   // splitted operations of different stages
+                                        // ops1 - operations of "local" Gaussian elimination
+                                        // ops2 - pivoting/convert GDM to upper triangular
+                                        // ops3 - fill in missed pivots
+                                        // ops4 - back substitution solving all packets
 };
 
-struct decoding_context_OA *create_dec_context_OA(struct snc_parameter *sp, int aoh);
+struct decoding_context_OA *create_dec_context_OA(struct snc_parameters *sp, int aoh);
 void process_packet_OA(struct decoding_context_OA *dec_ctx, struct snc_packet *pkt);
 void free_dec_context_OA(struct decoding_context_OA *dec_ctx);
 
