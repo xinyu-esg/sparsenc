@@ -1,7 +1,14 @@
 #ifndef OA_DECODER_H
 #define OA_DECODER_H
 #include "sparsenc.h"
-struct running_matrix;
+
+// To store matrices in processing (needed by the decoder)
+struct running_matrix
+{
+    struct row_vector **row;
+    GF_ELEMENT **message;
+};
+
 /*
  * OA (overlap aware) DECODING CONTEXT is used at each destination node
  * to record the status of the decoder. It is the core
@@ -24,9 +31,9 @@ struct decoding_context_OA
     GF_ELEMENT **JMBcoefficient;        //[NUM_SRC+OHS+CHECKS][NUM_PP];
     GF_ELEMENT **JMBmessage;            //[NUM_SRC+OHS+CHECKS][EXT_N];
 
-    // the following two mappings are to record pivoting processings
-    int *otoc_mapping;                  //[NUM_PP] record the mapping from original packet id to current column index
-    int *ctoo_mapping;                  //[NUM_PP] record the mapping from current column index to the original packet id
+    // Arrays for record row/col id mappings after pivoting
+    int *ctoo_r;                        // record the mapping from current row id to original row id
+    int *ctoo_c;                        // record the mapping from current col id to original col id
     int inactives;                      // total number of inactivated packets among overlapping packets
 
     int overhead;                       // record how many packets have been received

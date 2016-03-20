@@ -11,8 +11,8 @@ static void finish_recovering_BD(struct decoding_context_BD *dec_ctx);
 
 extern long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B);
 extern long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B);
-extern long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int *otoc, int *inactives);
-extern long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int *otoc, int *inactives);
+extern long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int **ctoo_r, int **ctoo_c, int *inactives);
+extern long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int **ctoo_r, int **ctoo_c, int *inactives);
 
 // create decoding context for band decoder
 struct decoding_context_BD *create_dec_context_BD(struct snc_parameters *sp)
@@ -65,16 +65,12 @@ struct decoding_context_BD *create_dec_context_BD(struct snc_parameters *sp)
             goto AllocError;
     }
 
-    dec_ctx->otoc_mapping = malloc(sizeof(int) * numpp);
-    if (dec_ctx->otoc_mapping == NULL)
+    dec_ctx->ctoo_r = malloc(sizeof(int) * numpp);
+    if (dec_ctx->ctoo_r == NULL)
         goto AllocError;
-    dec_ctx->ctoo_mapping = malloc(sizeof(int) * numpp);
-    if (dec_ctx->ctoo_mapping == NULL)
+    dec_ctx->ctoo_c = malloc(sizeof(int) * numpp);
+    if (dec_ctx->ctoo_c == NULL)
         goto AllocError;
-    for (j=0; j<numpp; j++) {
-        dec_ctx->otoc_mapping[j]   = j;             // original to current mapping
-        dec_ctx->ctoo_mapping[j]   = j;             // current to original mapping
-    }
 
     dec_ctx->overhead     = 0;
     dec_ctx->overheads = calloc(dec_ctx->sc->params.gnum, sizeof(int));
@@ -142,21 +138,22 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct snc_packet *p
          */
         for (i=0; i<gensize; i++) {
             int orig_index = dec_ctx->sc->gene[pkt->gid]->pktid[i];
-            int curr_index = dec_ctx->otoc_mapping[orig_index];
             if (dec_ctx->sc->params.bnc) {
-                ces[curr_index] = get_bit_in_array(pkt->coes, i);
+                ces[orig_index] = get_bit_in_array(pkt->coes, i);
             } else {
-                ces[curr_index] = pkt->coes[i];
+                ces[orig_index] = pkt->coes[i];
             }
         }
         for (i=0; i<numpp; i++) {
-            if (ces[i] != 0) {
-                if (dec_ctx->coefficient[i][i] != 0) {
-                    quotient = galois_divide(ces[i], dec_ctx->coefficient[i][i], GF_POWER);
+            if (ces[dec_ctx->ctoo_c[i]] != 0) {
+                if (dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[i]] != 0) {
+                    quotient = galois_divide(ces[dec_ctx->ctoo_c[i]], dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[i]], GF_POWER);
                     dec_ctx->operations += 1;
-                    galois_multiply_add_region(ces+i, &(dec_ctx->coefficient[i][i]), quotient, numpp-i, GF_POWER);
+                    for (j=i; j<numpp; j++) {
+                        ces[dec_ctx->ctoo_c[j]] = galois_add(ces[dec_ctx->ctoo_c[j]], galois_multiply(dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[j]], quotient, GF_POWER));
+                    }
                     dec_ctx->operations += (numpp - i);
-                    galois_multiply_add_region(pkt->syms, dec_ctx->message[i], quotient, pktsize, GF_POWER);
+                    galois_multiply_add_region(pkt->syms, dec_ctx->message[dec_ctx->ctoo_r[i]], quotient, pktsize, GF_POWER);
                     dec_ctx->operations += pktsize;
                 } else {
                     pivotfound = 1;
@@ -168,15 +165,20 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct snc_packet *p
     }
 
     //printf("Operations consumed: %lld\n", dec_ctx->operations);
-
-    if (pivotfound == 1) {
+     if (pivotfound == 1 && !dec_ctx->de_precode) {
         memcpy(dec_ctx->coefficient[pivot], ces, numpp*sizeof(GF_ELEMENT));
         memcpy(dec_ctx->message[pivot], pkt->syms,  pktsize*sizeof(GF_ELEMENT));
+        dec_ctx->DoF += 1;
+     }
+
+    if (pivotfound == 1 && dec_ctx->de_precode) {
+        memcpy(dec_ctx->coefficient[dec_ctx->ctoo_r[pivot]], ces, numpp*sizeof(GF_ELEMENT));
+        memcpy(dec_ctx->message[dec_ctx->ctoo_r[pivot]], pkt->syms,  pktsize*sizeof(GF_ELEMENT));
         dec_ctx->DoF += 1;
     }
     // If the number of received DoF is equal to NUM_SRC, apply the parity-check matrix.
     // The messages corresponding to rows of parity-check matrix are all-zero.
-    if (dec_ctx->DoF == dec_ctx->sc->params.snum) {
+    if (dec_ctx->de_precode == 0 && dec_ctx->DoF == dec_ctx->sc->params.snum) {
         if (get_loglevel() == TRACE)
             printf("Start to apply the parity-check matrix...\n");
         int allzeros = partially_diag_decoding_matrix(dec_ctx);
@@ -291,18 +293,19 @@ static int apply_parity_check_matrix(struct decoding_context_BD *dec_ctx)
     // 2, Pivot and re-order matrices
     if (getenv("SNC_BD_ONEROUND") != NULL 
          && atoi(getenv("SNC_BD_ONEROUND")) == 1) {
-        dec_ctx->operations += pivot_matrix_oneround(numpp, numpp, pktsize, dec_ctx->coefficient, dec_ctx->message, dec_ctx->otoc_mapping, &(dec_ctx->inactivated));
+        dec_ctx->operations += pivot_matrix_oneround(numpp, numpp, pktsize, dec_ctx->coefficient, dec_ctx->message, &dec_ctx->ctoo_r, &dec_ctx->ctoo_c, &(dec_ctx->inactivated));
     } else {
-        dec_ctx->operations += pivot_matrix_tworound(numpp, numpp, pktsize, dec_ctx->coefficient, dec_ctx->message, dec_ctx->otoc_mapping, &(dec_ctx->inactivated));
+        dec_ctx->operations += pivot_matrix_tworound(numpp, numpp, pktsize, dec_ctx->coefficient, dec_ctx->message, &dec_ctx->ctoo_r, &dec_ctx->ctoo_c, &(dec_ctx->inactivated));
     }
 
     /* Count available innovative rows */
     int missing_DoF = 0;
     for (i=0; i<numpp; i++) {
-        if (dec_ctx->coefficient[i][i] == 0)
+        if (dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[i]] == 0)
             missing_DoF++;
-        dec_ctx->ctoo_mapping[dec_ctx->otoc_mapping[i]] = i;
     }
+    if (get_loglevel() == TRACE)
+        printf("Missing %d DoF after applying parity-check matrix.\n", missing_DoF);
     return missing_DoF;
 }
 
@@ -313,15 +316,30 @@ static void finish_recovering_BD(struct decoding_context_BD *dec_ctx)
     int gensize = dec_ctx->sc->params.size_g;
     int pktsize = dec_ctx->sc->params.size_p;
     int numpp = dec_ctx->sc->params.snum + dec_ctx->sc->params.cnum;
-    //printf("Operations consumed before back substitution: %lld\n", dec_ctx->operations);
-    long long bs_ops = back_substitute(numpp, numpp, pktsize, dec_ctx->coefficient, dec_ctx->message);
-    dec_ctx->operations += bs_ops;
-    //printf("Operations consumed afer back substitution: %lld\n", dec_ctx->operations);
     int i, j, k;
-    for (i=0; i<numpp; i++){
-        dec_ctx->sc->pp[dec_ctx->ctoo_mapping[i]] = calloc(pktsize, sizeof(GF_ELEMENT));
-        memcpy(dec_ctx->sc->pp[dec_ctx->ctoo_mapping[i]], dec_ctx->message[i], pktsize*sizeof(GF_ELEMENT));
+    GF_ELEMENT quotient;
+    long long bs_ops = 0;
+    // Backard substitution from right-most col to the left
+    for (j=numpp-1; j>=0; j--) {
+        for (i=0; i<j; i++) {
+            if (dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[j]] != 0) {
+                quotient = galois_divide(dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[j]], dec_ctx->coefficient[dec_ctx->ctoo_r[j]][dec_ctx->ctoo_c[j]], GF_POWER);
+                galois_multiply_add_region(dec_ctx->message[dec_ctx->ctoo_r[i]], dec_ctx->message[dec_ctx->ctoo_r[j]], quotient, pktsize, GF_POWER);
+                dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[j]] = 0;
+                bs_ops += 1 + pktsize;
+            }
+        }
     }
+    // Convert all diagonal element to 1
+    for (i=0; i<numpp; i++) {
+        if (dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[i]] != 1)
+            galois_multiply_region(dec_ctx->message[dec_ctx->ctoo_r[i]], galois_divide(1, dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[i]], GF_POWER), pktsize, GF_POWER);
+        dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[i]] = 1;
+        int pktid = dec_ctx->ctoo_c[i];
+        dec_ctx->sc->pp[pktid] = calloc(pktsize, sizeof(GF_ELEMENT));
+        memcpy(dec_ctx->sc->pp[pktid], dec_ctx->message[dec_ctx->ctoo_r[i]], pktsize*sizeof(GF_ELEMENT));
+    }
+    dec_ctx->operations += bs_ops;
     dec_ctx->finished = 1;
 }
 
@@ -345,10 +363,10 @@ void free_dec_context_BD(struct decoding_context_BD *dec_ctx)
         }
         free(dec_ctx->message);
     }
-    if (dec_ctx->otoc_mapping != NULL)
-        free(dec_ctx->otoc_mapping);
-    if (dec_ctx->ctoo_mapping != NULL)
-        free(dec_ctx->ctoo_mapping);
+    if (dec_ctx->ctoo_r != NULL)
+        free(dec_ctx->ctoo_r);
+    if (dec_ctx->ctoo_c != NULL)
+        free(dec_ctx->ctoo_c);
     if (dec_ctx->overheads != NULL)
         free(dec_ctx->overheads);
     free(dec_ctx);
@@ -407,8 +425,8 @@ long save_dec_context_BD(struct decoding_context_BD *dec_ctx, const char *filepa
             filesize += fwrite(dec_ctx->coefficient[i], sizeof(GF_ELEMENT), numpp, fp);
             filesize += fwrite(dec_ctx->message[i], sizeof(GF_ELEMENT), pktsize, fp);
         }
-        filesize += fwrite(dec_ctx->otoc_mapping, sizeof(int), numpp, fp);
-        filesize += fwrite(dec_ctx->ctoo_mapping, sizeof(int), numpp, fp);
+        filesize += fwrite(dec_ctx->ctoo_r, sizeof(int), numpp, fp);
+        filesize += fwrite(dec_ctx->ctoo_c, sizeof(int), numpp, fp);
     }
     // Save performance index
     filesize += fwrite(&dec_ctx->overhead, sizeof(int), 1, fp);
@@ -458,8 +476,8 @@ struct decoding_context_BD *restore_dec_context_BD(const char *filepath)
             fread(dec_ctx->coefficient[i], sizeof(GF_ELEMENT), numpp, fp);
             fread(dec_ctx->message[i], sizeof(GF_ELEMENT), numpp, fp);
         }
-        fread(dec_ctx->otoc_mapping, sizeof(int), numpp, fp);
-        fread(dec_ctx->ctoo_mapping, sizeof(int), numpp, fp);
+        fread(dec_ctx->ctoo_r, sizeof(int), numpp, fp);
+        fread(dec_ctx->ctoo_c, sizeof(int), numpp, fp);
     }
     // Restore performance index
     fread(&dec_ctx->overhead, sizeof(int), 1, fp);

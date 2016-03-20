@@ -17,8 +17,8 @@ struct decoding_context_BD
     GF_ELEMENT **message;       //[NUM_PP][EXT_N];
 
     // the following two mappings are to record pivoting processings
-    int *otoc_mapping;          //[NUM_PP] record the mapping from original packet id to current column index
-    int *ctoo_mapping;          //[NUM_PP] record the mapping from current column index to the original packet id
+    int *ctoo_r;                // record the mapping from current row index to the original row id
+    int *ctoo_c;                // record the mapping from current col index to the original row id
 
     /*performance index*/
     int overhead;               // record how many packets have been received
