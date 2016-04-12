@@ -48,7 +48,7 @@ struct decoding_context_BD *create_dec_context_BD(struct snc_parameters *sp)
 
     int gensize = dec_ctx->sc->params.size_g;
     int pktsize = dec_ctx->sc->params.size_p;
-    int numpp   = dec_ctx->sc->params.snum + dec_ctx->sc->params.cnum;
+    int numpp   = dec_ctx->sc->snum + dec_ctx->sc->cnum;
 
     dec_ctx->coefficient = calloc(numpp, sizeof(GF_ELEMENT*));
     if (dec_ctx->coefficient == NULL)
@@ -73,7 +73,7 @@ struct decoding_context_BD *create_dec_context_BD(struct snc_parameters *sp)
         goto AllocError;
 
     dec_ctx->overhead     = 0;
-    dec_ctx->overheads = calloc(dec_ctx->sc->params.gnum, sizeof(int));
+    dec_ctx->overheads = calloc(dec_ctx->sc->gnum, sizeof(int));
     if (dec_ctx->overheads == NULL)
         goto AllocError;
     dec_ctx->operations   = 0;
@@ -98,7 +98,7 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct snc_packet *p
 
     int gensize = dec_ctx->sc->params.size_g;
     int pktsize = dec_ctx->sc->params.size_p;
-    int numpp   = dec_ctx->sc->params.snum + dec_ctx->sc->params.cnum;
+    int numpp   = dec_ctx->sc->snum + dec_ctx->sc->cnum;
 
     // translate GNC encoding vector to full length
     GF_ELEMENT *ces = calloc(numpp, sizeof(GF_ELEMENT));
@@ -118,12 +118,12 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct snc_packet *p
         for (i=0; i<numpp; i++) {
             if (ces[i] != 0) {
                 if (dec_ctx->coefficient[i][i] != 0) {
-                    quotient = galois_divide(ces[i], dec_ctx->coefficient[i][i], GF_POWER);
+                    quotient = galois_divide(ces[i], dec_ctx->coefficient[i][i]);
                     dec_ctx->operations += 1;
                     int band_width = numpp-i > gensize ? gensize : numpp-i;
-                    galois_multiply_add_region(ces+i, &(dec_ctx->coefficient[i][i]), quotient, band_width, GF_POWER);
+                    galois_multiply_add_region(ces+i, &(dec_ctx->coefficient[i][i]), quotient, band_width);
                     dec_ctx->operations += band_width;
-                    galois_multiply_add_region(pkt->syms, dec_ctx->message[i], quotient, pktsize, GF_POWER);
+                    galois_multiply_add_region(pkt->syms, dec_ctx->message[i], quotient, pktsize);
                     dec_ctx->operations += pktsize;
                 } else {
                     pivotfound = 1;
@@ -147,13 +147,13 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct snc_packet *p
         for (i=0; i<numpp; i++) {
             if (ces[dec_ctx->ctoo_c[i]] != 0) {
                 if (dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[i]] != 0) {
-                    quotient = galois_divide(ces[dec_ctx->ctoo_c[i]], dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[i]], GF_POWER);
+                    quotient = galois_divide(ces[dec_ctx->ctoo_c[i]], dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[i]]);
                     dec_ctx->operations += 1;
                     for (j=i; j<numpp; j++) {
-                        ces[dec_ctx->ctoo_c[j]] = galois_add(ces[dec_ctx->ctoo_c[j]], galois_multiply(dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[j]], quotient, GF_POWER));
+                        ces[dec_ctx->ctoo_c[j]] = galois_add(ces[dec_ctx->ctoo_c[j]], galois_multiply(dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[j]], quotient));
                     }
                     dec_ctx->operations += (numpp - i);
-                    galois_multiply_add_region(pkt->syms, dec_ctx->message[dec_ctx->ctoo_r[i]], quotient, pktsize, GF_POWER);
+                    galois_multiply_add_region(pkt->syms, dec_ctx->message[dec_ctx->ctoo_r[i]], quotient, pktsize);
                     dec_ctx->operations += pktsize;
                 } else {
                     pivotfound = 1;
@@ -178,7 +178,7 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct snc_packet *p
     }
     // If the number of received DoF is equal to NUM_SRC, apply the parity-check matrix.
     // The messages corresponding to rows of parity-check matrix are all-zero.
-    if (dec_ctx->de_precode == 0 && dec_ctx->DoF == dec_ctx->sc->params.snum) {
+    if (dec_ctx->de_precode == 0 && dec_ctx->DoF == dec_ctx->sc->snum) {
         if (get_loglevel() == TRACE)
             printf("Start to apply the parity-check matrix...\n");
         int allzeros = partially_diag_decoding_matrix(dec_ctx);
@@ -191,7 +191,7 @@ void process_packet_BD(struct decoding_context_BD *dec_ctx, struct snc_packet *p
         dec_ctx->de_precode = 1;
     }
 
-    if (dec_ctx->DoF == dec_ctx->sc->params.snum + dec_ctx->sc->params.cnum) {
+    if (dec_ctx->DoF == dec_ctx->sc->snum + dec_ctx->sc->cnum) {
         finish_recovering_BD(dec_ctx);
     }
 
@@ -221,9 +221,9 @@ static int partially_diag_decoding_matrix(struct decoding_context_BD *dec_ctx)
 
     int gensize = dec_ctx->sc->params.size_g;
     int pktsize = dec_ctx->sc->params.size_p;
-    int numpp = dec_ctx->sc->params.snum + dec_ctx->sc->params.cnum;
+    int numpp = dec_ctx->sc->snum + dec_ctx->sc->cnum;
 
-    int zero_size   = dec_ctx->sc->params.cnum + 5;
+    int zero_size   = dec_ctx->sc->cnum + 5;
     int *zeropivots = (int *) malloc( sizeof(int) * zero_size );    // store indices of columns where the diagonal element is zero
     int zero_p      = 0;                                        // indicate how many zero pivots have been identified
 
@@ -242,19 +242,19 @@ static int partially_diag_decoding_matrix(struct decoding_context_BD *dec_ctx)
                 if (dec_ctx->coefficient[i][j] == 0)
                     continue;
 
-                quotient = galois_divide(dec_ctx->coefficient[i][j], dec_ctx->coefficient[j][j], GF_POWER);
+                quotient = galois_divide(dec_ctx->coefficient[i][j], dec_ctx->coefficient[j][j]);
                 operations += 1;
                 dec_ctx->coefficient[i][j] = 0;         // eliminiate the element
                 // Important: corresponding operations on behind columns whose diagonal elements are zeros
                 for (int z=0; z<zero_p; z++) {
                     l = zeropivots[z];
                     if (dec_ctx->coefficient[j][l] != 0) {
-                        dec_ctx->coefficient[i][l] = galois_add(dec_ctx->coefficient[i][l], galois_multiply(dec_ctx->coefficient[j][l], quotient, GF_POWER));
+                        dec_ctx->coefficient[i][l] = galois_add(dec_ctx->coefficient[i][l], galois_multiply(dec_ctx->coefficient[j][l], quotient));
                         operations += 1;
                     }
                 }
                 // correspoding operations on the message matrix
-                galois_multiply_add_region(dec_ctx->message[i], dec_ctx->message[j], quotient, pktsize, GF_POWER);
+                galois_multiply_add_region(dec_ctx->message[i], dec_ctx->message[j], quotient, pktsize);
                 operations += pktsize;
             }
         }
@@ -272,7 +272,7 @@ static int apply_parity_check_matrix(struct decoding_context_BD *dec_ctx)
 
     int gensize = dec_ctx->sc->params.size_g;
     int pktsize = dec_ctx->sc->params.size_p;
-    int numpp = dec_ctx->sc->params.snum + dec_ctx->sc->params.cnum;
+    int numpp = dec_ctx->sc->snum + dec_ctx->sc->cnum;
 
     // 1, Copy parity-check vectors to the nonzero rows of the decoding matrix
     int p = 0;                      // index pointer to the parity-check vector that is to be copyed
@@ -284,7 +284,7 @@ static int apply_parity_check_matrix(struct decoding_context_BD *dec_ctx)
                 dec_ctx->coefficient[i][varnode->data] = varnode->ce;
                 varnode = varnode->next;
             }
-            dec_ctx->coefficient[i][dec_ctx->sc->params.snum+p] = 1;
+            dec_ctx->coefficient[i][dec_ctx->sc->snum+p] = 1;
             p++;
             memset(dec_ctx->message[i], 0, sizeof(GF_ELEMENT)*pktsize);         // parity-check vector corresponds to all-zero message
         }
@@ -315,7 +315,7 @@ static void finish_recovering_BD(struct decoding_context_BD *dec_ctx)
 {
     int gensize = dec_ctx->sc->params.size_g;
     int pktsize = dec_ctx->sc->params.size_p;
-    int numpp = dec_ctx->sc->params.snum + dec_ctx->sc->params.cnum;
+    int numpp = dec_ctx->sc->snum + dec_ctx->sc->cnum;
     int i, j, k;
     GF_ELEMENT quotient;
     long long bs_ops = 0;
@@ -323,8 +323,8 @@ static void finish_recovering_BD(struct decoding_context_BD *dec_ctx)
     for (j=numpp-1; j>=0; j--) {
         for (i=0; i<j; i++) {
             if (dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[j]] != 0) {
-                quotient = galois_divide(dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[j]], dec_ctx->coefficient[dec_ctx->ctoo_r[j]][dec_ctx->ctoo_c[j]], GF_POWER);
-                galois_multiply_add_region(dec_ctx->message[dec_ctx->ctoo_r[i]], dec_ctx->message[dec_ctx->ctoo_r[j]], quotient, pktsize, GF_POWER);
+                quotient = galois_divide(dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[j]], dec_ctx->coefficient[dec_ctx->ctoo_r[j]][dec_ctx->ctoo_c[j]]);
+                galois_multiply_add_region(dec_ctx->message[dec_ctx->ctoo_r[i]], dec_ctx->message[dec_ctx->ctoo_r[j]], quotient, pktsize);
                 dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[j]] = 0;
                 bs_ops += 1 + pktsize;
             }
@@ -333,7 +333,7 @@ static void finish_recovering_BD(struct decoding_context_BD *dec_ctx)
     // Convert all diagonal element to 1
     for (i=0; i<numpp; i++) {
         if (dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[i]] != 1)
-            galois_multiply_region(dec_ctx->message[dec_ctx->ctoo_r[i]], galois_divide(1, dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[i]], GF_POWER), pktsize, GF_POWER);
+            galois_multiply_region(dec_ctx->message[dec_ctx->ctoo_r[i]], galois_divide(1, dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[i]]), pktsize);
         dec_ctx->coefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[i]] = 1;
         int pktid = dec_ctx->ctoo_c[i];
         dec_ctx->sc->pp[pktid] = calloc(pktsize, sizeof(GF_ELEMENT));
@@ -350,14 +350,14 @@ void free_dec_context_BD(struct decoding_context_BD *dec_ctx)
     if (dec_ctx->sc != NULL)
         snc_free_enc_context(dec_ctx->sc);
     if (dec_ctx->coefficient != NULL) {
-        for (int i=dec_ctx->sc->params.snum+dec_ctx->sc->params.cnum-1; i>=0; i--) {
+        for (int i=dec_ctx->sc->snum+dec_ctx->sc->cnum-1; i>=0; i--) {
             if (dec_ctx->coefficient[i] != NULL)
                 free(dec_ctx->coefficient[i]);
         }
         free(dec_ctx->coefficient);
     }
     if (dec_ctx->message != NULL) {
-        for (int i=dec_ctx->sc->params.snum+dec_ctx->sc->params.cnum-1; i>=0; i--) {
+        for (int i=dec_ctx->sc->snum+dec_ctx->sc->cnum-1; i>=0; i--) {
             if (dec_ctx->message[i] != NULL)
                 free(dec_ctx->message[i]);
         }
@@ -392,7 +392,7 @@ long save_dec_context_BD(struct decoding_context_BD *dec_ctx, const char *filepa
     int i, j;
     int gensize = dec_ctx->sc->params.size_g;
     int pktsize = dec_ctx->sc->params.size_p;
-    int numpp   = dec_ctx->sc->params.snum + dec_ctx->sc->params.cnum;
+    int numpp   = dec_ctx->sc->snum + dec_ctx->sc->cnum;
     // Write snc params
     filesize += fwrite(&dec_ctx->sc->params, sizeof(struct snc_parameters), 1, fp);
     // Write decoder type
@@ -430,7 +430,7 @@ long save_dec_context_BD(struct decoding_context_BD *dec_ctx, const char *filepa
     }
     // Save performance index
     filesize += fwrite(&dec_ctx->overhead, sizeof(int), 1, fp);
-    filesize += fwrite(dec_ctx->overheads, sizeof(int), dec_ctx->sc->params.gnum, fp);
+    filesize += fwrite(dec_ctx->overheads, sizeof(int), dec_ctx->sc->gnum, fp);
     filesize += fwrite(&dec_ctx->operations, sizeof(long long), 1, fp);
     fclose(fp);
     return filesize;
@@ -471,7 +471,7 @@ struct decoding_context_BD *restore_dec_context_BD(const char *filepath)
            count++;
         }
     } else {
-        int numpp = dec_ctx->sc->params.snum + dec_ctx->sc->params.cnum;
+        int numpp = dec_ctx->sc->snum + dec_ctx->sc->cnum;
         for (i=0; i<numpp; i++) {
             fread(dec_ctx->coefficient[i], sizeof(GF_ELEMENT), numpp, fp);
             fread(dec_ctx->message[i], sizeof(GF_ELEMENT), numpp, fp);
@@ -481,7 +481,7 @@ struct decoding_context_BD *restore_dec_context_BD(const char *filepath)
     }
     // Restore performance index
     fread(&dec_ctx->overhead, sizeof(int), 1, fp);
-    fread(dec_ctx->overheads, sizeof(int), dec_ctx->sc->params.gnum, fp);
+    fread(dec_ctx->overheads, sizeof(int), dec_ctx->sc->gnum, fp);
     fread(&dec_ctx->operations, sizeof(long long), 1, fp);
     fclose(fp);
     return dec_ctx;

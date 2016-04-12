@@ -160,14 +160,14 @@ long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
                 printf("The diagonal element after re-ordering is nonzero.\n");
             // process the item on (j, i)
             if (A[ctoo_r[j]][ctoo_c[i]] != 0) {
-                quotient = galois_divide(A[ctoo_r[j]][ctoo_c[i]], A[ctoo_r[i]][ctoo_c[i]], GF_POWER);
+                quotient = galois_divide(A[ctoo_r[j]][ctoo_c[i]], A[ctoo_r[i]][ctoo_c[i]]);
                 ops1 += 1;
                 // multiply-and-add the corresponding part in the inactive part
                 for (k=ncolA-ias; k<ncolA; k++)
-                    A[ctoo_r[j]][ctoo_c[k]] = galois_add(A[ctoo_r[j]][ctoo_c[k]], galois_multiply(A[ctoo_r[i]][ctoo_c[k]], quotient, GF_POWER));
+                    A[ctoo_r[j]][ctoo_c[k]] = galois_add(A[ctoo_r[j]][ctoo_c[k]], galois_multiply(A[ctoo_r[i]][ctoo_c[k]], quotient));
                 ops1 += ias;    // This part of matrix in processing is lower triangular in part, so operations only needed in the back
                 // simultaneously do the same thing on right matrix B
-                galois_multiply_add_region(B[ctoo_r[j]], B[ctoo_r[i]], quotient, ncolB, GF_POWER);
+                galois_multiply_add_region(B[ctoo_r[j]], B[ctoo_r[i]], quotient, ncolB);
                 ops1 += ncolB;
                 A[ctoo_r[j]][ctoo_c[i]] = 0;            // eliminate the item
             }
@@ -293,14 +293,14 @@ long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_EL
                 printf("The diagonal element after re-ordering is nonzero.\n");
             // process the item on (j, i)
             if (A[ctoo_r[j]][ctoo_c[i]] != 0) {
-                quotient = galois_divide(A[ctoo_r[j]][ctoo_c[i]], A[ctoo_r[i]][ctoo_c[i]], GF_POWER);
+                quotient = galois_divide(A[ctoo_r[j]][ctoo_c[i]], A[ctoo_r[i]][ctoo_c[i]]);
                 ops1 += 1;
                 // multiply-and-add the corresponding part in the inactive part
                 for (k=ncolA-ias; k<ncolA; k++)
-                    A[ctoo_r[j]][ctoo_c[k]] = galois_add(A[ctoo_r[j]][ctoo_c[k]], galois_multiply(A[ctoo_r[i]][ctoo_c[k]], quotient, GF_POWER));
+                    A[ctoo_r[j]][ctoo_c[k]] = galois_add(A[ctoo_r[j]][ctoo_c[k]], galois_multiply(A[ctoo_r[i]][ctoo_c[k]], quotient));
                 ops1 += ias;    // This part of matrix in processing is lower triangular in part, so operations only needed in the back
                 // simultaneously do the same thing on right matrix B
-                galois_multiply_add_region(B[ctoo_r[j]], B[ctoo_r[i]], quotient, ncolB, GF_POWER);
+                galois_multiply_add_region(B[ctoo_r[j]], B[ctoo_r[i]], quotient, ncolB);
                 ops1 += ncolB;
                 A[ctoo_r[j]][ctoo_c[i]] = 0;            // eliminate the item
             }

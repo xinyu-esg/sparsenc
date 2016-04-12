@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
     if (memcmp(buf, rec_buf, sp.datasize) != 0)
         fprintf(stderr, "recovered is NOT identical to original.\n");
 
-    print_code_summary(dsc, snc_code_overhead(decoder), snc_decode_cost(decoder));
+    print_code_summary(dsc, snc_decode_overhead(decoder), snc_decode_cost(decoder));
 
     snc_free_enc_context(sc);
     snc_free_decoder(decoder);

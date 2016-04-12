@@ -6,13 +6,16 @@
 #include <string.h>
 #include "sparsenc.h"
 
-char usage[] = "usage: ./programName code_t dec_t sched_t datasize pcrate size_b size_g size_p [bufsize]\n\
+char usage[] = "usage: ./programName code_t dec_t sched_t datasize pcrate size_b size_g size_p bpc bnc sys [bufsize]\n\
                 code_t  - code type: RAND, BAND, WINDWRAP\n\
                 dec_t   - decoder type: GG, OA, BD, CBD\n\
-                sched_t - scheduling type: TRIV, RAND, MLPI\n";
+                sched_t - scheduling type: TRIV, RAND, MLPI\n\
+                bpc      - Use binary precode (0 or 1)\n\
+                bnc      - Use binary network code (0 or 1)\n\
+                sys      - Systematic code (0 or 1)\n";
 int main(int argc, char *argv[])
 {
-    if (argc != 9 && argc != 10) {
+    if (argc != 12 && argc != 13) {
         printf("%s\n", usage);
         exit(1);
     }
@@ -59,13 +62,13 @@ int main(int argc, char *argv[])
     sp.size_b   = atoi(argv[6]);
     sp.size_g   = atoi(argv[7]);
     sp.size_p   = atoi(argv[8]);
-    int bufsize = 2;    // SNC buffer size, default is 2
-    if (argc == 10)
-        bufsize = atoi(argv[9]);
-    sp.bpc      = 0;
-    sp.bnc      = 0;
-    sp.sys      = 0;
+    sp.bpc      = atoi(argv[9]);
+    sp.bnc      = atoi(argv[10]);
+    sp.sys      = atoi(argv[11]);
     sp.seed     = -1;
+    int bufsize = 2;    // SNC buffer size, default is 2
+    if (argc == 13)
+        bufsize = atoi(argv[12]);
 
     srand( (int) time(0) );
     char *buf = malloc(sp.datasize);
@@ -90,13 +93,15 @@ int main(int argc, char *argv[])
     /* Create decoder */
     sp.seed = (snc_get_parameters(sc))->seed;
     struct snc_decoder *decoder = snc_create_decoder(&sp, decoder_t);
+    struct snc_packet *rpkt = snc_alloc_empty_packet(&sp);
     clock_t start, stop, dtime = 0;
     while (!snc_decoder_finished(decoder)) {
         struct snc_packet *pkt = snc_generate_packet(sc);
         snc_buffer_packet(buffer, pkt);
 
-        struct snc_packet *rpkt = snc_recode_packet(buffer, sched_t);
-        if (rpkt == NULL)
+        //struct snc_packet *rpkt = snc_recode_packet(buffer, sched_t);
+        int ret = snc_recode_packet_im(buffer, rpkt, sched_t);
+        if (ret == -1)
             continue;
         /* Measure decoding time */
         start = clock();
@@ -110,10 +115,11 @@ int main(int argc, char *argv[])
     unsigned char *rec_buf = snc_recover_data(dsc);
     if (memcmp(buf, rec_buf, sp.datasize) != 0)
         fprintf(stderr, "recovered is NOT identical to original.\n");
-    print_code_summary(dsc, snc_code_overhead(decoder), snc_decode_cost(decoder));
+    print_code_summary(dsc, snc_decode_overhead(decoder), snc_decode_cost(decoder));
 
     snc_free_enc_context(sc);
     snc_free_buffer(buffer);
+    snc_free_packet(rpkt);
     snc_free_decoder(decoder);
     return 0;
 }

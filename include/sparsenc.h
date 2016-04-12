@@ -56,9 +56,6 @@ struct snc_parameters {
     int     bnc;        // binary network coding
     int     sys;        // systematic code
     int     seed;       // seed of local RNG
-    int     snum;       // Number of source packets splitted from the data.
-    int     cnum;       // Number of parity-check packets (cnum ~= snum * pcrate)
-    int     gnum;       // Number of subgenerations
 };
 
 struct snc_decoder;     // Sparse network code decoder
@@ -107,7 +104,7 @@ int snc_generate_packet_im(struct snc_context *sc, struct snc_packet *pkt);
 void snc_free_packet(struct snc_packet *pkt);
 
 // Print encode/decode summary of an snc (for benchmarking)
-void print_code_summary(struct snc_context *sc, int overhead, long long operations);
+void print_code_summary(struct snc_context *sc, double overhead, double operations);
 
 /*------------------------------- sncDecoder -------------------------------*/
 /**
@@ -129,13 +126,16 @@ void snc_process_packet(struct snc_decoder *decoder, struct snc_packet *pkt);
 // Check whether the decoder is finished
 int snc_decoder_finished(struct snc_decoder *decoder);
 
-// Overhead of code
-// Returns the number of received packets of the decoder
-int snc_code_overhead(struct snc_decoder *decoder);
+// Return decode overhead, which is defined as oh = N / M, where
+//   N - Number of received packets to successfully decode
+//   M - Number of source packets
+double snc_decode_overhead(struct snc_decoder *decoder);
 
-// Decode cost of the decoder
-// Returns the number of finite field operations the decoder has performed
-long long snc_decode_cost(struct snc_decoder *decoder);
+// Return decode cost, which is defined as N_ops/M/K, where
+//   N_ops - Number of total finite field operations during decoding
+//   M     - Number of source packets
+//   K     - Number of symbols of each source pacekt
+double snc_decode_cost(struct snc_decoder *decoder);
 
 // Free decoder memory
 void snc_free_decoder(struct snc_decoder *decoder);
@@ -162,6 +162,9 @@ void snc_buffer_packet(struct snc_buffer *buffer, struct snc_packet *pkt);
 
 // Recode an snc packet from an snc buffer
 struct snc_packet *snc_recode_packet(struct snc_buffer *buffer, int sched_t);
+
+// Recode a packet from an snc buffer to an allocated snc_packet struct
+int snc_recode_packet_im(struct snc_buffer *buffer, struct snc_packet *pkt, int sched_t);
 
 // Free snc buffer
 void snc_free_buffer(struct snc_buffer *buffer);

@@ -68,6 +68,7 @@ struct snc_context *snc_create_enc_context(unsigned char *buf, struct snc_parame
         sc->params.seed = tv.tv_sec * 1000 + tv.tv_usec / 1000; // seed use microsec
     }
     snc_srand(sc->params.seed);
+    sp->seed = sc->params.seed;  // set seed in the passed-in argument as well
     // Determine packet and generation numbers
     int num_src = ALIGN(sc->params.datasize, sc->params.size_p);
     int num_chk;
@@ -83,17 +84,17 @@ struct snc_context *snc_create_enc_context(unsigned char *buf, struct snc_parame
         // is always 0.01.
         num_chk = number_of_checks(num_src, sc->params.pcrate);
     }
-    sc->params.snum  = num_src;  // Number of source packets
-    sc->params.cnum  = num_chk;  // Number of check packets
+    sc->snum  = num_src;  // Number of source packets
+    sc->cnum  = num_chk;  // Number of check packets
     if (sc->params.type == BAND_SNC) {
-        sc->params.gnum  = ALIGN((num_src+num_chk-sc->params.size_g), sc->params.size_b) + 1;
+        sc->gnum  = ALIGN((num_src+num_chk-sc->params.size_g), sc->params.size_b) + 1;
     } else {
-        sc->params.gnum  = ALIGN( (num_src+num_chk), sc->params.size_b);
+        sc->gnum  = ALIGN( (num_src+num_chk), sc->params.size_b);
     }
     /*
      * Verify code parameter
      */
-    if (verify_code_parameter(&(sc->params)) != 0) {
+    if (verify_code_parameter(&sc->params) != 0) {
         fprintf(stderr, "%s: code parameter is invalid.\n", fname);
         snc_free_enc_context(sc);
         return NULL;
@@ -108,26 +109,26 @@ struct snc_context *snc_create_enc_context(unsigned char *buf, struct snc_parame
     }
 
     // Allocating pointers to data
-    if ((sc->pp = calloc(sc->params.snum+sc->params.cnum, sizeof(GF_ELEMENT*))) == NULL) {
+    if ((sc->pp = calloc(sc->snum+sc->cnum, sizeof(GF_ELEMENT*))) == NULL) {
         fprintf(stderr, "%s: calloc sc->pp\n", fname);
         snc_free_enc_context(sc);
         return NULL;
     }
 
-    constructField(GF_POWER);   // Construct Galois Field
+    constructField();   // Construct Galois Field
     if (buf != NULL) {
         int alread = 0;
         int i;
         // Load source packets
-        for (i=0; i<sc->params.snum; i++) {
+        for (i=0; i<sc->snum; i++) {
             sc->pp[i] = calloc(sc->params.size_p, sizeof(GF_ELEMENT));
             int toread = (alread+sc->params.size_p) <= sc->params.datasize ? sc->params.size_p : sc->params.datasize-alread;
             memcpy(sc->pp[i], buf+alread, toread*sizeof(GF_ELEMENT));
             alread += toread;
         }
         // Allocate parity-check packet space
-        for (i=0; i<sc->params.cnum; i++)
-            sc->pp[sc->params.snum+i] = calloc(sc->params.size_p, sizeof(GF_ELEMENT));
+        for (i=0; i<sc->cnum; i++)
+            sc->pp[sc->snum+i] = calloc(sc->params.size_p, sizeof(GF_ELEMENT));
         perform_precoding(sc);
     }
 
@@ -163,7 +164,7 @@ int snc_load_file_to_context(const char *filepath, long start, struct snc_contex
     fseek(fp, start, SEEK_SET);  // seek to position start
     int alread = 0;
     int i;
-    for (i=0; i<sc->params.snum; i++) {
+    for (i=0; i<sc->snum; i++) {
         sc->pp[i] = calloc(sc->params.size_p, sizeof(GF_ELEMENT));
         int toread = (alread+sc->params.size_p) <= sc->params.datasize ? sc->params.size_p : sc->params.datasize-alread;
         if (fread(sc->pp[i], sizeof(GF_ELEMENT), toread, fp) != toread) {
@@ -174,8 +175,8 @@ int snc_load_file_to_context(const char *filepath, long start, struct snc_contex
     }
     fclose(fp);
     // Allocate parity-check packet space
-    for (i=0; i<sc->params.cnum; i++)
-        sc->pp[sc->params.snum+i] = calloc(sc->params.size_p, sizeof(GF_ELEMENT));
+    for (i=0; i<sc->cnum; i++)
+        sc->pp[sc->snum+i] = calloc(sc->params.size_p, sizeof(GF_ELEMENT));
     perform_precoding(sc);
     return (0);
 }
@@ -200,12 +201,12 @@ static int create_context_from_params(struct snc_context *sc)
 {
     static char fname[] = "snc_create_enc_context_params";
     // Inintialize generation structures
-    sc->gene  = calloc(sc->params.gnum, sizeof(struct subgeneration*));
+    sc->gene  = calloc(sc->gnum, sizeof(struct subgeneration*));
     if ( sc->gene == NULL ) {
         fprintf(stderr, "%s: malloc sc->gene\n", fname);
         return(-1);
     }
-    for (int j=0; j<sc->params.gnum; j++) {
+    for (int j=0; j<sc->gnum; j++) {
         sc->gene[j] = malloc(sizeof(struct subgeneration));
         if ( sc->gene[j] == NULL ) {
             fprintf(stderr, "%s: malloc sc->gene[%d]\n", fname, j);
@@ -219,7 +220,7 @@ static int create_context_from_params(struct snc_context *sc)
         }
         memset(sc->gene[j]->pktid, -1, sizeof(int)*sc->params.size_g);
     }
-    sc->nccount = calloc(sc->params.gnum, sizeof(int));
+    sc->nccount = calloc(sc->gnum, sizeof(int));
     if (sc->nccount == NULL) {
         fprintf(stderr, "%s: calloc sc->nccount\n", fname);
         return (-1);
@@ -235,13 +236,13 @@ static int create_context_from_params(struct snc_context *sc)
         coverage = group_packets_windwrap(sc);
     }
     // Creating bipartite graph of the precode
-    if (sc->params.cnum != 0) {
+    if (sc->cnum != 0) {
         if ( (sc->graph = malloc(sizeof(BP_graph))) == NULL ) {
             fprintf(stderr, "%s: malloc BP_graph\n", fname);
             return (-1);
         }
         sc->graph->binaryce = sc->params.bpc;     // If precode in GF(2), edges use 1 as coefficient
-        if (create_bipartite_graph(sc->graph, sc->params.snum, sc->params.cnum) < 0)
+        if (create_bipartite_graph(sc->graph, sc->snum, sc->cnum) < 0)
             return (-1);
     }
     return(0);
@@ -253,7 +254,7 @@ void snc_free_enc_context(struct snc_context *sc)
         return;
     int i;
     if (sc->pp != NULL) {
-        for (i=sc->params.snum+sc->params.cnum-1; i>=0; i--) {
+        for (i=sc->snum+sc->cnum-1; i>=0; i--) {
             if (sc->pp[i] != NULL) {
                 free(sc->pp[i]);
                 sc->pp[i] = NULL;
@@ -262,7 +263,7 @@ void snc_free_enc_context(struct snc_context *sc)
         free(sc->pp);
     }
     if (sc->gene != NULL) {
-        for (i=sc->params.gnum-1; i>=0; i--) {
+        for (i=sc->gnum-1; i>=0; i--) {
             free(sc->gene[i]->pktid);  // free packet IDs
             free(sc->gene[i]);         // free generation itself
             sc->gene[i] = NULL;
@@ -343,13 +344,13 @@ static void perform_precoding(struct snc_context *sc)
     static char fname[] = "perform_precoding";
 
     int i, j;
-    for (i=0; i<sc->params.cnum; i++) {
+    for (i=0; i<sc->cnum; i++) {
         // Encoding check packet according to the LDPC graph
         NBR_node *nb = sc->graph->l_nbrs_of_r[i]->first;
         while(nb != NULL) {
             int sid = nb->data;  // index of source packet
             // XOR information content
-            galois_multiply_add_region(sc->pp[i+sc->params.snum], sc->pp[sid], nb->ce, sc->params.size_p, GF_POWER);
+            galois_multiply_add_region(sc->pp[i+sc->snum], sc->pp[sid], nb->ce, sc->params.size_p);
             // move to next possible neighbour node of current check
             nb = nb->next;
         }
@@ -363,8 +364,8 @@ static void perform_precoding(struct snc_context *sc)
  */
 static int group_packets_pseudorand(struct snc_context *sc)
 {
-    int num_p = sc->params.snum + sc->params.cnum;
-    int num_g = sc->params.gnum;
+    int num_p = sc->snum + sc->cnum;
+    int num_g = sc->gnum;
 
     int *selected = calloc(num_p, sizeof(int));
 
@@ -415,8 +416,8 @@ static int group_packets_pseudorand(struct snc_context *sc)
  */
 static int group_packets_rand(struct snc_context *sc)
 {
-    int num_p = sc->params.snum + sc->params.cnum;
-    int num_g = sc->params.gnum;
+    int num_p = sc->snum + sc->cnum;
+    int num_g = sc->gnum;
 
     int *selected = calloc(num_p, sizeof(int));
 
@@ -459,8 +460,8 @@ static int group_packets_rand(struct snc_context *sc)
  */
 static int group_packets_band(struct snc_context *sc)
 {
-    int num_p = sc->params.snum + sc->params.cnum;
-    int num_g = sc->params.gnum;
+    int num_p = sc->snum + sc->cnum;
+    int num_g = sc->gnum;
 
     int *selected = calloc(num_p, sizeof(int));
 
@@ -494,8 +495,8 @@ static int group_packets_band(struct snc_context *sc)
  */
 static int group_packets_windwrap(struct snc_context *sc)
 {
-    int num_p = sc->params.snum + sc->params.cnum;
-    int num_g = sc->params.gnum;
+    int num_p = sc->snum + sc->cnum;
+    int num_g = sc->gnum;
 
     int *selected = calloc(num_p, sizeof(int));
 
@@ -614,10 +615,10 @@ static void encode_packet(struct snc_context *sc, int gid, struct snc_packet *pk
             if (co == 1)
                 set_bit_in_array(pkt->coes, i);             // Set the corresponding coefficient as 1
         } else {
-            co = (GF_ELEMENT) rand() % (1 << GF_POWER);     // Randomly generated coding coefficient
+            co = (GF_ELEMENT) rand() % (1 << 8);     // Randomly generated coding coefficient
             pkt->coes[i] = co;
         }
-        galois_multiply_add_region(pkt->syms, sc->pp[pktid], co, sc->params.size_p, GF_POWER);
+        galois_multiply_add_region(pkt->syms, sc->pp[pktid], co, sc->params.size_p);
     }
     sc->nccount[gid] += 1;
     return;
@@ -625,9 +626,9 @@ static void encode_packet(struct snc_context *sc, int gid, struct snc_packet *pk
 
 static int schedule_generation(struct snc_context *sc)
 {
-    if (sc->params.gnum == 1)
+    if (sc->gnum == 1)
         return 0;
-    int gid = rand() % (sc->params.gnum);
+    int gid = rand() % (sc->gnum);
     return gid;
 }
 
@@ -635,7 +636,7 @@ static int schedule_generation(struct snc_context *sc)
  * Print code summary
  * If called by decoders, it prints overhead and operations as well.
  */
-void print_code_summary(struct snc_context *sc, int overhead, long long operations)
+void print_code_summary(struct snc_context *sc, double overhead, double operations)
 {
     char typestr[20];
     switch(sc->params.type) {
@@ -675,12 +676,12 @@ void print_code_summary(struct snc_context *sc, int overhead, long long operatio
     printf("size_g: %d ", sc->params.size_g);
     printf("size_p: %d ", sc->params.size_p);
     printf("type: [%s::%s::%s::%s] ", typestr, typestr2, typestr3, typestr4);
-    printf("snum: %d ", sc->params.snum);
-    printf("cnum: %d ", sc->params.cnum);
-    printf("gnum: %d ", sc->params.gnum);
+    printf("snum: %d ", sc->snum);
+    printf("cnum: %d ", sc->cnum);
+    printf("gnum: %d ", sc->gnum);
     if (operations != 0) {
-        printf("overhead: %.3f ", (double) overhead/sc->params.snum);
-        printf("computation: %.2f\n", (double) operations/sc->params.snum/sc->params.size_p);
+        printf("overhead: %.3f ", overhead);
+        printf("computation: %.2f\n", operations);
     } else {
         printf("\n");
     }

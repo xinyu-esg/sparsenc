@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include "common.h"
 #include "decoderGG.h"
 #include "decoderOA.h"
 #include "decoderBD.h"
@@ -102,34 +103,56 @@ struct snc_context *snc_get_enc_context(struct snc_decoder *decoder)
     return 0;
 }
 
-int snc_code_overhead(struct snc_decoder *decoder)
+// Return decode overhead, which is defined as oh = N / M, where
+//   N - Number of received packets to successfully decode
+//   M - Number of source packets
+double snc_decode_overhead(struct snc_decoder *decoder)
 {
+    struct snc_context *sc = snc_get_enc_context(decoder);
+    int snum = sc->snum;
+    int ohs  = 0;
     switch (decoder->d_type) {
     case GG_DECODER:
-        return ((struct decoding_context_GG *) decoder->dec_ctx)->overhead;
+        ohs = ((struct decoding_context_GG *) decoder->dec_ctx)->overhead;
+        break;
     case OA_DECODER:
-        return ((struct decoding_context_OA *) decoder->dec_ctx)->overhead;
+        ohs =((struct decoding_context_OA *) decoder->dec_ctx)->overhead;
+        break;
     case BD_DECODER:
-        return ((struct decoding_context_BD *) decoder->dec_ctx)->overhead;
+        ohs = ((struct decoding_context_BD *) decoder->dec_ctx)->overhead;
+        break;
     case CBD_DECODER:
-        return ((struct decoding_context_CBD *) decoder->dec_ctx)->overhead;
+        ohs = ((struct decoding_context_CBD *) decoder->dec_ctx)->overhead;
+        break;
     }
-    return 0;
+    return ((double) ohs / snum);
 }
 
-long long snc_decode_cost(struct snc_decoder *decoder)
+// Return decode cost, which is defined as N_ops/M/K, where
+//   N_ops - Number of total finite field operations during decoding
+//   M     - Number of source packets
+//   K     - Number of symbols of each source pacekt
+double snc_decode_cost(struct snc_decoder *decoder)
 {
+    struct snc_context *sc = snc_get_enc_context(decoder);
+    int snum = sc->snum;
+    int pktsize = sc->params.size_p;
+    long long ops = 0;
     switch (decoder->d_type) {
     case GG_DECODER:
-        return ((struct decoding_context_GG *) decoder->dec_ctx)->operations;
+        ops = ((struct decoding_context_GG *) decoder->dec_ctx)->operations;
+        break;
     case OA_DECODER:
-        return ((struct decoding_context_OA *) decoder->dec_ctx)->operations;
+        ops = ((struct decoding_context_OA *) decoder->dec_ctx)->operations;
+        break;
     case BD_DECODER:
-        return ((struct decoding_context_BD *) decoder->dec_ctx)->operations;
+        ops = ((struct decoding_context_BD *) decoder->dec_ctx)->operations;
+        break;
     case CBD_DECODER:
-        return ((struct decoding_context_CBD *) decoder->dec_ctx)->operations;
+        ops = ((struct decoding_context_CBD *) decoder->dec_ctx)->operations;
+        break;
     }
-    return 0;
+    return ((double) ops/snum/pktsize);
 }
 
 void snc_free_decoder(struct snc_decoder *decoder)

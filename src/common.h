@@ -60,6 +60,9 @@ struct subgeneration {
  **/
 struct snc_context {
     struct  snc_parameters    params;
+    int                       snum;     // Number of source packets splitted
+    int                       cnum;     // Number of parity-checks(cnum ~= snum * pcrate)
+    int                       gnum;     // Number of subgenerations
     struct  subgeneration   **gene;     // array of pointers each points to a subgeneration.
     struct  bipartite_graph  *graph;
     GF_ELEMENT              **pp;       // Pointers to precoded source packets
@@ -89,6 +92,7 @@ struct snc_context {
  */
 struct snc_buffer {
     struct snc_parameters  params;  // Meta info of the code
+    int                    gnum;    // Number of subgenerations
     int                    size;    // Number of bufferred packets of each subgeneration
     int                    nemp;    // Number of non-empty subgeneration buffers
     struct snc_packet   ***gbuf;    // Pointers to subgeneration buffers

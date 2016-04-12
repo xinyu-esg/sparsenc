@@ -46,6 +46,9 @@ libsparsenc.so: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC) $(RECODER) $(DECO
 #Test snc decoder
 sncDecoders: libsparsenc.so test.decoders.c
 	$(CC) -L. -lsparsenc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+#Test snc decoder linked statically
+sncDecoderST: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC) $(RECODER) $(DECODER) test.decoders.c
+	$(CC) -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #Test snc store/restore decoder
 sncRestore: libsparsenc.so test.restore.c
 	$(CC) -L. -lsparsenc -o $@ $(CFLAGS0) $(CFLAGS1) $^
@@ -61,7 +64,7 @@ $(OBJDIR)/%.o: $(OBJDIR)/%.c $(DEFS)
 
 .PHONY: clean
 clean:
-	rm -f *.o $(OBJDIR)/*.o libsparsenc.so sncDecoders sncDecodersFile sncRecoder2Hop sncRestore
+	rm -f *.o $(OBJDIR)/*.o libsparsenc.so sncDecoders sncDecoderST sncDecodersFile sncRecoder2Hop sncRestore
 
 install: libsparsenc.so
 	cp include/sparsenc.h /usr/include/

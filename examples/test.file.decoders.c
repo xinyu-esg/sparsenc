@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
         struct snc_context *dsc = snc_get_enc_context(decoder);
         snc_recover_to_file(copyname, dsc);
 
-        print_code_summary(dsc, snc_code_overhead(decoder), snc_decode_cost(decoder));
+        print_code_summary(dsc, snc_decode_overhead(decoder), snc_decode_cost(decoder));
 
         snc_free_enc_context(sc);
         snc_free_decoder(decoder);

@@ -1,3 +1,4 @@
+#include <math.h>
 #include "common.h"
 #include "galois.h"
 #include "sparsenc.h"
@@ -17,28 +18,41 @@ struct snc_buffer *snc_create_buffer(struct snc_parameters *sp, int bufsize)
     }
     //initialize recoding buffer
     buf->params = *sp;
+    // determine number of generations with sp
+    int num_src = ALIGN(buf->params.datasize, buf->params.size_p);
+    int num_chk;
+    char *pc = getenv("SNC_PRECISE_CHECK");
+    if ( pc != NULL && atoi(pc) == 1)
+        num_chk = (int) ceil(num_src * buf->params.pcrate);
+    else
+        num_chk = number_of_checks(num_src, buf->params.pcrate);
+    if (buf->params.type == BAND_SNC)
+        buf->gnum  = ALIGN((num_src+num_chk-buf->params.size_g), buf->params.size_b) + 1;
+    else
+        buf->gnum  = ALIGN( (num_src+num_chk), buf->params.size_b);
+
     buf->size = bufsize;
     buf->nemp = 0;
-    if ((buf->gbuf = calloc(sp->gnum, sizeof(struct snc_packet **))) == NULL) {
+    if ((buf->gbuf = calloc(buf->gnum, sizeof(struct snc_packet **))) == NULL) {
         fprintf(stderr, "%s: calloc buf->gbuf\n", fname);
         goto Error;
     }
-    for (i=0; i<sp->gnum; i++) {
+    for (i=0; i<buf->gnum; i++) {
         /* Initialize pointers of buffered packets of each generation as NULL */
         if ((buf->gbuf[i] = calloc(bufsize, sizeof(struct snc_packet *))) == NULL) {
             fprintf(stderr, "%s: calloc buf->gbuf[%d]\n", fname, i);
             goto Error;
         }
     }
-    if ((buf->nc = calloc(sp->gnum, sizeof(int))) == NULL) {
+    if ((buf->nc = calloc(buf->gnum, sizeof(int))) == NULL) {
         fprintf(stderr, "%s: calloc buf->nc\n", fname);
         goto Error;
     }
-    if ((buf->pn = calloc(sp->gnum, sizeof(int))) == NULL) {
+    if ((buf->pn = calloc(buf->gnum, sizeof(int))) == NULL) {
         fprintf(stderr, "%s: calloc buf->pn\n", fname);
         goto Error;
     }
-    if ((buf->nsched = calloc(sp->gnum, sizeof(int))) == NULL) {
+    if ((buf->nsched = calloc(buf->gnum, sizeof(int))) == NULL) {
         fprintf(stderr, "%s: calloc buf->nsched\n", fname);
         goto Error;
     }
@@ -93,20 +107,55 @@ struct snc_packet *snc_recode_packet(struct snc_buffer *buf, int sched_t)
         return NULL;
 
     pkt->gid = gid;
+    GF_ELEMENT co = 0;
     for (int i=0; i<buf->nc[gid]; i++) {
-        GF_ELEMENT co = rand() % (1 << GF_POWER);
         /* Coding coefficients of bufferred packets are coded together */
-        galois_multiply_add_region(pkt->coes, buf->gbuf[gid][i]->coes, co, buf->params.size_g, GF_POWER);
-        galois_multiply_add_region(pkt->syms, buf->gbuf[gid][i]->syms, co, buf->params.size_p, GF_POWER);
+        if (buf->params.bnc == 1) {
+            co = rand() % 2;
+            if (co == 1)
+                galois_multiply_add_region(pkt->coes, buf->gbuf[gid][i]->coes, co, ALIGN(buf->params.size_g, 8));
+        } else {
+            co = rand() % (1 << 8);
+            galois_multiply_add_region(pkt->coes, buf->gbuf[gid][i]->coes, co, buf->params.size_g);
+        }
+        galois_multiply_add_region(pkt->syms, buf->gbuf[gid][i]->syms, co, buf->params.size_p);
     }
     return pkt;
+}
+
+int snc_recode_packet_im(struct snc_buffer *buf, struct snc_packet *pkt, int sched_t)
+{
+    int gid = schedule_recode_generation(buf, sched_t);
+    if (gid == -1)
+        return -1;
+    pkt->gid = gid;
+    // Clean up pkt
+    if (buf->params.bnc) {
+        memset(pkt->coes, 0, ALIGN(buf->params.size_g, 8)*sizeof(GF_ELEMENT));
+    } else {
+        memset(pkt->coes, 0, buf->params.size_g*sizeof(GF_ELEMENT));
+    }
+    memset(pkt->syms, 0, sizeof(GF_ELEMENT)*buf->params.size_p);
+    GF_ELEMENT co = 0;
+    for (int i=0; i<buf->nc[gid]; i++) {
+        if (buf->params.bnc == 1) {
+            co = rand() % 2;
+            if (co == 1)
+                galois_multiply_add_region(pkt->coes, buf->gbuf[gid][i]->coes, co, ALIGN(buf->params.size_g, 8));
+        } else {
+            co = rand() % (1 << 8);
+            galois_multiply_add_region(pkt->coes, buf->gbuf[gid][i]->coes, co, buf->params.size_g);
+        }
+        galois_multiply_add_region(pkt->syms, buf->gbuf[gid][i]->syms, co, buf->params.size_p);
+    }
+    return 0;
 }
 
 void snc_free_buffer(struct snc_buffer *buf)
 {
     if (buf == NULL)
         return;
-    for (int i=0; i<buf->params.gnum; i++) {
+    for (int i=0; i<buf->gnum; i++) {
         if (buf->gbuf != NULL && buf->gbuf[i] != NULL) {
             /* Free bufferred packets, if any */
             for (int j=0; j<buf->size; j++)
@@ -132,7 +181,7 @@ static int schedule_recode_generation(struct snc_buffer *buf, int sched_t)
 {
     int gid;
     if (sched_t == TRIV_SCHED) {
-        gid = rand() % buf->params.gnum;
+        gid = rand() % buf->gnum;
         buf->nsched[gid]++;
         return gid;
     }
@@ -154,7 +203,7 @@ static int schedule_recode_generation(struct snc_buffer *buf, int sched_t)
     if (sched_t == MLPI_SCHED) {
         gid = 0;
         int max = buf->nc[gid] - buf->nsched[gid];
-        for (int j=0; j<buf->params.gnum; j++) {
+        for (int j=0; j<buf->gnum; j++) {
             if (buf->nc[j] - buf->nsched[j] > max) {
                 max = buf->nc[j] - buf->nsched[j];
                 gid = j;

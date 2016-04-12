@@ -50,17 +50,17 @@ struct decoding_context_GG *create_dec_context_GG(struct snc_parameters *sp)
     dec_ctx->sc = sc;
 
     // memory areas needed for decoding
-    dec_ctx->evolving_checks = calloc(dec_ctx->sc->params.cnum, sizeof(GF_ELEMENT *));
+    dec_ctx->evolving_checks = calloc(dec_ctx->sc->cnum, sizeof(GF_ELEMENT *));
     if (dec_ctx->evolving_checks == NULL) {
         fprintf(stderr, "%s: calloc dec_ctx->evolving_checks\n", fname);
         goto AllocError;
     }
-    dec_ctx->check_degrees = calloc(dec_ctx->sc->params.cnum, sizeof(int));
+    dec_ctx->check_degrees = calloc(dec_ctx->sc->cnum, sizeof(int));
     if (dec_ctx->check_degrees == NULL) {
         fprintf(stderr, "%s: calloc dec_ctx->check_degrees\n", fname);
         goto AllocError;
     }
-    for (i=0; i<dec_ctx->sc->params.cnum; i++) {
+    for (i=0; i<dec_ctx->sc->cnum; i++) {
         NBR_node *nb = dec_ctx->sc->graph->l_nbrs_of_r[i]->first;
         while (nb != NULL) {
             dec_ctx->check_degrees[i]++;    // initial check degree of each check packet
@@ -71,13 +71,13 @@ struct decoding_context_GG *create_dec_context_GG(struct snc_parameters *sp)
     dec_ctx->finished  = 0;
     dec_ctx->decoded   = 0;
     dec_ctx->originals = 0;
-    dec_ctx->Matrices = calloc(dec_ctx->sc->params.gnum, sizeof(struct running_matrix*));
+    dec_ctx->Matrices = calloc(dec_ctx->sc->gnum, sizeof(struct running_matrix*));
     if (dec_ctx->Matrices == NULL) {
         fprintf(stderr, "%s: calloc dec_ctx->Matrices\n", fname);
         goto AllocError;
     }
 
-    for (i=0; i<dec_ctx->sc->params.gnum; i++) {
+    for (i=0; i<dec_ctx->sc->gnum; i++) {
         dec_ctx->Matrices[i] = calloc(1, sizeof(struct running_matrix));
         if (dec_ctx->Matrices[i] == NULL) {
             fprintf(stderr, "%s: malloc dec_ctx->Matrices[%d]\n", fname, i);
@@ -150,7 +150,7 @@ void free_dec_context_GG(struct decoding_context_GG *dec_ctx)
 
     int i, j, k;
     if (dec_ctx->evolving_checks != NULL) {
-        for (i=0; i<dec_ctx->sc->params.cnum; i++) {
+        for (i=0; i<dec_ctx->sc->cnum; i++) {
             if (dec_ctx->evolving_checks[i] != NULL)
                 free(dec_ctx->evolving_checks[i]);
         }
@@ -159,7 +159,7 @@ void free_dec_context_GG(struct decoding_context_GG *dec_ctx)
     if (dec_ctx->check_degrees != NULL)
         free(dec_ctx->check_degrees);
     if (dec_ctx->Matrices != NULL) {
-        for (i=0; i<dec_ctx->sc->params.gnum; i++){
+        for (i=0; i<dec_ctx->sc->gnum; i++){
             // Free each decoding matrix
             if (dec_ctx->Matrices[i] != NULL) {
                 if (dec_ctx->Matrices[i]->erased != NULL)
@@ -253,8 +253,8 @@ void process_packet_GG(struct decoding_context_GG *dec_ctx, struct snc_packet *p
     }
     if (dec_ctx->finished && get_loglevel() == TRACE) {
         printf("GG splitted operations: %.2f %.2f\n",
-                (double) dec_ctx->ops1/dec_ctx->sc->params.snum/dec_ctx->sc->params.size_p,
-                (double) dec_ctx->ops2/dec_ctx->sc->params.snum/dec_ctx->sc->params.size_p);
+                (double) dec_ctx->ops1/dec_ctx->sc->snum/dec_ctx->sc->params.size_p,
+                (double) dec_ctx->ops2/dec_ctx->sc->snum/dec_ctx->sc->params.size_p);
     }
 }
 
@@ -322,7 +322,7 @@ static void perform_iterative_decoding(struct decoding_context_GG *dec_ctx)
     ID *new_decoded = dec_ctx->recent->first;
     while (new_decoded != NULL) {
         int new_id = new_decoded->data;
-        if (new_id >= dec_ctx->sc->params.snum) {
+        if (new_id >= dec_ctx->sc->snum) {
             new_decoded_check_packet(dec_ctx, new_id);
         } else {
             new_decoded_source_packet(dec_ctx, new_id);
@@ -348,7 +348,7 @@ static void new_decoded_source_packet(struct decoding_context_GG *dec_ctx, int p
     static char fname[] = "new_decoded_source_packet";
     dec_ctx->decoded   += 1;
     dec_ctx->originals += 1;
-    if (dec_ctx->originals == dec_ctx->sc->params.snum) {
+    if (dec_ctx->originals == dec_ctx->sc->snum) {
         dec_ctx->finished = 1;
         return;      // Don't need to worry about the remaining check packets
     }
@@ -367,7 +367,7 @@ static void new_decoded_source_packet(struct decoding_context_GG *dec_ctx, int p
                 fprintf(stderr, "%s: calloc evolving_checks[%d]\n", fname, check_id);
         }
         // mask information bits
-        galois_multiply_add_region(dec_ctx->evolving_checks[check_id], dec_ctx->sc->pp[pkt_id], nb->ce, dec_ctx->sc->params.size_p, GF_POWER);
+        galois_multiply_add_region(dec_ctx->evolving_checks[check_id], dec_ctx->sc->pp[pkt_id], nb->ce, dec_ctx->sc->params.size_p);
         dec_ctx->operations += dec_ctx->sc->params.size_p;
         dec_ctx->ops2 += dec_ctx->sc->params.size_p;
         dec_ctx->check_degrees[check_id] -= 1;
@@ -384,7 +384,7 @@ static void new_decoded_check_packet(struct decoding_context_GG *dec_ctx, int pk
     static char fname[] = "new_decoded_check_packet";
     dec_ctx->decoded += 1;
 
-    int check_id = pkt_id - dec_ctx->sc->params.snum;                         // ID of check packet
+    int check_id = pkt_id - dec_ctx->sc->snum;                         // ID of check packet
     if (get_loglevel() == TRACE)
         printf("%s: degree of new decoded check %d is %d\n", \
                 fname, pkt_id, dec_ctx->check_degrees[check_id]);
@@ -398,7 +398,7 @@ static void new_decoded_check_packet(struct decoding_context_GG *dec_ctx, int pk
     } else {
         // Some source neighbors have been decoded and therefore updated the evolving area,
         // we need to mask the actual check packet content against the evolving area.
-        galois_multiply_add_region(dec_ctx->evolving_checks[check_id], dec_ctx->sc->pp[pkt_id], 1, dec_ctx->sc->params.size_p, GF_POWER);
+        galois_multiply_add_region(dec_ctx->evolving_checks[check_id], dec_ctx->sc->pp[pkt_id], 1, dec_ctx->sc->params.size_p);
         dec_ctx->operations += dec_ctx->sc->params.size_p;
         dec_ctx->ops2 += dec_ctx->sc->params.size_p;
     }
@@ -409,10 +409,10 @@ static void new_decoded_check_packet(struct decoding_context_GG *dec_ctx, int pk
 static int check_for_new_recoverables(struct decoding_context_GG *dec_ctx)
 {
     static char fname[] = "check_for_new_recoverables";
-    int snum = dec_ctx->sc->params.snum;
+    int snum = dec_ctx->sc->snum;
     int has_new_recoverable = -1;
     // check each check node
-    for (int i=0; i<dec_ctx->sc->params.cnum; i++) {
+    for (int i=0; i<dec_ctx->sc->cnum; i++) {
         if (dec_ctx->check_degrees[i] == 1
                 && dec_ctx->sc->pp[i+snum] != NULL
                 && !exist_in_list(dec_ctx->recent, i+snum)) {
@@ -438,8 +438,8 @@ static int check_for_new_recoverables(struct decoding_context_GG *dec_ctx)
             if (dec_ctx->sc->graph->l_nbrs_of_r[i]->first->ce == 1)
                 memcpy(dec_ctx->sc->pp[src_id], dec_ctx->evolving_checks[i], sizeof(GF_ELEMENT)*dec_ctx->sc->params.size_p);
             else {
-                GF_ELEMENT ce = galois_divide(1, dec_ctx->sc->graph->l_nbrs_of_r[i]->first->ce, GF_POWER);
-                galois_multiply_add_region(dec_ctx->sc->pp[src_id], dec_ctx->evolving_checks[i], ce, dec_ctx->sc->params.size_p, GF_POWER);
+                GF_ELEMENT ce = galois_divide(1, dec_ctx->sc->graph->l_nbrs_of_r[i]->first->ce);
+                galois_multiply_add_region(dec_ctx->sc->pp[src_id], dec_ctx->evolving_checks[i], ce, dec_ctx->sc->params.size_p);
                 dec_ctx->operations += dec_ctx->sc->params.size_p + 1;
                 dec_ctx->ops2 += dec_ctx->sc->params.size_p + 1;
             }
@@ -483,7 +483,7 @@ static void update_generations(struct decoding_context_GG *dec_ctx)
     while (precent != NULL) {
         int src_id = precent->data;
         // Check all generations that contain this source packet
-        for (int i=0; i<dec_ctx->sc->params.gnum; i++) {
+        for (int i=0; i<dec_ctx->sc->gnum; i++) {
             if (dec_ctx->Matrices[i]->remaining_cols == 0)
                 continue;
             int pos = has_item(dec_ctx->sc->gene[i]->pktid, src_id, dec_ctx->sc->params.size_g);
@@ -552,7 +552,7 @@ static long update_running_matrix(struct decoding_context_GG *dec_ctx, int gid, 
         GF_ELEMENT ce = matrix->coefficient[i][r_cols-1];   // the encoding coefficient of the column being erased
         if (ce == 0)
             continue;                                       // NOTE: in case the matrix is sparse, don't waste computation
-        galois_multiply_add_region(&matrix->message[i][0], dec_ctx->sc->pp[sid], ce, dec_ctx->sc->params.size_p, GF_POWER);
+        galois_multiply_add_region(&matrix->message[i][0], dec_ctx->sc->pp[sid], ce, dec_ctx->sc->params.size_p);
         operations += dec_ctx->sc->params.size_p;
     }
     set_bit_in_array(matrix->erased, index);       // mark the column as erased
@@ -567,7 +567,7 @@ static int check_for_new_decodables(struct decoding_context_GG *dec_ctx)
 {
     static char fname[] = "check_for_new_decodables";
     int i, j, k;
-    for (i=0; i<dec_ctx->sc->params.gnum; i++) {
+    for (i=0; i<dec_ctx->sc->gnum; i++) {
         struct running_matrix *matrix = dec_ctx->Matrices[i];
         if ( matrix->remaining_cols != 0
                 && matrix->remaining_rows >= matrix->remaining_cols ) {
@@ -608,7 +608,7 @@ static int check_for_new_decodables(struct decoding_context_GG *dec_ctx)
 static void mask_packet(struct decoding_context_GG *dec_ctx, GF_ELEMENT ce, int index, struct snc_packet *enc_pkt)
 {
     static char fname[] = "mask_packet";
-    galois_multiply_add_region(enc_pkt->syms, dec_ctx->sc->pp[index], ce, dec_ctx->sc->params.size_p, GF_POWER);
+    galois_multiply_add_region(enc_pkt->syms, dec_ctx->sc->pp[index], ce, dec_ctx->sc->params.size_p);
     dec_ctx->operations += dec_ctx->sc->params.size_p;
     dec_ctx->ops1 += dec_ctx->sc->params.size_p;
     return;
@@ -632,7 +632,7 @@ long save_dec_context_GG(struct decoding_context_GG *dec_ctx, const char *filepa
     int i, j, k;
     int gensize = dec_ctx->sc->params.size_g;
     int pktsize = dec_ctx->sc->params.size_p;
-    int numpp   = dec_ctx->sc->params.snum + dec_ctx->sc->params.cnum;
+    int numpp   = dec_ctx->sc->snum + dec_ctx->sc->cnum;
     // Write snc params
     filesize += fwrite(&dec_ctx->sc->params, sizeof(struct snc_parameters), 1, fp);
     // Write decoder type
@@ -647,24 +647,24 @@ long save_dec_context_GG(struct decoding_context_GG *dec_ctx, const char *filepa
     }
     // Save evolving check packets
     int count = 0;
-    for (i=0; i<dec_ctx->sc->params.cnum; i++) {
+    for (i=0; i<dec_ctx->sc->cnum; i++) {
         if (dec_ctx->evolving_checks[i] != NULL)
             count++;
     }
     filesize += fwrite(&count, sizeof(int), 1, fp);  // evolving packets non-NULL count
-    for (i=0; i<dec_ctx->sc->params.cnum; i++) {
+    for (i=0; i<dec_ctx->sc->cnum; i++) {
         if (dec_ctx->evolving_checks[i] != NULL) {
             filesize += fwrite(&i, sizeof(int), 1, fp);  // check id
             filesize += fwrite(dec_ctx->evolving_checks[i], sizeof(GF_ELEMENT), pktsize, fp);
         }
     }
     // Save check degrees
-    filesize += fwrite(dec_ctx->check_degrees, sizeof(int), dec_ctx->sc->params.cnum, fp);
+    filesize += fwrite(dec_ctx->check_degrees, sizeof(int), dec_ctx->sc->cnum, fp);
     filesize += fwrite(&dec_ctx->finished, sizeof(int), 1, fp);
     filesize += fwrite(&dec_ctx->decoded, sizeof(int), 1, fp);  // Yes, I know. I saved this value twice!
     filesize += fwrite(&dec_ctx->originals, sizeof(int), 1, fp);
     // Save running matrices
-    for (i=0; i<dec_ctx->sc->params.gnum; i++) {
+    for (i=0; i<dec_ctx->sc->gnum; i++) {
         filesize += fwrite(&dec_ctx->Matrices[i]->remaining_rows, sizeof(int), 1, fp);
         filesize += fwrite(&dec_ctx->Matrices[i]->remaining_cols, sizeof(int), 1, fp);
         int nflags = ALIGN(dec_ctx->sc->params.size_g, 8);
@@ -733,13 +733,13 @@ struct decoding_context_GG *restore_dec_context_GG(const char *filepath)
         fread(dec_ctx->evolving_checks[evoid], sizeof(GF_ELEMENT), sp.size_p, fp);
     }
     // Restore check degrees
-    fread(dec_ctx->check_degrees, sizeof(int), dec_ctx->sc->params.cnum, fp);
+    fread(dec_ctx->check_degrees, sizeof(int), dec_ctx->sc->cnum, fp);
     fread(&dec_ctx->finished, sizeof(int), 1, fp);
     fread(&dec_ctx->decoded, sizeof(int), 1, fp);
     fread(&dec_ctx->originals, sizeof(int), 1, fp);
     // Restore running matrices
     // Note that running matrices' memory were already allocated in creating_dec_context
-    for (i=0; i<dec_ctx->sc->params.gnum; i++) {
+    for (i=0; i<dec_ctx->sc->gnum; i++) {
         fread(&dec_ctx->Matrices[i]->remaining_rows, sizeof(int), 1, fp);
         fread(&dec_ctx->Matrices[i]->remaining_cols, sizeof(int), 1, fp);
         int nflags = ALIGN(dec_ctx->sc->params.size_g, 8);

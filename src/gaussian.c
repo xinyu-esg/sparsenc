@@ -60,13 +60,13 @@ long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_
         for (j=i+1; j<nrow; j++) {
             if (A[j][i] == 0)
                 continue;   // skip zeros
-            quotient = galois_divide(A[j][i], A[i][i], GF_POWER);
+            quotient = galois_divide(A[j][i], A[i][i]);
             operations += 1;
             // eliminate the items under row i at col i
-            galois_multiply_add_region(&(A[j][i]), &(A[i][i]), quotient, ncolA-i, GF_POWER);
+            galois_multiply_add_region(&(A[j][i]), &(A[i][i]), quotient, ncolA-i);
             operations += (ncolA-i);
             // simultaneously do the same thing on right matrix B
-            galois_multiply_add_region(B[j], B[i], quotient, ncolB, GF_POWER);
+            galois_multiply_add_region(B[j], B[i], quotient, ncolB);
             operations += ncolB;
         }
     }
@@ -86,16 +86,16 @@ long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT *A[], GF_EL
         for (j=0; j<i; j++) {
             if (A[j][i] == 0)
                 continue;       // skip zeros
-            GF_ELEMENT quotient = galois_divide(A[j][i], A[i][i], GF_POWER);
+            GF_ELEMENT quotient = galois_divide(A[j][i], A[i][i]);
             operations += 1;
             A[j][i] = 0;
             // doing accordingly to B
-            galois_multiply_add_region(B[j], B[i], quotient, ncolB, GF_POWER);
+            galois_multiply_add_region(B[j], B[i], quotient, ncolB);
             operations += ncolB;
         }
         // diagonalize diagonal element
         if (A[i][i] != 1) {
-            galois_multiply_region(B[i], galois_divide(1, A[i][i], GF_POWER), ncolB, GF_POWER);
+            galois_multiply_region(B[i], galois_divide(1, A[i][i]), ncolB);
             operations += ncolB;
             A[i][i] = 1;
         }
