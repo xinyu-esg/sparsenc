@@ -7,6 +7,9 @@
 #if defined(INTEL_SSSE3)
 #include <tmmintrin.h>
 #endif
+#if defined(INTEL_AVX2)
+#include <immintrin.h>
+#endif
 #include "galois.h"
 #define GF_POWER    8
 static int constructed = 0;
@@ -40,7 +43,11 @@ int constructField()
         }
 #if defined(INTEL_SSSE3)
     /*
-     * Create half tables for SSE multiply_add_region.
+     * Create half tables for SSE multiply_add_region:
+     * low table contains the products of an element with all 4-bit words;
+     * high table contains the products of an element with all 8-bit words
+     * whose last 4 bits are all zero. So each half table contains 256 rows
+     * and 16 columns.
      */
     int a, b, c, d;
     int pp = primitive_poly_8;
@@ -203,6 +210,9 @@ void galois_multiply_add_region(uint8_t *dst, uint8_t *src, uint8_t multiplier, 
 
     uint8_t *bh, *bl;
     __m128i mth, mtl, loset;
+#if defined(INTEL_AVX2)
+    __m256i mth2, mtl2, loset2;
+#endif
     if (multiplier != 1) {
         /* half tables only needed for multiplier != 1 */
         bh = (uint8_t*) galois_half_mult_table_high;
@@ -212,12 +222,30 @@ void galois_multiply_add_region(uint8_t *dst, uint8_t *src, uint8_t multiplier, 
         // read split tables as 128-bit values
         mth = _mm_loadu_si128((__m128i *)(bh));
         mtl = _mm_loadu_si128((__m128i *)(bl));
+#if defined(INTEL_AVX2)
+        mtl2 = _mm256_broadcastsi128_si256 (mtl);
+        mth2 = _mm256_broadcastsi128_si256 (mth);
+        loset2 = _mm256_set1_epi8 (0x0f);
+#else
         loset = _mm_set1_epi8(0x0f);
+#endif
     }
 
-    __m128i va, vb, r, t1;
+    __m128i va, vb, r, t1, r2;
     while (sptr < top)
     {
+#if defined(INTEL_AVX2)
+        if (sptr + 32 > top) {
+            /* remaining data doesn't fit into __m256i, do not use AVX2 */
+            for (i=0; i<top-sptr; i++) {
+                if (multiplier == 1)
+                    *(dptr+i) ^= *(sptr+i);
+                else
+                    *(dptr+i) ^= galois_mult_table[((*(sptr+i))<<GF_POWER) | multiplier];
+            }
+            break;
+        }
+#else
         if (sptr + 16 > top) {
             /* remaining data doesn't fit into __m128i, do not use SSE */
             for (i=0; i<top-sptr; i++) {
@@ -228,6 +256,29 @@ void galois_multiply_add_region(uint8_t *dst, uint8_t *src, uint8_t multiplier, 
             }
             break;
         }
+#endif
+#if defined(INTEL_AVX2)
+        __m256i vaa, vbb, rr, tt1, rr2;
+        vaa = _mm256_loadu_si256 ((__m256i *)(sptr));
+        if (multiplier == 1) {
+            vbb = _mm256_loadu_si256 ((__m256i *)(dptr));
+            vbb = _mm256_xor_si256(vaa, vbb);
+            _mm256_storeu_si256 ((__m256i *)(dptr), vbb);
+        } else {
+            // use half tables
+            tt1 = _mm256_and_si256 (loset2, vaa);
+            rr  = _mm256_shuffle_epi8 (mtl2, tt1);
+            vaa = _mm256_srli_epi64 (vaa, 4);
+            tt1 = _mm256_and_si256 (loset2, vaa);
+            rr2 = _mm256_shuffle_epi8 (mth2, tt1);
+            rr  = _mm256_xor_si256 (rr, rr2);
+            vaa = _mm256_loadu_si256 ((__m256i *)(dptr));
+            rr  = _mm256_xor_si256 (rr, vaa);
+            _mm256_storeu_si256 ((__m256i *)(dptr), rr);
+        }
+        dptr += 32;
+        sptr += 32;
+#else
         va = _mm_loadu_si128 ((__m128i *)(sptr));
         if (multiplier == 1) {
             /* just XOR */
@@ -236,17 +287,20 @@ void galois_multiply_add_region(uint8_t *dst, uint8_t *src, uint8_t multiplier, 
             _mm_storeu_si128 ((__m128i *)(dptr), vb);
         } else {
             /* use half tables */
-            t1 = _mm_and_si128 (loset, va);
-            r = _mm_shuffle_epi8 (mtl, t1);
-            va = _mm_srli_epi64 (va, 4);
-            t1 = _mm_and_si128 (loset, va);
-            r = _mm_xor_si128 (r, _mm_shuffle_epi8 (mth, t1));
+            t1 = _mm_and_si128 (loset, va);    // obtain lower 4-bit of the 16 src elements
+            r  = _mm_shuffle_epi8 (mtl, t1);    // obtain products of the lower 4-bit 
+            va = _mm_srli_epi64 (va, 4);       // shift the bits of the 16 src elements to right
+            t1 = _mm_and_si128 (loset, va);    // obtain higher 4-bit of the src elements
+            r2 = _mm_shuffle_epi8 (mth, t1);   // obtain products of the higher 4-bit
+            r  = _mm_xor_si128 (r, r2);         // obtain final result of src * multiplier
+            //r = _mm_xor_si128 (r, _mm_shuffle_epi8 (mth, t1));
             va = _mm_loadu_si128 ((__m128i *)(dptr));
             r = _mm_xor_si128 (r, va);
             _mm_storeu_si128 ((__m128i *)(dptr), r);
         }
         dptr += 16;
         sptr += 16;
+#endif
     }
     return;
 #else
@@ -288,10 +342,33 @@ void galois_multiply_region(uint8_t *src, uint8_t multiplier, int bytes)
     __m128i mth = _mm_loadu_si128((__m128i *)(bh));
     __m128i mtl = _mm_loadu_si128((__m128i *)(bl));
     __m128i loset = _mm_set1_epi8(0x0f);
+#if defined(INTEL_AVX2)
+    __m256i mtl2 = _mm256_broadcastsi128_si256 (mtl);
+    __m256i mth2 = _mm256_broadcastsi128_si256 (mth);
+    __m256i loset2 = _mm256_set1_epi8 (0x0f);
+    __m256i vaa, rr, tt1, rr2;
+#endif
 
     __m128i va, r, t1;
     while (sptr < top)
     {
+#if defined(INTEL_AVX2)
+        if (sptr + 32 > top) {
+            /* remaining data doesn't fit into __m128i, do not use SSE */
+            for (int i=0; i<top-sptr; i++)
+                *(sptr+i) = galois_mult_table[((*(sptr+i))<<GF_POWER) | multiplier];
+            break;
+        }
+        vaa = _mm256_loadu_si256 ((__m256i *)(sptr));
+        tt1 = _mm256_and_si256 (loset2, vaa);
+        rr  = _mm256_shuffle_epi8 (mtl2, tt1);
+        vaa = _mm256_srli_epi64 (vaa, 4);
+        tt1 = _mm256_and_si256 (loset2, vaa);
+        rr2 = _mm256_shuffle_epi8 (mth2, tt1);
+        rr  = _mm256_xor_si256 (rr, rr2);
+        _mm256_storeu_si256 ((__m256i *)(sptr), rr);
+        sptr += 32;
+#else
         if (sptr + 16 > top) {
             /* remaining data doesn't fit into __m128i, do not use SSE */
             for (int i=0; i<top-sptr; i++)
@@ -306,6 +383,7 @@ void galois_multiply_region(uint8_t *src, uint8_t multiplier, int bytes)
         r = _mm_xor_si128 (r, _mm_shuffle_epi8 (mth, t1));
         _mm_storeu_si128 ((__m128i *)(sptr), r);
         sptr += 16;
+#endif
     }
     return;
 #else

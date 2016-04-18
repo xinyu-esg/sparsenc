@@ -9,7 +9,6 @@
  * performed simultaneously.
  -------------------------------------------------------------------*/
 #include "galois.h"
-#include <omp.h>
 
 // perform forward substitution on a matrix to transform it to a upper triangular structure
 //static long long forward_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT A[][ncolA], GF_ELEMENT B[][ncolB])

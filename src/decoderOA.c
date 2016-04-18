@@ -1,7 +1,6 @@
 /*--------------------------sncOADecoder.c----------------------
  * Implementation of overlap-aware (OA) decoder.
  *-------------------------------------------------------------*/
-#include <omp.h>
 #include "common.h"
 #include "galois.h"
 #include "decoderOA.h"

@@ -14,14 +14,24 @@ UNAME := $(shell uname)
 ifeq ($(UNAME), Darwin)
 	SED = gsed
 	CC  = gcc-5
+	#CC  = clang
+	HAS_SSSE3 := $(shell sysctl -a | grep supplementalsse3)
+	HAS_AVX2  := $(shell sysctl -a | grep avx2)
 endif
 ifeq ($(UNAME), Linux)
 	SED = sed
 	CC  = gcc
+	HAS_SSSE3 := $(shell grep -i ssse3 /proc/cpuinfo)
+	HAS_AVX2  := $(shell grep -i avx2 /proc/cpuinfo)
 endif
 
-CFLAGS0 = -Winline -std=c99 -lm
-CFLAGS1 = -O3 -DNDEBUG $(INC_PARMS) -mssse3 -DINTEL_SSSE3
+CFLAGS0 = -Winline -std=c99 -lm -O3 -DNDEBUG $(INC_PARMS)
+ifneq ($(HAS_SSSE3),)
+	CFLAGS1 = -mssse3 -DINTEL_SSSE3
+endif
+ifneq ($(HAS_AVX2),)
+	CFLAGS1 += -mavx2 -DINTEL_AVX2
+endif
 # Additional compile options
 # CFLAGS2 = 
 
