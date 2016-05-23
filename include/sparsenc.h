@@ -32,9 +32,10 @@ typedef unsigned char GF_ELEMENT;
  * RAND - Randomly schedule generations with non-empty buffer
  * MLPI - Maximum Local Potential Innovativeness scheduling
  */
-#define TRIV_SCHED    0
-#define RAND_SCHED    1
-#define MLPI_SCHED    2
+#define TRIV_SCHED      0
+#define RAND_SCHED      1
+#define MLPI_SCHED      2
+#define NURAND_SCHED    3
 
 struct snc_context;     // Sparse network code encode context
 

@@ -6,7 +6,7 @@ The library at present supports two major catagories of sparse network codes (SN
 
 Four decoders with different performance tradeoff considerations are provided in the library. The (sub)generation-by-(sub)generation (GG) decoder has a linear-time complexity but exhibits higher code overhead. On the other hand, the overlap-aware (OA) decoder [6] has optimized code overhead but exhibits higher complexity. These two decoders essentially can be used for all kinds of subgeneration-based code (i.e., not limited to the two codes currently provided in the library). The band (BD) and compact band (CBD) decoders can only be applied to the band code. The decoders have optimized code overheads as well and their complexities are between GG and OA decoders. CBD decoder uses compact matrix representation and therefore has lower memory usage. BD decoder, on the other hand, employes pivoting techniques and therefore its decoding complexity is lower. BD decoder uses full-size matrix representation for random access, as is heavily needed during pivoting. So BD decoder has higher memory usage.
 
-The construction of original RLNC is can be done by constructing a band code with one subgeneration. The decoding of RLNC can be done using CBD decoder.
+The construction of original RLNC can be achieved using a band code with one subgeneration. The decoding of RLNC can be done using the CBD decoder (in naive mode).
 
 Systematic coding is also supported, which generates coded packets from each subgeneration only after each source packet therein is sent once. The decoding cost can be significantly reduced when the code is used in networks with low packet loss rate. The price to pay is higher overhead if the number of subgenerations is greater than 1. It is recommended to use systematic coding for RLNC in many scenarios (e.g., [7]).
 
@@ -54,7 +54,7 @@ Reference
 ============
 [1] Ahlswede, Rudolf; N. Cai, Shuo-Yen Robert Li, and Raymond Wai-Ho Yeung. "Network Information Flow". IEEE Transactions on Information Theory, IT-46 46 (4): 1204–1216, 2000.
 
-[2] S. Li, R. Yeung, and N. Cai, "Linear Network Coding", in IEEE Transactions on Information Theory, Vol 49, No. 2, pp. 371–381, 2003.
+[2] T. Ho, M. Medard, R. Koetter, and D. R. Karger, "A Random Linear Network Coding Approach to Multicast", in IEEE Transactions on Information Theory, Vol 52, No. 10, pp. 4413–4430, 2006.
 
 [3] Ye Li, "Efficient Network Coding for Different Network Topologies", Queen's University PhD Thesis, Oct., 2014. Available: https://qspace.library.queensu.ca/bitstream/1974/12602/1/Li_Ye_201410_PhD.pdf
 
@@ -64,4 +64,4 @@ Reference
 
 [6] Ye Li, W.-Y. Chan, and S. D. Blostein, "On Efficient Decoding and Design of Sparse Random Linear Network Coding", available: http://arxiv.org/abs/1604.05573
 
-[7] Ye Li, W.-Y. Chan, and S. D. Blostein, "Systematic Network Coding for Two-Hop Lossy Transmissions", EURASIP Journal on Advances of Signal Processing, pp.1-14, 2015:93 DOI: 10.1186/s13634-015-0273-3 
+[7] Ye Li, W.-Y. Chan, and S. D. Blostein, "Systematic Network Coding for Two-Hop Lossy Transmissions", EURASIP Journal on Advances in Signal Processing, pp.1-14, 2015:93 DOI: 10.1186/s13634-015-0273-3 

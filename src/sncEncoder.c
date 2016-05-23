@@ -19,6 +19,7 @@ static int group_packets_band(struct snc_context *sc);
 static int group_packets_windwrap(struct snc_context *sc);
 static void encode_packet(struct snc_context *sc, int gid, struct snc_packet *pkt);
 static int schedule_generation(struct snc_context *sc);
+static int banded_nonuniform_sched(struct snc_context *sc);
 /*
  * Create a GNC context containing meta information about the data to be encoded.
  *   buf      - Buffer containing bytes of data to be encoded
@@ -628,8 +629,40 @@ static int schedule_generation(struct snc_context *sc)
 {
     if (sc->gnum == 1)
         return 0;
+
+    char *ur = getenv("SNC_NONUNIFORM_RAND");
+    if ( ur != NULL && atoi(ur) == 1)
+        return banded_nonuniform_sched(sc);
     int gid = rand() % (sc->gnum);
     return gid;
+}
+
+/*
+ * Non-uniform random scheduling for banded codes
+ * NOTE: scheduling of the 0-th and the (M-G)-th generation are not uniform
+ * 0-th and (M-G)-th: (G+1)/2M
+ * 1-th to (M-G-1)-th: 1/M
+ * [G+1, 2, 2, 2,..., 2, G+1]
+ * [-----{  2*(M-G-1)  }----]
+ */
+static int banded_nonuniform_sched(struct snc_context *sc)
+{
+	int M = sc->snum + sc->cnum;
+	int G = sc->params.size_g;
+	int upperb = 2*(G+1)+2*(M-G-1);
+    int selected = rand() % upperb + 1;
+	// int selected = gsl_rng_uniform_int(r, upperb) + 1;
+
+	if (selected <= G+1) {
+		selected = 0;
+	} else if (selected > (G+1+2*(M-G-1))) {
+		selected = sc->gnum - 1;
+    } else {
+		int residual = selected - (G+1);
+		int mod = residual / 2;
+		selected = mod + 1;
+	}
+	return selected;
 }
 
 /*
@@ -671,7 +704,7 @@ void print_code_summary(struct snc_context *sc, double overhead, double operatio
         strcpy(typestr4, "NonSystematic");
     }
     printf("datasize: %d ", sc->params.datasize);
-    printf("precode: %.3f ", sc->params.pcrate);
+    printf("precode: %.6f ", sc->params.pcrate);
     printf("size_b: %d ", sc->params.size_b);
     printf("size_g: %d ", sc->params.size_g);
     printf("size_p: %d ", sc->params.size_p);

@@ -92,6 +92,8 @@ struct snc_context {
  */
 struct snc_buffer {
     struct snc_parameters  params;  // Meta info of the code
+    int                    snum;    // Number of source packets
+    int                    cnum;    // Number of parity-check packets
     int                    gnum;    // Number of subgenerations
     int                    size;    // Number of bufferred packets of each subgeneration
     int                    nemp;    // Number of non-empty subgeneration buffers

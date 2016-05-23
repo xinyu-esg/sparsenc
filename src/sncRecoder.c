@@ -6,6 +6,7 @@
 /* Schedule a subgeneration to recode a packet according
  * to the specified scheduling type. */
 static int schedule_recode_generation(struct snc_buffer *buf, int sched_t);
+static int banded_nonuniform_sched(struct snc_buffer *buf);
 
 struct snc_buffer *snc_create_buffer(struct snc_parameters *sp, int bufsize)
 {
@@ -20,12 +21,18 @@ struct snc_buffer *snc_create_buffer(struct snc_parameters *sp, int bufsize)
     buf->params = *sp;
     // determine number of generations with sp
     int num_src = ALIGN(buf->params.datasize, buf->params.size_p);
+    buf->snum = num_src;
     int num_chk;
+    // FIXME: such env variables should be contained in snc_parameters because
+    // the settings need to be delivered to network codes in reality. For simulations
+    // in which source and intermediate nodes usually are on the same host, in the same
+    // process, using env variables is OK.
     char *pc = getenv("SNC_PRECISE_CHECK");
     if ( pc != NULL && atoi(pc) == 1)
         num_chk = (int) ceil(num_src * buf->params.pcrate);
     else
         num_chk = number_of_checks(num_src, buf->params.pcrate);
+    buf->cnum = num_chk;
     if (buf->params.type == BAND_SNC)
         buf->gnum  = ALIGN((num_src+num_chk-buf->params.size_g), buf->params.size_b) + 1;
     else
@@ -179,6 +186,9 @@ void snc_free_buffer(struct snc_buffer *buf)
 
 static int schedule_recode_generation(struct snc_buffer *buf, int sched_t)
 {
+    if (buf->nemp == 0)
+        return -1;
+
     int gid;
     if (sched_t == TRIV_SCHED) {
         gid = rand() % buf->gnum;
@@ -187,8 +197,6 @@ static int schedule_recode_generation(struct snc_buffer *buf, int sched_t)
     }
 
     if (sched_t == RAND_SCHED) {
-        if (buf->nemp == 0)
-            return -1;
         int index = rand() % buf->nemp;
         int i = -1;
         gid = 0;
@@ -212,5 +220,44 @@ static int schedule_recode_generation(struct snc_buffer *buf, int sched_t)
         buf->nsched[gid]++;
         return gid;
     }
+
+    if (sched_t == NURAND_SCHED) {
+        return banded_nonuniform_sched(buf);
+    }
+}
+
+
+/*
+ * Non-uniform random scheduling for banded codes
+ * NOTE: scheduling of the 0-th and the (M-G)-th generation are not uniform
+ * 0-th and (M-G)-th: (G+1)/2M
+ * 1-th to (M-G-1)-th: 1/M
+ * [G+1, 2, 2, 2,..., 2, G+1]
+ * [-----{  2*(M-G-1)  }----]
+ */
+static int banded_nonuniform_sched(struct snc_buffer *buf)
+{
+	int M = buf->snum + buf->cnum;
+	int G = buf->params.size_g;
+	int upperb = 2*(G+1)+2*(M-G-1);
+
+	int found = 0;
+	int selected = -1;
+	while (found ==0) {
+		selected = (rand() % upperb) + 1;
+
+		if (selected <= G+1) {
+			selected = 0;
+		} else if (selected > (G+1+2*(M-G-1))){
+			selected = buf->gnum - 1;
+		} else {
+			int residual = selected - (G+1);
+			int mod = residual / 2;
+			selected = mod + 1;
+		}
+		if (buf->nc[selected] != 0)
+			found = 1;
+	}
+	return selected;
 }
 

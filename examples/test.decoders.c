@@ -59,6 +59,14 @@ int main(int argc, char *argv[])
     sp.sys      = atoi(argv[10]);
     sp.seed     = -1;  // Initialize seed as -1
 
+    char *ur = getenv("SNC_NONUNIFORM_RAND");
+    if ( ur != NULL && atoi(ur) == 1) {
+        if (sp.type != BAND_SNC || sp.size_b != 1) {
+            printf("Non-Uniform Random Scheduling can only be used for BAND code with size_b=1.\n");
+            exit(1);
+        }
+    }
+
     struct timeval tv;
     gettimeofday(&tv, NULL);
     srand(tv.tv_sec * 1000 + tv.tv_usec / 1000); // seed use microsec

@@ -1,21 +1,23 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <time.h>
+#include <sys/time.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include "sparsenc.h"
 
-char usage[] = "usage: ./programName code_t dec_t sched_t datasize pcrate size_b size_g size_p bpc bnc sys [bufsize]\n\
+char usage[] = "usage: ./programName code_t dec_t sched_t datasize pcrate size_b size_g size_p bpc bnc sys pe1 pe2 [bufsize]\n\
                 code_t  - code type: RAND, BAND, WINDWRAP\n\
                 dec_t   - decoder type: GG, OA, BD, CBD\n\
-                sched_t - scheduling type: TRIV, RAND, MLPI\n\
+                sched_t - scheduling type: TRIV, RAND, MLPI, NURAND\n\
                 bpc      - Use binary precode (0 or 1)\n\
                 bnc      - Use binary network code (0 or 1)\n\
-                sys      - Systematic code (0 or 1)\n";
+                sys      - Systematic code (0 or 1)\n\
+                pe1, pe2 - erasure rates of the two hops\n";
 int main(int argc, char *argv[])
 {
-    if (argc != 12 && argc != 13) {
+    if (argc != 14 && argc != 15) {
         printf("%s\n", usage);
         exit(1);
     }
@@ -52,6 +54,8 @@ int main(int argc, char *argv[])
         sched_t = RAND_SCHED;
     else if (strcmp(argv[3], "MLPI") == 0)
         sched_t = MLPI_SCHED;
+    else if (strcmp(argv[3], "NURAND") == 0)
+        sched_t = NURAND_SCHED;
     else {
         printf("%s\n", usage);
         exit(1);
@@ -66,11 +70,30 @@ int main(int argc, char *argv[])
     sp.bnc      = atoi(argv[10]);
     sp.sys      = atoi(argv[11]);
     sp.seed     = -1;
+    double pe1  = atof(argv[12]);
+    double pe2  = atof(argv[13]);
     int bufsize = 2;    // SNC buffer size, default is 2
-    if (argc == 13)
-        bufsize = atoi(argv[12]);
+    if (argc == 15)
+        bufsize = atoi(argv[14]);
 
-    srand( (int) time(0) );
+    char *ur = getenv("SNC_NONUNIFORM_RAND");
+    if ( ur != NULL && atoi(ur) == 1) {
+        if (sp.type != BAND_SNC || sp.size_b != 1) {
+            printf("Non-Uniform Random Scheduling can only be used for BAND code with size_b=1.\n");
+            exit(1);
+        }
+    }
+
+    if (sched_t == NURAND_SCHED) {
+        if (sp.type != BAND_SNC || sp.size_b != 1) {
+            printf("Non-Uniform Random Scheduling can only be used for BAND code with size_b=1.\n");
+            exit(1);
+        }
+    }
+
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    srand(tv.tv_sec * 1000 + tv.tv_usec / 1000); // seed use microsec
     char *buf = malloc(sp.datasize);
     int rnd=open("/dev/urandom", O_RDONLY);
     read(rnd, buf, sp.datasize);
@@ -95,13 +118,20 @@ int main(int argc, char *argv[])
     struct snc_decoder *decoder = snc_create_decoder(&sp, decoder_t);
     struct snc_packet *rpkt = snc_alloc_empty_packet(&sp);
     clock_t start, stop, dtime = 0;
+    // double pe1 = 0.7;
+    // double pe2 = 0.4;
     while (!snc_decoder_finished(decoder)) {
         struct snc_packet *pkt = snc_generate_packet(sc);
-        snc_buffer_packet(buffer, pkt);
-
+        if (rand() % 100 >= pe1 *100)
+            snc_buffer_packet(buffer, pkt);
+        else
+            snc_free_packet(pkt);
+        
         //struct snc_packet *rpkt = snc_recode_packet(buffer, sched_t);
         int ret = snc_recode_packet_im(buffer, rpkt, sched_t);
         if (ret == -1)
+            continue;
+        if (rand() % 100 < pe2 * 100)
             continue;
         /* Measure decoding time */
         start = clock();
@@ -109,7 +139,7 @@ int main(int argc, char *argv[])
         stop = clock();
         dtime += stop - start;
     }
-    printf("dec-time: %.2f bufsize: %d ", ((double) dtime)/CLOCKS_PER_SEC, bufsize);
+    printf("dec-time: %.2f bufsize: %d pe1: %.3f pe2: %.3f ", ((double) dtime)/CLOCKS_PER_SEC, bufsize, pe1, pe2);
 
     struct snc_context *dsc = snc_get_enc_context(decoder);
     unsigned char *rec_buf = snc_recover_data(dsc);
