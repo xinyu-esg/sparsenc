@@ -13,7 +13,7 @@ INC_PARMS = $(INCLUDEDIR:%=-I%)
 UNAME := $(shell uname)
 ifeq ($(UNAME), Darwin)
 	SED = gsed
-	CC  = gcc-5
+	CC  = gcc-6
 	#CC  = clang
 	HAS_SSSE3 := $(shell sysctl -a | grep supplementalsse3)
 	HAS_AVX2  := $(shell sysctl -a | grep avx2)
@@ -38,7 +38,7 @@ endif
 vpath %.h src include
 vpath %.c src examples
 
-DEFS    := sparsenc.h common.h galois.h decoderGG.h decoderOA.h decoderBD.h decoderCBD.h
+DEFS    := sparsenc.h common.h galois.h decoderGG.h decoderOA.h decoderBD.h decoderCBD.h decoderPP.h
 GNCENC  := $(OBJDIR)/common.o $(OBJDIR)/bipartite.o $(OBJDIR)/sncEncoder.o $(OBJDIR)/galois.o $(OBJDIR)/gaussian.o
 RECODER := $(OBJDIR)/sncRecoder.o 
 DECODER := $(OBJDIR)/sncDecoder.o
@@ -46,11 +46,12 @@ GGDEC   := $(OBJDIR)/decoderGG.o
 OADEC   := $(OBJDIR)/decoderOA.o $(OBJDIR)/pivoting.o
 BDDEC   := $(OBJDIR)/decoderBD.o $(OBJDIR)/pivoting.o
 CBDDEC  := $(OBJDIR)/decoderCBD.o
+PPDEC   := $(OBJDIR)/decoderPP.o
 
 .PHONY: all
 all: sncDecoder sncDecoderFile sncRecoder2Hop sncRestore
 
-libsparsenc.so: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC) $(RECODER) $(DECODER)
+libsparsenc.so: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC) $(PPDEC) $(RECODER) $(DECODER)
 	$(CC) -shared -o libsparsenc.so $^
 	
 #Test snc decoder
@@ -68,13 +69,19 @@ sncDecodersFile: libsparsenc.so test.file.decoders.c
 #Test recoder
 sncRecoder2Hop: libsparsenc.so test.2hopRecoder.c
 	$(CC) -L. -lsparsenc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+#Test recoder
+sncRecoder-n-Hop: libsparsenc.so test.nhopRecoder.c
+	$(CC) -L. -lsparsenc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+#Test recoder
+sncRecoderFly: libsparsenc.so test.butterfly.c
+	$(CC) -L. -lsparsenc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 
 $(OBJDIR)/%.o: $(OBJDIR)/%.c $(DEFS)
 	$(CC) -c -fpic -o $@ $< $(CFLAGS0) $(CFLAGS1) $(CFLAGS2)
 
 .PHONY: clean
 clean:
-	rm -f *.o $(OBJDIR)/*.o libsparsenc.so sncDecoders sncDecoderST sncDecodersFile sncRecoder2Hop sncRestore
+	rm -f *.o $(OBJDIR)/*.o libsparsenc.so sncDecoders sncDecoderST sncDecodersFile sncRecoder2Hop sncRecoder-n-Hop sncRecoderFly sncRestore
 
 install: libsparsenc.so
 	cp include/sparsenc.h /usr/include/

@@ -5,6 +5,7 @@
 #include "decoderOA.h"
 #include "decoderBD.h"
 #include "decoderCBD.h"
+#include "decoderPP.h"
 #include "sparsenc.h"
 
 /* Definition of SNC decoder
@@ -47,6 +48,11 @@ struct snc_decoder *snc_create_decoder(struct snc_parameters *sp, int d_type)
         if (decoder->dec_ctx == NULL)
             goto failure;
         break;
+    case PP_DECODER:
+        decoder->dec_ctx = create_dec_context_PP(sp);
+        if (decoder->dec_ctx == NULL)
+            goto failure;
+        break;
     }
     return decoder;
 failure:
@@ -69,6 +75,9 @@ void snc_process_packet(struct snc_decoder *decoder, struct snc_packet *pkt)
     case CBD_DECODER:
         process_packet_CBD(((struct decoding_context_CBD *) decoder->dec_ctx), pkt);
         break;
+    case PP_DECODER:
+        process_packet_PP(((struct decoding_context_PP *) decoder->dec_ctx), pkt);
+        break;
     }
     return;
 }
@@ -84,6 +93,8 @@ int snc_decoder_finished(struct snc_decoder *decoder)
         return ((struct decoding_context_BD *) decoder->dec_ctx)->finished;
     case CBD_DECODER:
         return ((struct decoding_context_CBD *) decoder->dec_ctx)->finished;
+    case PP_DECODER:
+        return ((struct decoding_context_PP *) decoder->dec_ctx)->finished;
     }
     return 0;
 }
@@ -99,6 +110,8 @@ struct snc_context *snc_get_enc_context(struct snc_decoder *decoder)
         return ((struct decoding_context_BD *) decoder->dec_ctx)->sc;
     case CBD_DECODER:
         return ((struct decoding_context_CBD *) decoder->dec_ctx)->sc;
+    case PP_DECODER:
+        return ((struct decoding_context_PP *) decoder->dec_ctx)->sc;
     }
     return 0;
 }
@@ -123,6 +136,9 @@ double snc_decode_overhead(struct snc_decoder *decoder)
         break;
     case CBD_DECODER:
         ohs = ((struct decoding_context_CBD *) decoder->dec_ctx)->overhead;
+        break;
+    case PP_DECODER:
+        ohs = ((struct decoding_context_PP *) decoder->dec_ctx)->overhead;
         break;
     }
     return ((double) ohs / snum);
@@ -151,6 +167,9 @@ double snc_decode_cost(struct snc_decoder *decoder)
     case CBD_DECODER:
         ops = ((struct decoding_context_CBD *) decoder->dec_ctx)->operations;
         break;
+    case PP_DECODER:
+        ops = ((struct decoding_context_PP *) decoder->dec_ctx)->operations;
+        break;
     }
     return ((double) ops/snum/pktsize);
 }
@@ -172,6 +191,9 @@ void snc_free_decoder(struct snc_decoder *decoder)
     case CBD_DECODER:
         free_dec_context_CBD(((struct decoding_context_CBD *) decoder->dec_ctx));
         break;
+    case PP_DECODER:
+        free_dec_context_PP(((struct decoding_context_PP *) decoder->dec_ctx));
+        break;
     }
     decoder->dec_ctx = NULL;
     free(decoder);
@@ -191,6 +213,8 @@ long snc_save_decoder_context(struct snc_decoder *decoder, const char *filepath)
         return save_dec_context_BD((struct decoding_context_BD *) decoder->dec_ctx, filepath);
     case CBD_DECODER:
         return save_dec_context_CBD((struct decoding_context_CBD *) decoder->dec_ctx, filepath);
+    case PP_DECODER:
+        return save_dec_context_PP((struct decoding_context_PP *) decoder->dec_ctx, filepath);
     }
 }
 
@@ -225,6 +249,10 @@ struct snc_decoder *snc_restore_decoder(const char *filepath)
     case CBD_DECODER:
         decoder->dec_ctx = restore_dec_context_CBD(filepath);
         decoder->d_type = CBD_DECODER;
+        return decoder;
+    case PP_DECODER:
+        decoder->dec_ctx = restore_dec_context_PP(filepath);
+        decoder->d_type = PP_DECODER;
         return decoder;
     }
 }

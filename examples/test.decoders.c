@@ -9,7 +9,7 @@
 
 char usage[] = "usage: ./sncDecoder code_t dec_t datasize pcrate size_b size_g size_p bpc bnc sys\n\
                        code_t   - RAND, BAND, WINDWRAP\n\
-                       dec_t    - GG, OA, BD, CBD\n\
+                       dec_t    - GG, OA, BD, CBD, PP\n\
                        datasize - Number of bytes\n\
                        pcrate   - Precode rate (percentage of check packets)\n\
                        size_b   - Subgeneration distance\n\
@@ -45,6 +45,8 @@ int main(int argc, char *argv[])
         decoder_type = BD_DECODER;
     else if (strcmp(argv[2], "CBD") == 0)
         decoder_type = CBD_DECODER;
+    else if (strcmp(argv[2], "PP") == 0)
+        decoder_type = PP_DECODER;
     else {
         printf("%s\n", usage);
         exit(1);
@@ -117,8 +119,9 @@ int main(int argc, char *argv[])
         stop = clock();
         dtime += stop - start;
     }
+    //printf("clocks: %d CLOCKS_PER_SEC: %d \n", dtime, CLOCKS_PER_SEC);
 
-    printf("dec-time: %.2f ", ((double) dtime)/CLOCKS_PER_SEC);
+    printf("dec-time: %.6f ", ((double) dtime)/CLOCKS_PER_SEC);
 
     struct snc_context *dsc = snc_get_enc_context(decoder);
     unsigned char *rec_buf = snc_recover_data(dsc);

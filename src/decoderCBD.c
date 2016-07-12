@@ -27,7 +27,7 @@ struct decoding_context_CBD *create_dec_context_CBD(struct snc_parameters *sp)
     // sc->pp will be filled by decoded packets
     int niv = 0;
     if (sp->type != BAND_SNC) {
-        fprintf(stderr, "Band decoder only applies to band GNC code. Fallback to naive mode for non-band codes.\n");
+        fprintf(stdout, "WARNING: Band decoder only applies to band GNC code. Fallback to naive mode for non-band codes.\n");
         niv = 1;
     }
 

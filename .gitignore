@@ -6,6 +6,7 @@
 *.so
 *.mp3
 *.out
+*.dat
 *.example
 *.pyc
 __pycache__

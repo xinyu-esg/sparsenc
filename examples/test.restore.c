@@ -8,7 +8,7 @@
 
 char usage[] = "usage: ./restoreDecoders code_t dec_t datasize pcrate size_b size_g size_p bpc bnc sys\n\
                        code_t   - RAND, BAND, WINDWRAP\n\
-                       dec_t    - GG, OA, BD, CBD\n\
+                       dec_t    - GG, OA, BD, CBD, PP\n\
                        datasize - Number of bytes\n\
                        pcrate   - Precode rate (percentage of check packets)\n\
                        size_b   - Subgeneration distance\n\
@@ -44,6 +44,8 @@ int main(int argc, char *argv[])
         decoder_type = BD_DECODER;
     else if (strcmp(argv[2], "CBD") == 0)
         decoder_type = CBD_DECODER;
+    else if (strcmp(argv[2], "PP") == 0)
+        decoder_type = PP_DECODER;
     else {
         printf("%s\n", usage);
         exit(1);
@@ -94,7 +96,7 @@ int main(int argc, char *argv[])
     }
     snc_free_decoder(decoder);
 
-    decoder = snc_restore_decoder("CBDdecoder.part");
+    decoder = snc_restore_decoder("decoder.part");
 
     while (snc_decoder_finished(decoder) != 1) {
         struct snc_packet *pkt = snc_generate_packet(sc);

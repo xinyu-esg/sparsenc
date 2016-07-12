@@ -9,10 +9,11 @@ BAND_SNC = 1
 RLNC = 9
 
 # decoder types
-GG_DECODER = 0
-OA_DECODER = 1
-BD_DECODER = 2
+GG_DECODER  = 0
+OA_DECODER  = 1
+BD_DECODER  = 2
 CBD_DECODER = 3
+PP_DECODER  = 4
 
 # scheduling algorithm of recoder
 TRIV_SCHED = 0

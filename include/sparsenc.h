@@ -25,6 +25,7 @@ typedef unsigned char GF_ELEMENT;
 #define OA_DECODER  1
 #define BD_DECODER  2
 #define CBD_DECODER 3
+#define PP_DECODER 4
 
 /*
  * Type of scheduling algorithms for SNC recoding
