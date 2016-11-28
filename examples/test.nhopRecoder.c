@@ -16,7 +16,7 @@ char usage[] = "Simulate n-hop lossy line networks\n\
                                      nhop R1 R2 ... pe1 pe2 ...\n\
                 code_t  - code type: RAND, BAND, WINDWRAP\n\
                 dec_t   - decoder type: GG, OA, BD, CBD\n\
-                sched_t - scheduling type: TRIV, RAND, MLPI, NURAND\n\
+                sched_t - scheduling type: TRIV, RAND, RANDSYS, MLPI, MLPISYS, NURAND\n\
                 datasize - bytes of data to send\n\
                 pcrate   - fraction of parity-check packets of precode\n\
                 size_b   - base subgeneration size\n\
@@ -33,7 +33,7 @@ char usage[] = "Simulate n-hop lossy line networks\n\
                            or 1 which corresponds to the homogeneous case (all hops have the same erausre rate)\n";
 int main(int argc, char *argv[])
 {
-    if (argc < 15 || (argc != 16 && argc != 14+atoi(argv[13])*2)) {
+    if (argc < 15 || (argc != 16 && argc != 15 + atoi(argv[13]) && argc != 14+atoi(argv[13])*2)) {
         printf("%s\n", usage);
         exit(1);
     }
@@ -58,6 +58,8 @@ int main(int argc, char *argv[])
         decoder_t = BD_DECODER;
     else if (strcmp(argv[2], "CBD") == 0)
         decoder_t = CBD_DECODER;
+    else if (strcmp(argv[2], "PP") == 0)
+        decoder_t = PP_DECODER;
     else {
         printf("%s\n", usage);
         exit(1);
@@ -68,8 +70,12 @@ int main(int argc, char *argv[])
         sched_t = TRIV_SCHED;
     else if (strcmp(argv[3], "RAND") == 0)
         sched_t = RAND_SCHED;
+    else if (strcmp(argv[3], "RANDSYS") == 0)
+        sched_t = RAND_SCHED_SYS;
     else if (strcmp(argv[3], "MLPI") == 0)
         sched_t = MLPI_SCHED;
+    else if (strcmp(argv[3], "MLPISYS") == 0)
+        sched_t = MLPI_SCHED_SYS;
     else if (strcmp(argv[3], "NURAND") == 0)
         sched_t = NURAND_SCHED;
     else {
@@ -92,8 +98,19 @@ int main(int argc, char *argv[])
     double *pe  = malloc(sizeof(double) * numhop);
     int i, j;
     for (i=0; i<numhop; i++) {
-        rate[i] = argc == 16 ? atoi(argv[14]) : atoi(argv[14+i]);
-        pe[i]   = argc == 16 ? atof(argv[15]) : atof(argv[14+numhop+i]);
+        if (argc == 16) {
+            rate[i] = atoi(argv[14]);
+            pe[i] = atoi(argv[15]);
+        } else if (argc == 14 + atoi(argv[13]) + 1 && atof(argv[15]) >= 1) {
+            rate[i] = atoi(argv[14+i]);
+            pe[i] = atof(argv[14+numhop]);
+        } else if (argc == 14 + atoi(argv[13]) + 1 && atof(argv[15]) < 1) {
+            rate[i] = atoi(argv[14]);
+            pe[i] = atof(argv[15+i]);        
+        } else {
+            rate[i] = atoi(argv[14+i]);
+            pe[i]   = atof(argv[14+numhop+i]);
+        }
     }
 
     char *ur = getenv("SNC_NONUNIFORM_RAND");

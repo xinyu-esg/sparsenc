@@ -25,7 +25,7 @@ typedef unsigned char GF_ELEMENT;
 #define OA_DECODER  1
 #define BD_DECODER  2
 #define CBD_DECODER 3
-#define PP_DECODER 4
+#define PP_DECODER  4
 
 /*
  * Type of scheduling algorithms for SNC recoding
@@ -35,13 +35,17 @@ typedef unsigned char GF_ELEMENT;
  */
 #define TRIV_SCHED      0
 #define RAND_SCHED      1
-#define MLPI_SCHED      2
-#define NURAND_SCHED    3
+#define RAND_SCHED_SYS  2
+#define MLPI_SCHED      3
+#define MLPI_SCHED_SYS  4
+#define NURAND_SCHED    5
 
 struct snc_context;     // Sparse network code encode context
 
 struct snc_packet {
     int         gid;    // subgeneration id;
+    int         ucid;   // it's an uncoded packet of THE GENERATION 
+                        // (note: not the packet index; -1 if it's coded)
     GF_ELEMENT  *coes;  // SIZE_G coding coefficients of coded packet
     GF_ELEMENT  *syms;  // SIZE_P symbols of coded packet
 };

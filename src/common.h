@@ -98,9 +98,12 @@ struct snc_buffer {
     int                    size;    // Number of bufferred packets of each subgeneration
     int                    nemp;    // Number of non-empty subgeneration buffers
     struct snc_packet   ***gbuf;    // Pointers to subgeneration buffers
-    int                   *nc;      // Number of currently buffered packets
+    int                   *nc;      // Number of currently buffered packets of each generation
     int                   *pn;      // Positions to store next packet of each subgeneration
     int                   *nsched;  // Number of scheduled times of each subgeneration
+    // This is used during systematic scheduling
+    int                   *prevuc;    // position of last scheduled uncoded packet
+    int                   *lastuc;  // position of last buffered uncoded packet
 };
 
 /* Row vector of a matrix */

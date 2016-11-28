@@ -532,6 +532,7 @@ struct snc_packet *snc_alloc_empty_packet(struct snc_parameters *sp)
     struct snc_packet *pkt = calloc(1, sizeof(struct snc_packet));
     if (pkt == NULL)
         return NULL;
+    pkt->ucid = -1;
     if (sp->bnc) {
         // For binary code, coding coefficients (bits) are condensed
         pkt->coes = calloc(ALIGN(sp->size_g, 8), sizeof(GF_ELEMENT));
@@ -604,6 +605,7 @@ static void encode_packet(struct snc_context *sc, int gid, struct snc_packet *pk
         }
         pktid = sc->gene[gid]->pktid[sc->nccount[gid]];
         memcpy(pkt->syms, sc->pp[pktid], sc->params.size_p*sizeof(GF_ELEMENT));
+        pkt->ucid = sc->nccount[gid];      // Mark the uncoded pkt, and store its index amongst the generation
         sc->nccount[gid] += 1;
         return;
     }
@@ -621,6 +623,7 @@ static void encode_packet(struct snc_context *sc, int gid, struct snc_packet *pk
         }
         galois_multiply_add_region(pkt->syms, sc->pp[pktid], co, sc->params.size_p);
     }
+    pkt->ucid = -1;
     sc->nccount[gid] += 1;
     return;
 }
@@ -686,10 +689,14 @@ void print_code_summary(struct snc_context *sc, double overhead, double operatio
             strcpy(typestr, "UNKNOWN");
     }
     char typestr2[20];
-    if (sc->params.bpc) {
-        strcpy(typestr2, "BinaryPrecode");
+    if (sc->params.pcrate == 0) {
+        strcpy(typestr2, "NoPrecode");
     } else {
-        strcpy(typestr2, "NonBinaryPrecode");
+        if (sc->params.bpc) {
+            strcpy(typestr2, "BinaryPrecode");
+        } else {
+            strcpy(typestr2, "NonBinaryPrecode");
+        }
     }
     char typestr3[20];
     if (sc->params.bnc) {
@@ -713,8 +720,8 @@ void print_code_summary(struct snc_context *sc, double overhead, double operatio
     printf("cnum: %d ", sc->cnum);
     printf("gnum: %d ", sc->gnum);
     if (operations != 0) {
-        printf("overhead: %.3f ", overhead);
-        printf("computation: %.2f\n", operations);
+        printf("overhead: %.6f ", overhead);
+        printf("computation: %.4f\n", operations);
     } else {
         printf("\n");
     }

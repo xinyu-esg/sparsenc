@@ -63,6 +63,18 @@ struct snc_buffer *snc_create_buffer(struct snc_parameters *sp, int bufsize)
         fprintf(stderr, "%s: calloc buf->nsched\n", fname);
         goto Error;
     }
+    if (sp->sys == 1) {
+        if ((buf->prevuc = malloc(buf->gnum*sizeof(int))) == NULL) {
+            fprintf(stderr, "%s: calloc buf->prevuc\n", fname);
+            goto Error;
+        }
+        memset(buf->prevuc, -1, buf->gnum*sizeof(int));
+        if ((buf->lastuc = malloc(buf->gnum*sizeof(int))) == NULL) {
+            fprintf(stderr, "%s: calloc buf->lastuc\n", fname);
+            goto Error;
+        }
+        memset(buf->lastuc, -1, buf->gnum*sizeof(int));
+    }
     return buf;
 
 Error:
@@ -99,10 +111,14 @@ void snc_buffer_packet(struct snc_buffer *buf, struct snc_packet *pkt)
         buf->gbuf[gid][buf->pn[gid]] = pkt;
         buf->nc[gid]++;
     }
+    if (pkt->ucid != -1)
+        buf->lastuc[gid] = buf->pn[gid];  // If this is an uncoded packet, record its location in buffer
     buf->pn[gid] = (buf->pn[gid] + 1) % buf->size;  //update position for next incoming packet
     return;
 }
 
+// FIXME: This function has not been revised accordingly after I introduced RAND_SYS and MLPI_SYS
+//        scheduling algorithms into sparsenc.
 struct snc_packet *snc_recode_packet(struct snc_buffer *buf, int sched_t)
 {
     int gid = schedule_recode_generation(buf, sched_t);
@@ -130,12 +146,20 @@ struct snc_packet *snc_recode_packet(struct snc_buffer *buf, int sched_t)
     return pkt;
 }
 
-int snc_recode_packet_im(struct snc_buffer *buf, struct snc_packet *pkt, int sched_t)
+int snc_recode_packet_im(struct snc_buffer *buf, struct snc_packet *pkt, int in_sched_t)
 {
+    int sched_t = in_sched_t;
+    if (buf->params.sys != 1) {
+        if (in_sched_t == RAND_SCHED_SYS)
+            sched_t = RAND_SCHED;
+        if (in_sched_t == MLPI_SCHED_SYS)
+            sched_t = MLPI_SCHED;
+    }
     int gid = schedule_recode_generation(buf, sched_t);
     if (gid == -1)
         return -1;
     pkt->gid = gid;
+    pkt->ucid = -1;
     // Clean up pkt
     if (buf->params.bnc) {
         memset(pkt->coes, 0, ALIGN(buf->params.size_g, 8)*sizeof(GF_ELEMENT));
@@ -143,6 +167,21 @@ int snc_recode_packet_im(struct snc_buffer *buf, struct snc_packet *pkt, int sch
         memset(pkt->coes, 0, buf->params.size_g*sizeof(GF_ELEMENT));
     }
     memset(pkt->syms, 0, sizeof(GF_ELEMENT)*buf->params.size_p);
+    if ((sched_t == RAND_SCHED_SYS || sched_t == MLPI_SCHED_SYS) && 
+            buf->prevuc[gid] != buf->lastuc[gid]) {
+        // There was a new uncoded packets received, forward it
+        // printf("Forwarding an uncoded packet...\n");
+        // printf("gid=%d, prevuc=%d, lastuc=%d, nccount=%d\n", gid, buf->prevuc[gid], buf->lastuc[gid], buf->nc[gid]);
+        pkt->ucid = buf->gbuf[gid][buf->lastuc[gid]]->ucid;
+        if (buf->params.bnc) {
+            memcpy(pkt->coes, buf->gbuf[gid][buf->lastuc[gid]]->coes, ALIGN(buf->params.size_g, 8)*sizeof(GF_ELEMENT));
+        } else {
+            memcpy(pkt->coes, buf->gbuf[gid][buf->lastuc[gid]]->coes, buf->params.size_g*sizeof(GF_ELEMENT));
+        }
+        memcpy(pkt->syms, buf->gbuf[gid][buf->lastuc[gid]]->syms, buf->params.size_p*sizeof(GF_ELEMENT));
+        buf->prevuc[gid] = buf->lastuc[gid];
+        return 0;
+    }
     GF_ELEMENT co = 0;
     for (int i=0; i<buf->nc[gid]; i++) {
         if (buf->params.bnc == 1) {
@@ -179,6 +218,10 @@ void snc_free_buffer(struct snc_buffer *buf)
         free(buf->pn);
     if (buf->nsched != NULL)
         free(buf->nsched);
+    if (buf->prevuc != NULL)
+        free(buf->prevuc);
+    if (buf->lastuc != NULL)
+        free(buf->lastuc);
     free(buf);
     buf = NULL;
     return;
@@ -196,7 +239,7 @@ static int schedule_recode_generation(struct snc_buffer *buf, int sched_t)
         return gid;
     }
 
-    if (sched_t == RAND_SCHED) {
+    if (sched_t == RAND_SCHED || sched_t == RAND_SCHED_SYS) {
         int index = rand() % buf->nemp;
         int i = -1;
         gid = 0;
@@ -208,7 +251,7 @@ static int schedule_recode_generation(struct snc_buffer *buf, int sched_t)
         return gid-1;
     }
 
-    if (sched_t == MLPI_SCHED) {
+    if (sched_t == MLPI_SCHED || sched_t == MLPI_SCHED_SYS) {
         gid = 0;
         int max = buf->nc[gid] - buf->nsched[gid];
         for (int j=0; j<buf->gnum; j++) {

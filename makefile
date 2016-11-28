@@ -11,6 +11,7 @@ INCLUDEDIR = include src
 INC_PARMS = $(INCLUDEDIR:%=-I%)
 
 UNAME := $(shell uname)
+CC := gcc
 ifeq ($(UNAME), Darwin)
 	SED = gsed
 	CC  = gcc-6
@@ -58,7 +59,7 @@ libsparsenc.so: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC) $(PPDEC) $(RECODE
 sncDecoders: libsparsenc.so test.decoders.c
 	$(CC) -L. -lsparsenc -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #Test snc decoder linked statically
-sncDecoderST: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC) $(RECODER) $(DECODER) test.decoders.c
+sncDecoderST: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC) $(PPDEC) $(RECODER) $(DECODER) test.decoders.c
 	$(CC) -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #Test snc store/restore decoder
 sncRestore: libsparsenc.so test.restore.c
@@ -72,6 +73,9 @@ sncRecoder2Hop: libsparsenc.so test.2hopRecoder.c
 #Test recoder
 sncRecoder-n-Hop: libsparsenc.so test.nhopRecoder.c
 	$(CC) -L. -lsparsenc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+#Test recoder, statically linked
+sncRecoder-n-Hop-ST: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC) $(PPDEC) $(RECODER) $(DECODER) test.nhopRecoder.c
+	$(CC) -o $@ $(CFLAGS0) $(CFLAGS1) $^
 #Test recoder
 sncRecoderFly: libsparsenc.so test.butterfly.c
 	$(CC) -L. -lsparsenc -o $@ $(CFLAGS0) $(CFLAGS1) $^

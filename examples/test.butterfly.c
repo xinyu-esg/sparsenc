@@ -21,7 +21,7 @@ char usage[] = "Simulate lossy butterfly networks:\n\
                                      size_b size_g size_p bpc bnc sys bufsize\n\
                                      pe1 pe2 ...\n\
                 code_t  - code type: RAND, BAND, WINDWRAP\n\
-                dec_t   - decoder type: GG, OA, BD, CBD\n\
+                dec_t   - decoder type: GG, OA, BD, CBD, PP\n\
                 sched_t - scheduling type: TRIV, RAND, MLPI, NURAND\n\
                 bpc      - Use binary precode (0 or 1)\n\
                 bnc      - Use binary network code (0 or 1)\n\
@@ -56,6 +56,8 @@ int main(int argc, char *argv[])
         decoder_t = BD_DECODER;
     else if (strcmp(argv[2], "CBD") == 0)
         decoder_t = CBD_DECODER;
+    else if (strcmp(argv[2], "PP") == 0)
+        decoder_t = PP_DECODER;
     else {
         printf("%s\n", usage);
         exit(1);
