@@ -11,17 +11,17 @@ char usage[] = "Simulate n-hop lossy line networks\n\
                 \n\
                 S ---R1(1-pe_1)---> V1 ---R2(1-pe_2)---> ... ---Rn(1-pe_n)---> D\n\
                 \n\
-                usage: ./programName code_t dec_t sched_t datasize pcrate\n\
-                                     size_b size_g size_p bpc bnc sys bufsize\n\
+                usage: ./programName code_t dec_t sched_t datasize size_p size_c\n\
+                                     size_b size_g bpc bnc sys bufsize\n\
                                      nhop R1 R2 ... pe1 pe2 ...\n\
                 code_t  - code type: RAND, BAND, WINDWRAP\n\
                 dec_t   - decoder type: GG, OA, BD, CBD\n\
                 sched_t - scheduling type: TRIV, RAND, RANDSYS, MLPI, MLPISYS, NURAND\n\
                 datasize - bytes of data to send\n\
-                pcrate   - fraction of parity-check packets of precode\n\
+                size_p   - packet size (in bytes)\n\
+                size_c   - number of parity-check packets of precode\n\
                 size_b   - base subgeneration size\n\
                 size_g   - subgeneration size (after adding overlap)\n\
-                size_p   - packet size (in bytes)\n\
                 bpc      - Use binary precode (0 or 1)\n\
                 bnc      - Use binary network code (0 or 1)\n\
                 sys      - Systematic code (0 or 1)\n\
@@ -84,10 +84,10 @@ int main(int argc, char *argv[])
     }
 
     sp.datasize = atoi(argv[4]);
-    sp.pcrate   = atof(argv[5]);
-    sp.size_b   = atoi(argv[6]);
-    sp.size_g   = atoi(argv[7]);
-    sp.size_p   = atoi(argv[8]);
+    sp.size_p   = atof(argv[5]);
+    sp.size_c   = atoi(argv[6]);
+    sp.size_b   = atoi(argv[7]);
+    sp.size_g   = atoi(argv[8]);
     sp.bpc      = atoi(argv[9]);
     sp.bnc      = atoi(argv[10]);
     sp.sys      = atoi(argv[11]);

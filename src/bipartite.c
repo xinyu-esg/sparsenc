@@ -15,22 +15,6 @@
 static int is_prime(int number);
 static int include_left_node(int l_index, int r_index, BP_graph *graph);
 
-// The number of required LDPC check symbols given the number of source packets.
-int number_of_checks(int snum, double r)
-{
-    if (r == 0)
-        return (0);
-    int x = (int) floor( sqrt( 2 * snum ) );
-    while ( x * (x - 1) < 2 * snum )
-        x++;
-
-    int c = (int) ceil( r * snum ) + x; // In Raptor code r=0.01
-    while ( !is_prime(c) )
-        c++;
-
-    return c;
-}
-
 // construct LDPC graph
 int create_bipartite_graph(BP_graph *graph, int nleft, int nright)
 {
@@ -178,12 +162,3 @@ void free_bipartite_graph(BP_graph *graph)
     free(graph);
 }
 
-static int is_prime(int number)
-{
-    int i;
-    for (i=2; i*i<=number; i++) {
-        if (number % i == 0)
-            return 0;
-    }
-    return 1;
-}

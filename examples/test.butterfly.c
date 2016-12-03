@@ -17,12 +17,17 @@ char usage[] = "Simulate lossy butterfly networks:\n\
                     B-----------------(R2) \n\
                 We only need to simulate for R1. Transmissions on B->R2 and D->R2 are omitted.\n\
                 \n\
-                usage: ./programName code_t dec_t sched_t datasize pcrate\n\
-                                     size_b size_g size_p bpc bnc sys bufsize\n\
+                usage: ./programName code_t dec_t sched_t datasize size_p\n\
+                                     size_c size_b size_g bpc bnc sys bufsize\n\
                                      pe1 pe2 ...\n\
                 code_t  - code type: RAND, BAND, WINDWRAP\n\
                 dec_t   - decoder type: GG, OA, BD, CBD, PP\n\
                 sched_t - scheduling type: TRIV, RAND, MLPI, NURAND\n\
+                datasize - Number of bytes\n\
+                size_p   - Packet size in bytes\n\
+                size_c   - Nnumebr of check packets\n\
+                size_b   - Subgeneration distance\n\
+                size_g   - Subgeneration size\n\
                 bpc      - Use binary precode (0 or 1)\n\
                 bnc      - Use binary network code (0 or 1)\n\
                 sys      - Systematic code (0 or 1)\n\
@@ -78,10 +83,10 @@ int main(int argc, char *argv[])
     }
 
     sp.datasize = atoi(argv[4]);
-    sp.pcrate   = atof(argv[5]);
-    sp.size_b   = atoi(argv[6]);
-    sp.size_g   = atoi(argv[7]);
-    sp.size_p   = atoi(argv[8]);
+    sp.size_p   = atoi(argv[5]);
+    sp.size_c   = atoi(argv[6]);
+    sp.size_b   = atoi(argv[7]);
+    sp.size_g   = atoi(argv[8]);
     sp.bpc      = atoi(argv[9]);
     sp.bnc      = atoi(argv[10]);
     sp.sys      = atoi(argv[11]);

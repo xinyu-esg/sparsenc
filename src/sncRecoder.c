@@ -22,17 +22,8 @@ struct snc_buffer *snc_create_buffer(struct snc_parameters *sp, int bufsize)
     // determine number of generations with sp
     int num_src = ALIGN(buf->params.datasize, buf->params.size_p);
     buf->snum = num_src;
-    int num_chk;
-    // FIXME: such env variables should be contained in snc_parameters because
-    // the settings need to be delivered to network codes in reality. For simulations
-    // in which source and intermediate nodes usually are on the same host, in the same
-    // process, using env variables is OK.
-    char *pc = getenv("SNC_PRECISE_CHECK");
-    if ( pc != NULL && atoi(pc) == 1)
-        num_chk = (int) ceil(num_src * buf->params.pcrate);
-    else
-        num_chk = number_of_checks(num_src, buf->params.pcrate);
-    buf->cnum = num_chk;
+    int num_chk = sp->size_c;
+    buf->cnum = sp->size_c;
     if (buf->params.type == BAND_SNC)
         buf->gnum  = ALIGN((num_src+num_chk-buf->params.size_g), buf->params.size_b) + 1;
     else

@@ -45,10 +45,10 @@ struct snc_context *snc_create_enc_context(unsigned char *buf, struct snc_parame
         return NULL;
     }
     sc->params.datasize = sp->datasize;
-    sc->params.pcrate   = sp->pcrate;
+    sc->params.size_p   = sp->size_p;
+    sc->params.size_c   = sp->size_c;
     sc->params.size_b   = sp->size_b;
     sc->params.size_g   = sp->size_g;
-    sc->params.size_p   = sp->size_p;
     sc->params.type     = sp->type;
     sc->params.bpc      = sp->bpc;
     sc->params.bnc      = sp->bnc;
@@ -72,19 +72,7 @@ struct snc_context *snc_create_enc_context(unsigned char *buf, struct snc_parame
     sp->seed = sc->params.seed;  // set seed in the passed-in argument as well
     // Determine packet and generation numbers
     int num_src = ALIGN(sc->params.datasize, sc->params.size_p);
-    int num_chk;
-    char *pc = getenv("SNC_PRECISE_CHECK");
-    if ( pc != NULL && atoi(pc) == 1) {
-        // Use precise number of check packets
-        // The env variable should ONLY be used for internal simulations.
-        num_chk = (int) ceil(num_src * sc->params.pcrate);
-    } else {
-        // Use raptor code's parameter where num_chk is the smallest prime
-        // greater than or equal to ceil(pcrate * num_src) + X where X is the
-        // smallest integer such that X(X-1) >= 2 * num_src. Raptor's pcrate
-        // is always 0.01.
-        num_chk = number_of_checks(num_src, sc->params.pcrate);
-    }
+    int num_chk = sp->size_c;
     sc->snum  = num_src;  // Number of source packets
     sc->cnum  = num_chk;  // Number of check packets
     if (sc->params.type == BAND_SNC) {
@@ -689,7 +677,7 @@ void print_code_summary(struct snc_context *sc, double overhead, double operatio
             strcpy(typestr, "UNKNOWN");
     }
     char typestr2[20];
-    if (sc->params.pcrate == 0) {
+    if (sc->params.size_c == 0) {
         strcpy(typestr2, "NoPrecode");
     } else {
         if (sc->params.bpc) {
@@ -711,13 +699,12 @@ void print_code_summary(struct snc_context *sc, double overhead, double operatio
         strcpy(typestr4, "NonSystematic");
     }
     printf("datasize: %d ", sc->params.datasize);
-    printf("precode: %.6f ", sc->params.pcrate);
+    printf("size_p: %d ", sc->params.size_p);
+    printf("snum: %d ", sc->snum);
+    printf("size_c: %d ", sc->params.size_c);
     printf("size_b: %d ", sc->params.size_b);
     printf("size_g: %d ", sc->params.size_g);
-    printf("size_p: %d ", sc->params.size_p);
     printf("type: [%s::%s::%s::%s] ", typestr, typestr2, typestr3, typestr4);
-    printf("snum: %d ", sc->snum);
-    printf("cnum: %d ", sc->cnum);
     printf("gnum: %d ", sc->gnum);
     if (operations != 0) {
         printf("overhead: %.6f ", overhead);

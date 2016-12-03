@@ -7,7 +7,7 @@
 #include <string.h>
 #include "sparsenc.h"
 
-char usage[] = "usage: ./programName code_t dec_t datasize pcrate size_b size_g size_p filename\n\
+char usage[] = "usage: ./programName code_t dec_t chunksize size_p size_c size_b size_g filename\n\
                        code_t - RAND, BAND, WINDWRAP\n\
                        dec_t  - GG, OA, BD, CBD\n";
 int main(int argc, char *argv[])
@@ -42,15 +42,15 @@ int main(int argc, char *argv[])
         exit(1);
     }
     sp.datasize = atoi(argv[3]);
-    sp.pcrate   = atof(argv[4]);
-    sp.size_b   = atoi(argv[5]);
-    sp.size_g   = atoi(argv[6]);
-    sp.size_p   = atoi(argv[7]);
+    sp.size_p   = atoi(argv[4]);
+    sp.size_c   = atoi(argv[5]);
+    sp.size_b   = atoi(argv[6]);
+    sp.size_g   = atoi(argv[7]);
+    char *filename = argv[8];
     sp.bpc      = 0;
     sp.bnc      = 0;
-    sp.sys      = atoi(argv[10]);
+    sp.sys      = 0;
     sp.seed     = -1;  // Initialize seed as -1
-    char *filename = argv[8];
     char *copyname = calloc(strlen(argv[8])+strlen(".dec.copy")+1, sizeof(char));
     strcat(copyname, filename);
     strcat(copyname, ".dec.copy");

@@ -1,6 +1,6 @@
 # This file wraps APIs from libspasenc.so in Python
 from __future__ import division
-from math import ceil
+from math import floor, ceil, sqrt
 # from ctypes import *
 from ctypes import cdll, c_int, c_ubyte, c_double, c_long, c_longlong, c_char_p, POINTER, sizeof, byref, cast, memmove, Structure
 # code types
@@ -65,10 +65,10 @@ class snc_packet(Structure):
 
 class snc_parameters(Structure):
     _fields_ = [("datasize", c_long),
-                ("pcrate", c_double),
+                ("size_p", c_int),
+                ("size_c", c_int),
                 ("size_b", c_int),
                 ("size_g", c_int),
-                ("size_p", c_int),
                 ("type",   c_int),
                 ("bpc",    c_int),
                 ("bnc",    c_int),
@@ -172,3 +172,32 @@ snc.snc_recode_packet_im.restype = c_int
 
 snc.snc_free_buffer.argtypes = [POINTER(snc_buffer)]
 snc.snc_free_buffer.restype = None
+
+################################
+# Utility functions            #
+################################
+def source_num(datasize, pktsize):
+    return ceil(datasize/pktsize)  #Note: Python 3.x only
+
+def isPrime(n):
+    n = abs(int(n))
+    if n < 2:
+        return False
+    if n == 2:
+        return True
+    if not n & 1:
+        return False
+    for x in range(3, int(n**0.5)+1, 2):
+        if n % x == 0:
+            return False
+    return True
+
+def LDPC_check_num(n, rate):
+    X = floor(sqrt(2 * n))
+    while X*(X-1) < 2*n:
+        X = X + 1
+    S = ceil(rate * n) + X
+    while not isPrime(S):
+        S = S + 1
+    return S
+

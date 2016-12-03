@@ -53,10 +53,10 @@ struct snc_packet {
 // SNC parameters for the data to be snc-coded
 struct snc_parameters {
     long    datasize;   // Data size in bytes.
-    double  pcrate;     // precode rate
+    int     size_p;     // packet size (in bytes)
+    int     size_c;     // number of parity-check
     int     size_b;
     int     size_g;
-    int     size_p;
     int     type;       // Code type
     int     bpc;        // binary precode
     int     bnc;        // binary network coding

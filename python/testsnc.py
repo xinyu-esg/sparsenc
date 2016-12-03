@@ -45,7 +45,7 @@ if not os.path.isfile(filename):
 copyname = filename + '.dec.copy'
 if os.path.isfile(copyname):
     print("%s is already exist, delete it first" % (copyname))
-    os.remove(copyname) 
+    os.remove(copyname)
 
 #filename = filename.encode('UTF-8') # byte string literal for compatibility in Python 3.x
 statinfo = os.stat(filename)
@@ -61,7 +61,8 @@ while chunks > 0:
         toEncode = datasize
     else:
         toEncode = remaining
-    sp = snc_parameters(toEncode, 0.01, 32, 64, 1280, c_type, 1, 1, 0, -1)
+    cnum = LDPC_check_num(source_num(toEncode, 1280), 0.01)
+    sp = snc_parameters(toEncode, 1280, cnum, 32, 64, c_type, 1, 1, 0, -1)
     sc = snc.snc_create_enc_context(None, byref(sp))
     snc.snc_load_file_to_context(c_char_p(filename.encode()),
                                  offset, sc)  # Load file to snc_context

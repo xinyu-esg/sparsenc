@@ -6,14 +6,14 @@
 #include <string.h>
 #include "sparsenc.h"
 
-char usage[] = "usage: ./restoreDecoders code_t dec_t datasize pcrate size_b size_g size_p bpc bnc sys\n\
+char usage[] = "usage: ./restoreDecoders code_t dec_t datasize size_p size_c size_b size_g size_p bpc bnc sys\n\
                        code_t   - RAND, BAND, WINDWRAP\n\
                        dec_t    - GG, OA, BD, CBD, PP\n\
                        datasize - Number of bytes\n\
-                       pcrate   - Precode rate (percentage of check packets)\n\
+                       size_p   - Packet size in bytes\n\
+                       size_c   - Number of check packets\n\
                        size_b   - Subgeneration distance\n\
                        size_g   - Subgeneration size\n\
-                       size_p   - Packet size in bytes\n\
                        bpc      - Use binary precode (0 or 1)\n\
                        bnc      - Use binary network code (0 or 1)\n\
                        sys      - Systematic code (0 or 1)\n";
@@ -51,10 +51,10 @@ int main(int argc, char *argv[])
         exit(1);
     }
     sp.datasize = atoi(argv[3]);
-    sp.pcrate   = atof(argv[4]);
-    sp.size_b   = atoi(argv[5]);
-    sp.size_g   = atoi(argv[6]);
-    sp.size_p   = atoi(argv[7]);
+    sp.size_p   = atof(argv[4]);
+    sp.size_c   = atoi(argv[5]);
+    sp.size_b   = atoi(argv[6]);
+    sp.size_g   = atoi(argv[7]);
     sp.bpc      = atoi(argv[8]);
     sp.bnc      = atoi(argv[9]);
     sp.sys      = atoi(argv[10]);

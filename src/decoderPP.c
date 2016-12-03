@@ -16,7 +16,7 @@ struct decoding_context_PP *create_dec_context_PP(struct snc_parameters *sp)
     static char fname[] = "snc_create_dec_context_CBD";
     int i, j, k;
 
-    if (sp->type != WINDWRAP_SNC || sp->pcrate != 0) {
+    if (sp->type != WINDWRAP_SNC || sp->size_c != 0) {
         fprintf(stdout, "WARNING: PP decoder only applies to perpetual codes.\n");
         exit(1);
     }
