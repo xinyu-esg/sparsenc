@@ -40,7 +40,7 @@ vpath %.h src include
 vpath %.c src examples
 
 DEFS    := sparsenc.h common.h galois.h decoderGG.h decoderOA.h decoderBD.h decoderCBD.h decoderPP.h
-GNCENC  := $(OBJDIR)/common.o $(OBJDIR)/bipartite.o $(OBJDIR)/sncEncoder.o $(OBJDIR)/galois.o $(OBJDIR)/gaussian.o
+GNCENC  := $(OBJDIR)/common.o $(OBJDIR)/bipartite.o $(OBJDIR)/sncEncoder.o $(OBJDIR)/galois.o $(OBJDIR)/gaussian.o $(OBJDIR)/mt19937ar.o
 RECODER := $(OBJDIR)/sncRecoder.o 
 DECODER := $(OBJDIR)/sncDecoder.o
 GGDEC   := $(OBJDIR)/decoderGG.o 

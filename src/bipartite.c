@@ -44,17 +44,17 @@ int create_bipartite_graph(BP_graph *graph, int nleft, int nright)
 
     char *hdpc = getenv("SNC_PRECODE");
     if (hdpc != NULL && strcmp(hdpc, "HDPC") == 0) {
-        // A reference bipartite graph, which is much highly dense. This is only used 
+        // A reference bipartite graph, which is highly dense. This is only used 
         // when SNC_PRECODE env var is set to HDPC. The env var is ONLY for development
         // and testing use.
         for (i=0; i<S; i++) {
             for (j=0; j<LDPC_SYS; j++) {
                 int included = 1;
                 if (graph->binaryce == 1) {
-                    if (snc_rand() % 2 == 0)
+                    if (genrand_int32() % 2 == 0)
                         included = 0;
                 } else {
-                    if (snc_rand() % 256 == 0)
+                    if (genrand_int32() % 256 == 0)
                         included = 0;
                 }
                 if (included) {
@@ -117,12 +117,18 @@ failure:
 // include left node index in the LDPC graph
 static int include_left_node(int l_index, int r_index, BP_graph *graph)
 {
+    // Skip if the two nodes are already neighbors
+    // Note: a good ``bipartitin'' algorithm should not get into such 
+    // trouble. This is included just in case we needed to test/experiment
+    // different bipartite creating methods.
+    if (exist_in_list(graph->l_nbrs_of_r[r_index], l_index))
+        return 0;
     // Coding coefficient associated with the edge
     GF_ELEMENT ce;
     if (graph->binaryce == 1) {
         ce = 1;
     } else {
-        ce = (GF_ELEMENT) (snc_rand() % 255 + 1); // Value range: [1-255]
+        ce = (GF_ELEMENT) (genrand_int32() % 255 + 1); // Value range: [1-255]
     }
     // Record neighbor of a right-side node
     NBR_node *nb = calloc(1, sizeof(NBR_node));

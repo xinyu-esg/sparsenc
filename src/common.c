@@ -172,10 +172,6 @@ return;
 */
 
 /*
- * This is the pseudo-random number generator used by
- *   1) grouping of generations in RAND codes
- *   2) precoding coefficients of GF(256) precodes
- */
 static unsigned long int next = 1;
 int snc_rand(void)
 {
@@ -187,3 +183,4 @@ void snc_srand(unsigned int seed)
 {
     next = seed;
 }
+*/

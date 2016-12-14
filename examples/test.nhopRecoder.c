@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
     for (i=0; i<numhop; i++) {
         if (argc == 16) {
             rate[i] = atoi(argv[14]);
-            pe[i] = atoi(argv[15]);
+            pe[i] = atof(argv[15]);
         } else if (argc == 14 + atoi(argv[13]) + 1 && atof(argv[15]) >= 1) {
             rate[i] = atoi(argv[14+i]);
             pe[i] = atof(argv[14+numhop]);

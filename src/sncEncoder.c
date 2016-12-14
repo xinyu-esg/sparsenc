@@ -68,7 +68,7 @@ struct snc_context *snc_create_enc_context(unsigned char *buf, struct snc_parame
         gettimeofday(&tv, NULL);
         sc->params.seed = tv.tv_sec * 1000 + tv.tv_usec / 1000; // seed use microsec
     }
-    snc_srand(sc->params.seed);
+    init_genrand(sc->params.seed);
     sp->seed = sc->params.seed;  // set seed in the passed-in argument as well
     // Determine packet and generation numbers
     int num_src = ALIGN(sc->params.datasize, sc->params.size_p);
@@ -420,16 +420,16 @@ static int group_packets_rand(struct snc_context *sc)
             index = (i * sc->params.size_b + j) % num_p;  // source packet index
 
             while (has_item(sc->gene[i]->pktid, index, j) != -1)
-                index = snc_rand() % num_p;
+                index = genrand_int32() % num_p;
             sc->gene[i]->pktid[j] = index;
             selected[index] += 1;
         }
 
         // fill in the rest of the generation with packets from other generations
         for (j=sc->params.size_b; j<sc->params.size_g; j++) {
-            index = snc_rand() % num_p;
+            index = genrand_int32() % num_p;
             while (has_item(sc->gene[i]->pktid, index, j) != -1) {
-                index = snc_rand() % num_p;
+                index = genrand_int32() % num_p;
             }
             sc->gene[i]->pktid[j] = index;
             selected[index] += 1;

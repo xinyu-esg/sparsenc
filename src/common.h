@@ -125,10 +125,13 @@ void clear_list(struct node_list *list);
 void free_list(struct node_list *list);
 unsigned char get_bit_in_array(unsigned char *coes, int i);
 void set_bit_in_array(unsigned char *coes, int i);
-int snc_rand(void);
-void snc_srand(unsigned int seed);
+//int snc_rand(void);
+//void snc_srand(unsigned int seed);
 /* bipartite.c */
 int number_of_checks(int snum, double r);
 int create_bipartite_graph(BP_graph *graph, int nleft, int nright);
 void free_bipartite_graph(BP_graph *graph);
+// mt19937ar.c
+void init_genrand(unsigned long s);
+unsigned long genrand_int32(void);
 #endif /* COMMON_H */
