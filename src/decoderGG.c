@@ -356,6 +356,10 @@ static void new_decoded_source_packet(struct decoding_context_GG *dec_ctx, int p
      * If the decoded packet comes from generations is an original source packet
      * i.e., 0<= index < NUM_SRC, back substitute into those known LDPC check packets
      */
+    if (dec_ctx->sc->graph == NULL) {
+        //no precode
+        return;
+    }
     NBR_node *nb = dec_ctx->sc->graph->r_nbrs_of_l[pkt_id]->first;
     while (nb != NULL) {
         int check_id = nb->data;

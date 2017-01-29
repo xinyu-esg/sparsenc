@@ -67,6 +67,7 @@ struct snc_context {
     struct  bipartite_graph  *graph;
     GF_ELEMENT              **pp;       // Pointers to precoded source packets
     int                      *nccount;  // Count of coded packets generated from each subgeneration
+    int                       count;    // Count of total coded packets generated
 };
 
 
@@ -89,6 +90,12 @@ struct snc_context {
  *            .
  *            .
  *            .
+ *
+ * Systematic packet buffer (systematic code)
+ *        snc_packet
+ *             ^
+ *             |
+ * sysbuf[0] sysbuf[1] sysbuf[2] ... 
  */
 struct snc_buffer {
     struct snc_parameters  params;  // Meta info of the code
@@ -102,8 +109,11 @@ struct snc_buffer {
     int                   *pn;      // Positions to store next packet of each subgeneration
     int                   *nsched;  // Number of scheduled times of each subgeneration
     // This is used during systematic scheduling
-    int                   *prevuc;    // position of last scheduled uncoded packet
-    int                   *lastuc;  // position of last buffered uncoded packet
+    //int                   *prevuc;    // position of last scheduled uncoded packet
+    //int                   *lastuc;  // position of last buffered uncoded packet
+    struct snc_packet    **sysbuf;   // Buffered uncoded packet (needed for systematic code)
+    int                    sysnum;  // number of buffered systematic packet
+    int                    sysptr;  // pointer of already scheduled systematic packet
 };
 
 /* Row vector of a matrix */

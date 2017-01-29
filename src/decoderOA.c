@@ -42,6 +42,8 @@ extern long long back_substitute(int nrow, int ncolA, int ncolB, GF_ELEMENT **A,
 extern long pivot_matrix_oneround(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int **ctoo_r, int **ctoo_c, int *inactives);
 extern long pivot_matrix_tworound(int nrow, int ncolA, int ncolB, GF_ELEMENT **A, GF_ELEMENT **B, int **ctoo_r, int **ctoo_c, int *inactives);
 
+static clock_t l_proc_start = 0;   // local processing start
+
 /*
  * snc_create_dec_context_OA
  * Create context for overlap-aware (OA) decoding
@@ -124,6 +126,9 @@ AllocError:
 
 void process_packet_OA(struct decoding_context_OA *dec_ctx, struct snc_packet *pkt)
 {
+    if (l_proc_start == 0) {
+        l_proc_start = clock();  // initialize timer
+    }
     dec_ctx->overhead += 1;
 
     int i, j, k;
@@ -178,19 +183,35 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct snc_packet *p
         }
         free(pkt_coes);
 
-        if ((dec_ctx->local_DoF >= dec_ctx->sc->snum) && (dec_ctx->overhead >= (dec_ctx->sc->snum+dec_ctx->aoh))) {
+        if (dec_ctx->local_DoF >= (dec_ctx->sc->snum+dec_ctx->aoh)) {
             dec_ctx->OA_ready = 1;
             // When OA ready, convert LDMs to upper triangular form
             long ops = running_matrix_to_REF(dec_ctx);
             dec_ctx->operations += ops;
             dec_ctx->ops1 += ops;
+            // Record time used between processing the first received packet and OA ready
+            if (get_loglevel() == TRACE) {
+                printf("Local processing took %.6f seconds\n", ((double) (clock()-l_proc_start))/CLOCKS_PER_SEC);
+            }
             // Combine LDMs to GDM and apply inactivation pivoting
+            clock_t start, stop;
+            start = clock();
             construct_GDM(dec_ctx);
+            stop = clock();
+            if (get_loglevel() == TRACE) {
+                printf("Construct GDM took %.6f seconds\n", ((double) (stop-start))/CLOCKS_PER_SEC);
+            }
 
             // If numpp innovative packets are received, recover all
             // source packets from JMBcoeffcient and JMBmessage
-            if (dec_ctx->global_DoF == numpp)
+            if (dec_ctx->global_DoF == numpp) {
+                start = clock();
                 diagonalize_GDM(dec_ctx);
+                stop = clock();
+                if (get_loglevel() == TRACE) {
+                    printf("Diagonalize GDM took %.6f seconds\n", ((double) (stop-start))/CLOCKS_PER_SEC);
+                }
+            }
         }
     } else {
         /*
@@ -242,7 +263,13 @@ void process_packet_OA(struct decoding_context_OA *dec_ctx, struct snc_packet *p
 
             if (dec_ctx->global_DoF == numpp) {
                 // recover all source from JMBcoeffcient & JMBmessage matrix
+                clock_t start, stop;
+                start = clock();
                 diagonalize_GDM(dec_ctx);
+                stop = clock();
+                if (get_loglevel() == TRACE) {
+                    printf("Diagonalize GDM took %.6f seconds\n", ((double) (stop-start))/CLOCKS_PER_SEC);
+                }
             }
         }
         free(re_ordered);
@@ -534,6 +561,8 @@ static void construct_GDM(struct decoding_context_OA *dec_ctx)
     dec_ctx->Matrices = NULL;
 
     /* Transform GDM to upper trianguler via pivoting */
+    clock_t start_pivoting, stop_pivoting;
+    start_pivoting = clock();
     long long ops;
     if (getenv("SNC_OA_ONEROUND") != NULL
          && atoi(getenv("SNC_OA_ONEROUND")) == 1) {
@@ -541,6 +570,7 @@ static void construct_GDM(struct decoding_context_OA *dec_ctx)
     } else {
         ops = pivot_matrix_tworound(numpp+dec_ctx->aoh, numpp, pktsize, dec_ctx->JMBcoefficient, dec_ctx->JMBmessage, &dec_ctx->ctoo_r, &dec_ctx->ctoo_c, &(dec_ctx->inactives));
     }
+    stop_pivoting = clock();
     dec_ctx->operations += ops;
     dec_ctx->ops2 += ops;
     // Count available degree of freedom
@@ -548,8 +578,11 @@ static void construct_GDM(struct decoding_context_OA *dec_ctx)
         if (dec_ctx->JMBcoefficient[dec_ctx->ctoo_r[i]][dec_ctx->ctoo_c[i]] != 0)
             dec_ctx->global_DoF++;
     }
-    if (get_loglevel() == TRACE)
+    double pivot_time = ((double) (stop_pivoting - start_pivoting)) / CLOCKS_PER_SEC;
+    if (get_loglevel() == TRACE) {
+        printf("Pivoting and forward substitution in total consumed %.6f seconds.\n", pivot_time);
         printf("A total of %d DoF have been received.\n", dec_ctx->global_DoF);
+    }
 }
 
 /**
