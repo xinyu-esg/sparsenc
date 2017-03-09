@@ -84,7 +84,7 @@ class snc_buffer(Structure):
     pass
 
 
-snc = cdll.LoadLibrary("libsparsenc.so")
+snc = cdll.LoadLibrary("./libsparsenc.so")
 
 ##########################
 # Wrap encoder functions #

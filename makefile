@@ -50,32 +50,32 @@ CBDDEC  := $(OBJDIR)/decoderCBD.o
 PPDEC   := $(OBJDIR)/decoderPP.o
 
 .PHONY: all
-all: sncDecoder sncDecoderFile sncRecoder2Hop sncRestore
+all: sncDecoders sncDecodersFile sncRecoder-n-Hop sncRestore
 
 libsparsenc.so: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC) $(PPDEC) $(RECODER) $(DECODER)
 	$(CC) -shared -o libsparsenc.so $^
 	
 #Test snc decoder
 sncDecoders: libsparsenc.so test.decoders.c
-	$(CC) -L. -lsparsenc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+	$(CC) -o $@ $^ -L. -lsparsenc -Wl,-rpath=. $(CFLAGS0) $(CFLAGS1)
 #Test snc decoder linked statically
 sncDecoderST: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC) $(PPDEC) $(RECODER) $(DECODER) test.decoders.c
-	$(CC) -o $@ $(CFLAGS0) $(CFLAGS1) $^
+	$(CC) -o $@ $^ $(CFLAGS0) $(CFLAGS1)
 #Test snc store/restore decoder
 sncRestore: libsparsenc.so test.restore.c
-	$(CC) -L. -lsparsenc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+	$(CC) -o $@ $^ -L. -lsparsenc -Wl,-rpath=. $(CFLAGS0) $(CFLAGS1)
 #Test decoder for files
 sncDecodersFile: libsparsenc.so test.file.decoders.c
-	$(CC) -L. -lsparsenc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+	$(CC) -o $@ $^ -L. -lsparsenc -Wl,-rpath=. $(CFLAGS0) $(CFLAGS1)
 #Test recoder
 sncRecoder-n-Hop: libsparsenc.so test.nhopRecoder.c
-	$(CC) -L. -lsparsenc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+	$(CC) -o $@ $^ -L. -lsparsenc -Wl,-rpath=. $(CFLAGS0) $(CFLAGS1)
 #Test recoder, statically linked
 sncRecoder-n-Hop-ST: $(GNCENC) $(GGDEC) $(OADEC) $(BDDEC) $(CBDDEC) $(PPDEC) $(RECODER) $(DECODER) test.nhopRecoder.c
-	$(CC) -o $@ $(CFLAGS0) $(CFLAGS1) $^
+	$(CC) -o $@ $^ $(CFLAGS0) $(CFLAGS1)
 #Test recoder
 sncRecoderFly: libsparsenc.so test.butterfly.c
-	$(CC) -L. -lsparsenc -o $@ $(CFLAGS0) $(CFLAGS1) $^
+	$(CC) -o $@ $^ -L. -lsparsenc -Wl,-rpath=. $(CFLAGS0) $(CFLAGS1)
 
 $(OBJDIR)/%.o: $(OBJDIR)/%.c $(DEFS)
 	$(CC) -c -fpic -o $@ $< $(CFLAGS0) $(CFLAGS1) $(CFLAGS2)
@@ -86,11 +86,12 @@ clean:
 
 install: libsparsenc.so
 	cp include/sparsenc.h /usr/include/
-	if [[ `uname -a | grep -o x86_64` == "x86_64" ]]; then \
-		cp libsparsenc.so /usr/lib64/; \
-	else \
-		cp libsparsenc.so /usr/lib/; \
-	fi
+	cp libsparsenc.so /usr/lib/
+	# if [[ `uname -a | grep -o x86_64` == "x86_64" ]]; then \
+	# 	cp libsparsenc.so /usr/lib64/; \
+	# else \
+	# 	cp libsparsenc.so /usr/lib/; \
+	# fi
 
 .PHONY: uninstall
 uninstall:

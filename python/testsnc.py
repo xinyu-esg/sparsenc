@@ -62,7 +62,7 @@ while chunks > 0:
     else:
         toEncode = remaining
     cnum = LDPC_check_num(source_num(toEncode, 1280), 0.01)
-    sp = snc_parameters(toEncode, 1280, cnum, 32, 64, c_type, 1, 1, 0, -1)
+    sp = snc_parameters(toEncode, 1280, int(cnum), 32, 64, c_type, 1, 1, 0, -1)
     sc = snc.snc_create_enc_context(None, byref(sp))
     snc.snc_load_file_to_context(c_char_p(filename.encode()),
                                  offset, sc)  # Load file to snc_context
